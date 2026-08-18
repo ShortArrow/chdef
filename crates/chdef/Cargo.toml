@@ -1,0 +1,15 @@
+[package]
+name = "chdef"
+description = "Channel / bit-field definitions (CH設定 / BF設定): CSV parsing, frame layout, raw↔physical conversion"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["csv", "telemetry", "bitfield", "channel", "codec"]
+categories = ["parsing", "encoding"]
+
+[dependencies]
+serde = { workspace = true }
+csv = { workspace = true }
+thiserror = { workspace = true }
