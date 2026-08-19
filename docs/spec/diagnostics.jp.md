@@ -2,7 +2,7 @@
 
 🌐 [English](./diagnostics.md) | **日本語**
 
-実装済み（0.0.1）: なし（`番号` 非整数行の読み飛ばしは行うが Issue は返さない。CSV 構造エラーは行番号つきエラー）。
+実装済み（0.0.2）: `Issue` 型、全ローダーの戻り値 `Parsed { value, issues }`、および下表のコードのうち `bf_bit_out_of_range`・`bf_parent_not_bitfield`・`layout_exceeds_capacity` を除く全部。除いた 3 つは CH 定義や `capacity` を BF 行と同時に受け取る入口がまだないため未実装。
 
 ## 1. 原則
 

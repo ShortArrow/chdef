@@ -5,11 +5,14 @@
 //! type is `BF`. Columns are found by header name, spelled in English or
 //! Japanese. This crate parses both files, computes the frame layout, and
 //! converts between raw bytes and physical values (`raw * lsb + offset`).
+//! A problem in one row never stops loading; it comes back as an [`Issue`]
+//! next to the value.
 
 pub mod channel;
 pub mod columns;
 pub mod csv;
 pub mod error;
+pub mod issue;
 
 pub use channel::{build_layout, BitFieldDef, ChannelDef, ChannelLayout, DataType, Endian};
 pub use columns::{BfColumn, ChColumn, ColumnMap, HeaderLanguage};
@@ -17,3 +20,4 @@ pub use csv::{
     load_bf_csv, load_ch_csv, parse_bf_csv, parse_bf_csv_bytes, parse_ch_csv, parse_ch_csv_bytes,
 };
 pub use error::{ChdefError, Result};
+pub use issue::{Issue, IssueCode, Parsed};

@@ -202,7 +202,9 @@ pub struct BitFieldDef {
     pub parent_channel: u32,
     pub bit_number: u8,
     pub name: String,
-    pub default_value: u8,
+    /// Optional protocol-spec default of the bit (`0` / `1`); `None` keeps
+    /// the default bit of the parent channel.
+    pub default_value: Option<u8>,
 }
 
 #[derive(Debug, Clone)]
@@ -212,11 +214,30 @@ pub struct ChannelLayout {
     pub total_bytes: usize,
 }
 
+/// Build the Layout stage from parsed Rows: duplicates are dropped (the
+/// first `number`, and the first `(number, bit)`, win; the parser already
+/// reported them as Issues) and `total_bytes` is the sum of the remaining
+/// channel widths in row order.
 pub fn build_layout(channels: Vec<ChannelDef>, bitfields: Vec<BitFieldDef>) -> ChannelLayout {
-    let total_bytes = channels.iter().map(|ch| ch.byte_count).sum();
+    let mut unique_channels: Vec<ChannelDef> = Vec::new();
+    for ch in channels {
+        if !unique_channels.iter().any(|c| c.number == ch.number) {
+            unique_channels.push(ch);
+        }
+    }
+    let mut unique_bitfields: Vec<BitFieldDef> = Vec::new();
+    for bf in bitfields {
+        if !unique_bitfields
+            .iter()
+            .any(|b| b.parent_channel == bf.parent_channel && b.bit_number == bf.bit_number)
+        {
+            unique_bitfields.push(bf);
+        }
+    }
+    let total_bytes = unique_channels.iter().map(|ch| ch.byte_count).sum();
     ChannelLayout {
-        channels,
-        bitfields,
+        channels: unique_channels,
+        bitfields: unique_bitfields,
         total_bytes,
     }
 }
@@ -509,5 +530,43 @@ mod tests {
         let raw = 1_000_000i32.to_le_bytes();
         let formatted = ch.format_value(&raw);
         assert!(formatted.contains("0.0419"), "Got: {}", formatted);
+    }
+
+    #[test]
+    fn build_layout_keeps_the_first_of_duplicate_numbers() {
+        let dup = |number: u32, byte_count: usize| ChannelDef {
+            number,
+            name: String::new(),
+            byte_count,
+            data_type: DataType::UI16,
+            lsb: 1.0,
+            offset: 0.0,
+            unit: String::new(),
+            default_value: None,
+        };
+
+        let layout = build_layout(vec![dup(1, 2), dup(1, 4), dup(2, 1)], vec![]);
+
+        assert_eq!(layout.channels.len(), 2);
+        assert_eq!(layout.channels[0].byte_count, 2);
+        assert_eq!(layout.total_bytes, 3);
+    }
+
+    #[test]
+    fn build_layout_keeps_the_first_of_duplicate_bits() {
+        let bf = |bit: u8, name: &str| BitFieldDef {
+            parent_channel: 2,
+            bit_number: bit,
+            name: name.into(),
+            default_value: None,
+        };
+
+        let layout = build_layout(
+            vec![],
+            vec![bf(0, "first"), bf(0, "second"), bf(1, "other")],
+        );
+
+        assert_eq!(layout.bitfields.len(), 2);
+        assert_eq!(layout.bitfields[0].name, "first");
     }
 }

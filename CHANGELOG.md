@@ -28,11 +28,26 @@ tag, published to crates.io.
   for a consumer that holds no path (a file dialog returning a stream, a
   browser file input). They drop leading BOMs and decode as UTF-8, failing
   with `ChdefError::Encoding { valid_up_to }` on anything else (ADR-0004).
+- `Issue` / `IssueCode` / `Parsed`: a problem in one row no longer stops
+  loading — every readable row is read and the problem comes back as an
+  `Issue { code, row, col, message }` next to the value
+  (`docs/spec/diagnostics.md`). 16 of the 19 specified codes are emitted;
+  `bf_bit_out_of_range`, `bf_parent_not_bitfield` and
+  `layout_exceeds_capacity` need cross-file input and are still open.
+- Blank rows and rows whose first cell starts with `#` are skipped without
+  an Issue.
 
 ### Changed
 - `load_ch_csv` / `load_bf_csv` take `impl AsRef<Path>` instead of `&str`, so
   a `PathBuf` and a path that is not valid Unicode both go through. Calls
   passing a string literal are unaffected.
+- `parse_ch_csv` / `parse_bf_csv` / their `_bytes` and `load_` forms return
+  `Parsed<Vec<…>>` (value plus Issues) instead of a bare `Vec`, and keep
+  duplicate rows; `build_layout` now drops duplicates first-wins.
+- `BitFieldDef::default_value` is `Option<u8>`: an empty or invalid BF
+  `default` is unspecified (the parent channel's bit is kept), no longer 0.
+- `ChannelDef::lsb` is stored resolved: an empty, `0`, or invalid `lsb`
+  arrives as `1.0` instead of `0.0`.
 - `parse_ch_csv` / `parse_bf_csv` locate every column by header name instead
   of position; the default column matches exact spellings (`default`,
   `値(デフォルト)`, `デフォルト値`, `DefaultValue`) rather than any header

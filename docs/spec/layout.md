@@ -2,9 +2,10 @@
 
 🌐 **English** | [日本語](./layout.jp.md)
 
-Implemented (0.0.1): cumulative positions and total byte count
-(`ChannelLayout::channel_offset` / `total_bytes`). Duplicates, capacity and
-the separation into stages are not implemented yet.
+Implemented (0.0.2): cumulative positions and total byte count
+(`ChannelLayout::channel_offset` / `total_bytes`); the Rows / Layout split
+(`parse_*` keeps duplicates, `build_layout` drops them first-wins). The
+Table stage, `capacity` and the BF cross-checks are not implemented yet.
 
 ## 1. Three stages
 

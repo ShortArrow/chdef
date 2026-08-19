@@ -2,7 +2,7 @@
 
 🌐 [English](./layout.md) | **日本語**
 
-実装済み（0.0.1）: 位置の累積計算と合計バイト数（`ChannelLayout::channel_offset` / `total_bytes`）。重複・容量・段階の分離は未実装。
+実装済み（0.0.2）: 位置の累積計算と合計バイト数（`ChannelLayout::channel_offset` / `total_bytes`）、Rows / Layout の分離（`parse_*` は重複を保持し、`build_layout` が先勝ちで落とす）。Table 段階・`capacity`・BF の横断検査は未実装。
 
 ## 1. 三つの段階
 

@@ -2,12 +2,13 @@
 
 🌐 **English** | [日本語](./format.jp.md)
 
-Implemented (0.0.2): BOM stripping, column identification by header name
-in English or Japanese with the 9-column positional fallback, skipping rows
-whose `number` is not an integer, `type` prefix and width, `bytes` falling
-back to the type width, `default` in `0x` / decimal, `parse_*_csv_bytes` for byte input, and
-`load_*_csv` over any `AsRef<Path>`. Everything else below is not
-implemented yet.
+Implemented (0.0.2): BOM stripping; column identification by header name
+in English or Japanese with the 9-column positional fallback; blank rows
+and `#` rows; the column interpretations below with their Issues, except
+that `section` / `min` / `max` / `memo` / `var` / `favorite` are not yet
+carried on `ChannelDef` and `format` is only checked, not carried;
+`parse_*_csv_bytes` for byte input; `load_*_csv` over any `AsRef<Path>`.
+Writing is entirely unimplemented.
 
 ## 1. File
 

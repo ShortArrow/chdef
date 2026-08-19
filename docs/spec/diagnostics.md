@@ -2,8 +2,11 @@
 
 🌐 **English** | [日本語](./diagnostics.jp.md)
 
-Implemented (0.0.1): none (rows whose `number` is not an integer are skipped
-but no Issue is returned; CSV structure errors carry a row number).
+Implemented (0.0.2): the `Issue` type, `Parsed { value, issues }` as the
+return shape of every loader, and every code below except
+`bf_bit_out_of_range`, `bf_parent_not_bitfield` and
+`layout_exceeds_capacity` — those need the CH definitions or a `capacity`
+next to the BF rows, and no entry point takes them together yet.
 
 ## 1. Principles
 
