@@ -45,7 +45,8 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 
 ```
 Error::Io { path, source }
-Error::Csv { row, message }     // 構造エラー（閉じない引用符など）
+Error::Csv { row, message }      // 構造エラー（閉じない引用符など）
+Error::Encoding { valid_up_to }  // UTF-8 として解釈できないバイト列
 ```
 
 行単位の Issue と違い、エラー時は結果を返さない。利用側は「読み切れたら差し替える」（失敗したら直前の定義を残す）を実装しやすい。

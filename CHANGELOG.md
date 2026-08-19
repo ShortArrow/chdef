@@ -24,8 +24,15 @@ tag, published to crates.io.
   identified by header name in English (`number,bytes,…`) or Japanese
   (`番号,バイト数,…`), case-insensitively; a first row without a `number`
   column is data in canonical order (ADR-0003).
+- `parse_ch_csv_bytes` / `parse_bf_csv_bytes`: parse a CH / BF CSV from bytes
+  for a consumer that holds no path (a file dialog returning a stream, a
+  browser file input). They drop leading BOMs and decode as UTF-8, failing
+  with `ChdefError::Encoding { valid_up_to }` on anything else (ADR-0004).
 
 ### Changed
+- `load_ch_csv` / `load_bf_csv` take `impl AsRef<Path>` instead of `&str`, so
+  a `PathBuf` and a path that is not valid Unicode both go through. Calls
+  passing a string literal are unaffected.
 - `parse_ch_csv` / `parse_bf_csv` locate every column by header name instead
   of position; the default column matches exact spellings (`default`,
   `値(デフォルト)`, `デフォルト値`, `DefaultValue`) rather than any header

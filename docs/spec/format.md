@@ -5,8 +5,9 @@
 Implemented (0.0.2): BOM stripping, column identification by header name
 in English or Japanese with the 9-column positional fallback, skipping rows
 whose `number` is not an integer, `type` prefix and width, `bytes` falling
-back to the type width, `default` in `0x` / decimal. Everything else below is
-not implemented yet.
+back to the type width, `default` in `0x` / decimal, `parse_*_csv_bytes` for byte input, and
+`load_*_csv` over any `AsRef<Path>`. Everything else below is not
+implemented yet.
 
 ## 1. File
 
@@ -20,6 +21,12 @@ not implemented yet.
 | Blank row | A row whose cells are all empty is skipped (no Issue) | — |
 | Comment row | A row whose first cell starts with `#` is skipped (no Issue) | — |
 | Empty file / header only | Zero channels, no Issue | — |
+
+**Who decodes**: chdef reads UTF-8 and does not guess. `parse_ch_csv` takes
+text the caller has already decoded; `parse_ch_csv_bytes` takes bytes, drops
+the BOM and decodes as UTF-8, and reports the offset at which decoding
+stopped. A file a spreadsheet wrote in CP932 is the consumer's to decode
+before either call.
 
 **Why quote**: if a cell containing a newline is written unquoted, the next
 read splits one row into several records, and the trailing fragments become

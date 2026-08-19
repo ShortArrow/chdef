@@ -1,12 +1,21 @@
 use std::io::Read;
+use std::path::Path;
 
 use crate::channel::{BitFieldDef, ChannelDef, DataType};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::error::{ChdefError, Result};
 
-/// Load a CH CSV from `path` (see [`parse_ch_csv`]).
-pub fn load_ch_csv(path: &str) -> Result<Vec<ChannelDef>> {
-    parse_ch_csv(&read_to_string(path)?)
+/// Load a CH CSV from `path` (see [`parse_ch_csv`]). The only part of the
+/// crate that reads the filesystem; a consumer holding bytes calls
+/// [`parse_ch_csv_bytes`] instead.
+pub fn load_ch_csv(path: impl AsRef<Path>) -> Result<Vec<ChannelDef>> {
+    parse_ch_csv(&read_to_string(path.as_ref())?)
+}
+
+/// Parse CH CSV bytes: strip any leading BOMs, decode as UTF-8, then
+/// [`parse_ch_csv`]. Bytes in another encoding are the caller's to decode.
+pub fn parse_ch_csv_bytes(bytes: &[u8]) -> Result<Vec<ChannelDef>> {
+    parse_ch_csv(decode_utf8(bytes)?)
 }
 
 /// Parse CH CSV text. A leading \u{FEFF} is ignored. Columns are identified
@@ -98,9 +107,17 @@ fn parse_uint(s: &str) -> Option<u32> {
     }
 }
 
-/// Load a BF CSV from `path` (see [`parse_bf_csv`]).
-pub fn load_bf_csv(path: &str) -> Result<Vec<BitFieldDef>> {
-    parse_bf_csv(&read_to_string(path)?)
+/// Load a BF CSV from `path` (see [`parse_bf_csv`]). The only part of the
+/// crate that reads the filesystem; a consumer holding bytes calls
+/// [`parse_bf_csv_bytes`] instead.
+pub fn load_bf_csv(path: impl AsRef<Path>) -> Result<Vec<BitFieldDef>> {
+    parse_bf_csv(&read_to_string(path.as_ref())?)
+}
+
+/// Parse BF CSV bytes: strip any leading BOMs, decode as UTF-8, then
+/// [`parse_bf_csv`]. Bytes in another encoding are the caller's to decode.
+pub fn parse_bf_csv_bytes(bytes: &[u8]) -> Result<Vec<BitFieldDef>> {
+    parse_bf_csv(decode_utf8(bytes)?)
 }
 
 /// Parse BF CSV text. A leading \u{FEFF} is ignored. Columns are identified
@@ -137,12 +154,29 @@ pub fn parse_bf_csv(content: &str) -> Result<Vec<BitFieldDef>> {
     Ok(bitfields)
 }
 
-fn read_to_string(path: &str) -> Result<String> {
+/// Drop every leading BOM and decode the rest as UTF-8. `valid_up_to` of the
+/// error counts from the start of `bytes`, BOMs included, so it points into
+/// what the caller passed.
+fn decode_utf8(bytes: &[u8]) -> Result<&str> {
+    const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+
+    let mut body = bytes;
+    while let Some(rest) = body.strip_prefix(&BOM) {
+        body = rest;
+    }
+    let stripped = bytes.len() - body.len();
+
+    std::str::from_utf8(body).map_err(|e| ChdefError::Encoding {
+        valid_up_to: stripped + e.valid_up_to(),
+    })
+}
+
+fn read_to_string(path: &Path) -> Result<String> {
     let mut content = String::new();
     std::fs::File::open(path)
         .and_then(|mut f| f.read_to_string(&mut content))
         .map_err(|source| ChdefError::Io {
-            path: path.to_string(),
+            path: path.display().to_string(),
             source,
         })?;
     Ok(content)
@@ -291,5 +325,62 @@ mod tests {
     fn load_ch_csv_reports_missing_file_with_path() {
         let err = load_ch_csv("does/not/exist.csv").unwrap_err();
         assert!(err.to_string().contains("does/not/exist.csv"));
+    }
+
+    #[test]
+    fn parse_ch_csv_bytes_ignores_leading_boms() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&[0xEF, 0xBB, 0xBF, 0xEF, 0xBB, 0xBF]);
+        bytes.extend_from_slice(b"number,bytes,name\n1,4,Frame counter\n");
+
+        let channels = parse_ch_csv_bytes(&bytes).unwrap();
+
+        assert_eq!(channels.len(), 1);
+        assert_eq!(channels[0].name, "Frame counter");
+    }
+
+    #[test]
+    fn parse_ch_csv_bytes_reports_where_utf8_decoding_stopped() {
+        let mut bytes = b"number,bytes,name\n1,4,".to_vec();
+        let invalid_at = bytes.len();
+        bytes.extend_from_slice(&[0x94, 0xD4]); // 番 in CP932
+        bytes.push(b'\n');
+
+        let err = parse_ch_csv_bytes(&bytes).unwrap_err();
+
+        assert!(matches!(err, ChdefError::Encoding { valid_up_to } if valid_up_to == invalid_at));
+    }
+
+    #[test]
+    fn parse_ch_csv_bytes_counts_the_bom_it_stripped() {
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(b"number,bytes,name\n1,4,");
+        let invalid_at = bytes.len();
+        bytes.extend_from_slice(&[0x94, 0xD4]);
+
+        let err = parse_ch_csv_bytes(&bytes).unwrap_err();
+
+        assert!(matches!(err, ChdefError::Encoding { valid_up_to } if valid_up_to == invalid_at));
+    }
+
+    #[test]
+    fn parse_bf_csv_bytes_from_bytes() {
+        let bytes = b"number,bit,name,default\n2,1,Enabled,1\n";
+
+        let bitfields = parse_bf_csv_bytes(bytes).unwrap();
+
+        assert_eq!(bitfields.len(), 1);
+        assert_eq!(bitfields[0].name, "Enabled");
+    }
+
+    #[test]
+    fn load_ch_csv_takes_anything_that_is_a_path() {
+        let path = std::env::temp_dir().join("chdef_load_ch_csv_takes_a_path.csv");
+        std::fs::write(&path, "number,bytes,name\n1,4,Frame counter\n").unwrap();
+
+        let channels = load_ch_csv(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(channels[0].name, "Frame counter");
     }
 }

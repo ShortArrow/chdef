@@ -13,5 +13,7 @@ pub mod error;
 
 pub use channel::{build_layout, BitFieldDef, ChannelDef, ChannelLayout, DataType, Endian};
 pub use columns::{BfColumn, ChColumn, ColumnMap, HeaderLanguage};
-pub use csv::{load_bf_csv, load_ch_csv, parse_bf_csv, parse_ch_csv};
+pub use csv::{
+    load_bf_csv, load_ch_csv, parse_bf_csv, parse_bf_csv_bytes, parse_ch_csv, parse_ch_csv_bytes,
+};
 pub use error::{ChdefError, Result};

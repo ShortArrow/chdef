@@ -53,7 +53,8 @@ found and what chdef did about it.
 
 ```
 Error::Io { path, source }
-Error::Csv { row, message }     // structural (unterminated quote, …)
+Error::Csv { row, message }      // structural (unterminated quote, …)
+Error::Encoding { valid_up_to }  // bytes that are not UTF-8
 ```
 
 Unlike per-row Issues, an error returns no result. This makes "swap in the
