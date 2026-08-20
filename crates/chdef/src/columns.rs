@@ -2,13 +2,6 @@
 //! spelled in. Every column has an English and a Japanese canonical spelling
 //! plus aliases; header cells are matched case-insensitively after trimming.
 
-/// Language of the header spellings chdef writes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HeaderLanguage {
-    En,
-    Ja,
-}
-
 /// A column of a CH CSV.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChColumn {
@@ -64,14 +57,6 @@ impl ChColumn {
         ChColumn::Unit,
     ];
 
-    /// Canonical spelling in the given language.
-    pub fn name(self, lang: HeaderLanguage) -> &'static str {
-        match lang {
-            HeaderLanguage::En => self.spellings()[0],
-            HeaderLanguage::Ja => self.spellings()[1],
-        }
-    }
-
     /// English canonical, Japanese canonical, then aliases.
     fn spellings(self) -> &'static [&'static str] {
         match self {
@@ -122,14 +107,6 @@ impl BfColumn {
         BfColumn::Default,
         BfColumn::Memo,
     ];
-
-    /// Canonical spelling in the given language.
-    pub fn name(self, lang: HeaderLanguage) -> &'static str {
-        match lang {
-            HeaderLanguage::En => self.spellings()[0],
-            HeaderLanguage::Ja => self.spellings()[1],
-        }
-    }
 
     fn spellings(self) -> &'static [&'static str] {
         match self {
@@ -253,12 +230,12 @@ mod tests {
 
     #[test]
     fn canonical_names_round_trip_in_both_languages() {
-        for lang in [HeaderLanguage::En, HeaderLanguage::Ja] {
+        for lang in [0, 1] {
             for c in ChColumn::CANONICAL {
-                assert_eq!(ChColumn::from_header(c.name(lang)), Some(c));
+                assert_eq!(ChColumn::from_header(c.spellings()[lang]), Some(c));
             }
             for c in BfColumn::CANONICAL {
-                assert_eq!(BfColumn::from_header(c.name(lang)), Some(c));
+                assert_eq!(BfColumn::from_header(c.spellings()[lang]), Some(c));
             }
         }
     }

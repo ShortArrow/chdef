@@ -36,6 +36,11 @@ tag, published to crates.io.
   `layout_exceeds_capacity` need cross-file input and are still open.
 - Blank rows and rows whose first cell starts with `#` are skipped without
   an Issue.
+- `ChannelDef::new` / `BitFieldDef::new`: construct a definition with its
+  identity; every other field starts at its unspecified value and is set
+  directly (ADR-0005).
+- `serde` became an opt-in feature; the default build no longer depends on
+  it (ADR-0005).
 
 ### Changed
 - `load_ch_csv` / `load_bf_csv` take `impl AsRef<Path>` instead of `&str`, so
@@ -48,6 +53,12 @@ tag, published to crates.io.
   `default` is unspecified (the parent channel's bit is kept), no longer 0.
 - `ChannelDef::lsb` is stored resolved: an empty, `0`, or invalid `lsb`
   arrives as `1.0` instead of `0.0`.
+- The public surface is the crate root only (ADR-0005): the `channel` /
+  `columns` / `csv` / `error` / `issue` module paths are private, and
+  `ChColumn` / `BfColumn` / `ColumnMap` / `HeaderLanguage` are withdrawn
+  until the writer exists. `ChannelDef`, `BitFieldDef`, `ChannelLayout` and
+  `DataType` are `#[non_exhaustive]`, so the fields and variants the
+  specification already promises can arrive without breaking callers.
 - `parse_ch_csv` / `parse_bf_csv` locate every column by header name instead
   of position; the default column matches exact spellings (`default`,
   `値(デフォルト)`, `デフォルト値`, `DefaultValue`) rather than any header

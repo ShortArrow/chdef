@@ -22,7 +22,7 @@ pub fn parse_ch_csv_bytes(bytes: &[u8]) -> Result<Parsed<Vec<ChannelDef>>> {
 /// Parse CH CSV text into Rows: every readable row, duplicates included,
 /// plus the [`Issue`]s found on the way ([`build_layout`] drops the
 /// duplicates). Columns are identified by header name in English or Japanese
-/// ([`ChColumn`]); a first row without a `number` column is data, and the
+/// (`docs/spec/format.md` §2); a first row without a `number` column is data, and the
 /// first 9 columns are taken in canonical order. Blank rows and rows whose
 /// first cell starts with `#` are skipped without an Issue. A column absent
 /// from the header is unspecified and raises no Issue; a broken cell in a
@@ -246,7 +246,7 @@ pub fn parse_bf_csv_bytes(bytes: &[u8]) -> Result<Parsed<Vec<BitFieldDef>>> {
 /// Parse BF CSV text into Rows: every readable row, duplicates included,
 /// plus the [`Issue`]s found on the way ([`build_layout`] drops the
 /// duplicates). Columns are identified by header name in English or Japanese
-/// ([`BfColumn`]); a first row without a `number` column is data in canonical
+/// (`docs/spec/format.md` §2); a first row without a `number` column is data in canonical
 /// order. Blank rows and rows whose first cell starts with `#` are skipped
 /// without an Issue. Whether a bit fits its parent channel is not checked
 /// here — the parent lives in the CH CSV.

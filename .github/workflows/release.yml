@@ -22,7 +22,9 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Test
-        run: cargo test --workspace --locked
+        run: |
+          cargo test --workspace --locked
+          cargo test --workspace --locked --all-features
 
   publish-crates:
     # Publish to crates.io via OIDC Trusted Publishing (no long-lived token).

@@ -1,14 +1,17 @@
-use serde::{Deserialize, Serialize};
-
 /// Byte order of multi-byte channels on the wire.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Endian {
     #[default]
     Little,
     Big,
 }
 
+/// Interpretation of a channel's bytes. Wider widths may become variants
+/// (the specification already names 64-bit suffixes), so matches need a
+/// catch-all arm.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
     UI8,
@@ -29,7 +32,7 @@ impl DataType {
         }
     }
 
-    pub fn resolve(parsed: Self, byte_count: usize) -> Self {
+    pub(crate) fn resolve(parsed: Self, byte_count: usize) -> Self {
         match parsed {
             DataType::BF => DataType::BF,
             ref dt if dt.category() == "SI" => match byte_count {
@@ -45,7 +48,7 @@ impl DataType {
         }
     }
 
-    pub fn category(&self) -> &'static str {
+    pub(crate) fn category(&self) -> &'static str {
         match self {
             DataType::UI8 | DataType::UI16 | DataType::UI32 => "UI",
             DataType::SI8 | DataType::SI16 | DataType::SI32 => "SI",
@@ -56,30 +59,26 @@ impl DataType {
     pub fn is_bitfield(&self) -> bool {
         matches!(self, DataType::BF)
     }
-
-    pub fn parse(s: &str) -> Option<(Self, usize)> {
-        let s = s.trim();
-        if s.is_empty() {
-            return None;
-        }
-
-        let prefix = if s.len() >= 2 { &s[..2] } else { s };
-        let bits_str = if s.len() > 2 { &s[2..] } else { "" };
-        let bits: Option<usize> = bits_str.parse().ok();
-
-        match (prefix.to_uppercase().as_str(), bits) {
-            ("UI", Some(8)) => Some((DataType::UI8, 1)),
-            ("UI", Some(16)) | ("UI", None) => Some((DataType::UI16, 2)),
-            ("UI", Some(32)) => Some((DataType::UI32, 4)),
-            ("SI", Some(8)) => Some((DataType::SI8, 1)),
-            ("SI", Some(16)) | ("SI", None) => Some((DataType::SI16, 2)),
-            ("SI", Some(32)) => Some((DataType::SI32, 4)),
-            ("BF", _) => Some((DataType::BF, 2)),
-            _ => None,
-        }
-    }
 }
 
+/// One contiguous field of the frame. A caller constructs one with
+/// [`ChannelDef::new`] and sets the remaining fields directly; the field
+/// list can grow with the specification, so literal construction is
+/// reserved to chdef:
+///
+/// ```compile_fail
+/// let ch = chdef::ChannelDef {
+///     number: 1,
+///     name: String::new(),
+///     byte_count: 2,
+///     data_type: chdef::DataType::UI16,
+///     lsb: 1.0,
+///     offset: 0.0,
+///     unit: String::new(),
+///     default_value: None,
+/// };
+/// ```
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct ChannelDef {
     pub number: u32,
@@ -96,6 +95,28 @@ pub struct ChannelDef {
 }
 
 impl ChannelDef {
+    /// A channel with the given identity and width; every other field starts
+    /// at its unspecified value (`lsb` 1, `offset` 0, empty strings, no
+    /// default) and is set directly:
+    ///
+    /// ```
+    /// let mut ch = chdef::ChannelDef::new(1, 2, chdef::DataType::UI16);
+    /// ch.lsb = 0.1;
+    /// assert_eq!(ch.value_to_raw(2.0), Some(20));
+    /// ```
+    pub fn new(number: u32, byte_count: usize, data_type: DataType) -> Self {
+        ChannelDef {
+            number,
+            name: String::new(),
+            byte_count,
+            data_type,
+            lsb: 1.0,
+            offset: 0.0,
+            unit: String::new(),
+            default_value: None,
+        }
+    }
+
     pub fn raw_to_value(&self, raw_bytes: &[u8]) -> f64 {
         self.raw_to_value_endian(raw_bytes, Endian::Little)
     }
@@ -197,6 +218,9 @@ impl ChannelDef {
     }
 }
 
+/// One named bit of a `BF` channel. Constructed with [`BitFieldDef::new`];
+/// the field list can grow with the specification.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct BitFieldDef {
     pub parent_channel: u32,
@@ -207,6 +231,23 @@ pub struct BitFieldDef {
     pub default_value: Option<u8>,
 }
 
+impl BitFieldDef {
+    /// A bit with the given parent channel and position; `name` and
+    /// `default_value` start unspecified and are set directly.
+    pub fn new(parent_channel: u32, bit_number: u8) -> Self {
+        BitFieldDef {
+            parent_channel,
+            bit_number,
+            name: String::new(),
+            default_value: None,
+        }
+    }
+}
+
+/// The Layout stage: channels with duplicates removed, their order fixing
+/// every position, and the total width. Built by [`build_layout`]; the field
+/// list can grow with the specification (a whole-layout `endian` is specced).
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct ChannelLayout {
     pub channels: Vec<ChannelDef>,
@@ -367,39 +408,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_data_type_ui32() {
-        let (dt, bytes) = DataType::parse("UI32").unwrap();
-        assert_eq!(dt, DataType::UI32);
-        assert_eq!(bytes, 4);
-    }
-
-    #[test]
-    fn parse_data_type_si16() {
-        let (dt, bytes) = DataType::parse("SI16").unwrap();
-        assert_eq!(dt, DataType::SI16);
-        assert_eq!(bytes, 2);
-    }
-
-    #[test]
-    fn parse_data_type_bf() {
-        let (dt, bytes) = DataType::parse("BF").unwrap();
-        assert_eq!(dt, DataType::BF);
-        assert_eq!(bytes, 2);
-    }
-
-    #[test]
-    fn parse_data_type_ui_no_bits_defaults_16() {
-        let (dt, bytes) = DataType::parse("UI").unwrap();
-        assert_eq!(dt, DataType::UI16);
-        assert_eq!(bytes, 2);
-    }
-
-    #[test]
-    fn parse_empty_returns_none() {
-        assert!(DataType::parse("").is_none());
-    }
-
-    #[test]
     fn build_layout_total_bytes() {
         let channels = vec![
             ChannelDef {
@@ -530,6 +538,36 @@ mod tests {
         let raw = 1_000_000i32.to_le_bytes();
         let formatted = ch.format_value(&raw);
         assert!(formatted.contains("0.0419"), "Got: {}", formatted);
+    }
+
+    #[test]
+    fn channel_def_new_starts_at_the_unspecified_values() {
+        let ch = ChannelDef::new(1, 2, DataType::UI16);
+
+        assert_eq!((ch.number, ch.byte_count), (1, 2));
+        assert_eq!(ch.data_type, DataType::UI16);
+        assert_eq!((ch.lsb, ch.offset), (1.0, 0.0));
+        assert_eq!(ch.default_value, None);
+        assert!(ch.name.is_empty() && ch.unit.is_empty());
+    }
+
+    #[test]
+    fn bit_field_def_new_starts_at_the_unspecified_values() {
+        let bf = BitFieldDef::new(2, 3);
+
+        assert_eq!((bf.parent_channel, bf.bit_number), (2, 3));
+        assert_eq!(bf.default_value, None);
+        assert!(bf.name.is_empty());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn endian_serializes_as_a_lowercase_word() {
+        assert_eq!(
+            serde_json::to_string(&Endian::Little).unwrap(),
+            "\"little\""
+        );
+        assert_eq!(serde_json::to_string(&Endian::Big).unwrap(), "\"big\"");
     }
 
     #[test]

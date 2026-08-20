@@ -8,14 +8,13 @@
 //! A problem in one row never stops loading; it comes back as an [`Issue`]
 //! next to the value.
 
-pub mod channel;
-pub mod columns;
-pub mod csv;
-pub mod error;
-pub mod issue;
+mod channel;
+mod columns;
+mod csv;
+mod error;
+mod issue;
 
 pub use channel::{build_layout, BitFieldDef, ChannelDef, ChannelLayout, DataType, Endian};
-pub use columns::{BfColumn, ChColumn, ColumnMap, HeaderLanguage};
 pub use csv::{
     load_bf_csv, load_ch_csv, parse_bf_csv, parse_bf_csv_bytes, parse_ch_csv, parse_ch_csv_bytes,
 };

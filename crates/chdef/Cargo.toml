@@ -10,6 +10,12 @@ keywords = ["csv", "telemetry", "bitfield", "channel", "codec"]
 categories = ["parsing", "encoding"]
 
 [dependencies]
-serde = { workspace = true }
+serde = { workspace = true, optional = true }
 csv = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+serde = ["dep:serde"]
