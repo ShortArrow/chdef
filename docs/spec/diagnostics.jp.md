@@ -43,6 +43,8 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 | `bf_default_invalid` | あり | BF の `値(デフォルト)` が `0` / `1` でない。未指定とみなした |
 | `bf_duplicate` | あり | 同じ `(番号, BIT番号)` が既にある。最初の行だけを使う |
 | `layout_exceeds_capacity` | — | 合計バイト数が `capacity` を超える |
+| `encode_unknown_channel` | — | encode の値がレイアウトに無いチャンネルを指す。無視した |
+| `encode_value_invalid` | — | encode の値が NaN / 無限大。チャンネルの既定値を使った |
 
 ## 3. エラー
 

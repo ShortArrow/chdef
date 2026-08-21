@@ -13,15 +13,34 @@ pub enum Endian {
 /// Interpretation of a channel's bytes. Wider widths may become variants
 /// (the specification already names 64-bit suffixes), so matches need a
 /// catch-all arm.
-/// A `min` / `max` bound as written in the CSV: a plain number is a
-/// physical value; a `0x` value is a raw bit pattern, resolved with the
-/// channel's current `lsb` / `offset` at query time, so a runtime edit of
-/// `lsb` moves it. No conversion applies a bound — the caller opts in via
-/// [`ChannelDef::range_contains`] / [`ChannelDef::clamp_to_range`].
+/// A number carrying its notation, as the CSV and consumer input spell it:
+/// a plain number is a physical value, a `0x` value is a raw bit pattern.
+/// Used by the `min` / `max` bounds (resolved with the channel's current
+/// `lsb` / `offset` at query time, so a runtime edit of `lsb` moves them —
+/// and never applied by a conversion; the caller opts in via
+/// [`ChannelDef::range_contains`] / [`ChannelDef::clamp_to_range`]) and by
+/// the per-channel values handed to [`ChannelLayout::encode`].
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Bound {
+pub enum Value {
     Physical(f64),
     Raw(u64),
+}
+
+impl Value {
+    /// Read consumer input (a form field, a cell) by the notation rule:
+    /// `0x` / `0X` prefix → raw, any other finite number → physical,
+    /// anything else → `None`. Input is trimmed first.
+    pub fn parse(s: &str) -> Option<Value> {
+        let s = s.trim();
+        if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+            u64::from_str_radix(hex, 16).ok().map(Value::Raw)
+        } else {
+            s.parse::<f64>()
+                .ok()
+                .filter(|v| v.is_finite())
+                .map(Value::Physical)
+        }
+    }
 }
 
 #[non_exhaustive]
@@ -106,9 +125,9 @@ pub struct ChannelDef {
     /// constants when the TOML omits an explicit `value`.
     pub default_value: Option<u32>,
     /// Optional lower / upper bound of the physical value (`min` / `max`
-    /// columns). Carried, never applied automatically; see [`Bound`].
-    pub min: Option<Bound>,
-    pub max: Option<Bound>,
+    /// columns). Carried, never applied automatically; see [`Value`].
+    pub min: Option<Value>,
+    pub max: Option<Value>,
 }
 
 impl ChannelDef {
@@ -139,19 +158,19 @@ impl ChannelDef {
     /// The lower bound as a physical value, resolved with the current
     /// `lsb` / `offset`; `None` when `min` is unspecified.
     pub fn min_value(&self) -> Option<f64> {
-        self.min.as_ref().map(|b| self.resolve_bound(b))
+        self.min.as_ref().map(|b| self.resolve_value(b))
     }
 
     /// The upper bound as a physical value, resolved with the current
     /// `lsb` / `offset`; `None` when `max` is unspecified.
     pub fn max_value(&self) -> Option<f64> {
-        self.max.as_ref().map(|b| self.resolve_bound(b))
+        self.max.as_ref().map(|b| self.resolve_value(b))
     }
 
-    fn resolve_bound(&self, bound: &Bound) -> f64 {
-        match *bound {
-            Bound::Physical(v) => v,
-            Bound::Raw(raw) => {
+    fn resolve_value(&self, value: &Value) -> f64 {
+        match *value {
+            Value::Physical(v) => v,
+            Value::Raw(raw) => {
                 let bits = self.bits();
                 let raw_signed = if self.data_type.category() == "SI"
                     && bits < 64
@@ -501,6 +520,92 @@ impl ChannelLayout {
         decoded
     }
 
+    /// Encode a frame (`docs/spec/conversion.md` §5): `total_bytes()` bytes
+    /// in row order under the layout's `endian`. A channel named in
+    /// `values` takes that value — physical converted and clamped per §2,
+    /// raw truncated to the width per §3; the last entry for a number wins.
+    /// Every other channel takes its default (§4). A value naming an
+    /// unknown channel, or one that cannot be converted, is reported as an
+    /// Issue and the frame is built without it.
+    pub fn encode(&self, values: &[(u32, Value)]) -> Parsed<Vec<u8>> {
+        let mut issues = Vec::new();
+        for (number, _) in values {
+            if !self.channels.iter().any(|c| c.number == *number) {
+                issues.push(Issue {
+                    code: IssueCode::EncodeUnknownChannel,
+                    row: None,
+                    col: None,
+                    message: format!(
+                        "channel {number} is not in the layout; the value was ignored."
+                    ),
+                });
+            }
+        }
+
+        let mut frame = Vec::with_capacity(self.total_bytes());
+        for ch in &self.channels {
+            let given = values
+                .iter()
+                .rev()
+                .find(|(n, _)| *n == ch.number)
+                .map(|(_, v)| v);
+            let raw = match given {
+                Some(Value::Raw(r)) => *r,
+                Some(Value::Physical(p)) => match ch.value_to_raw(*p) {
+                    Some(raw) => raw,
+                    None => {
+                        issues.push(Issue {
+                            code: IssueCode::EncodeValueInvalid,
+                            row: None,
+                            col: None,
+                            message: format!(
+                                "the value for channel {} is not a finite number; its default was used.",
+                                ch.number
+                            ),
+                        });
+                        self.default_raw(ch)
+                    }
+                },
+                None => self.default_raw(ch),
+            };
+            frame.extend_from_slice(&ch.raw_to_bytes_endian(raw, self.endian));
+        }
+        Parsed {
+            value: frame,
+            issues,
+        }
+    }
+
+    /// The effective default raw value of a channel
+    /// (`docs/spec/conversion.md` §4): its `default` (0 when unspecified)
+    /// with each BF row's default bit folded in — `1` sets, `0` clears,
+    /// unspecified keeps the channel default's bit. `None` for a channel
+    /// the layout does not have.
+    pub fn channel_default(&self, number: u32) -> Option<u64> {
+        self.channels
+            .iter()
+            .find(|c| c.number == number)
+            .map(|ch| self.default_raw(ch))
+    }
+
+    fn default_raw(&self, ch: &ChannelDef) -> u64 {
+        let mut raw = u64::from(ch.default_value.unwrap_or(0));
+        if ch.data_type.is_bitfield() {
+            for bf in self
+                .bitfields
+                .iter()
+                .filter(|b| b.parent_channel == ch.number && b.bit_number < 64)
+            {
+                match bf.default_value {
+                    Some(1) => raw |= 1 << bf.bit_number,
+                    Some(0) => raw &= !(1 << bf.bit_number),
+                    _ => {}
+                }
+            }
+        }
+        raw
+    }
+
     /// The byte slice of one channel inside `frame`; `None` when the
     /// channel is unknown or overruns the frame.
     pub fn channel_bytes<'f>(&self, number: u32, frame: &'f [u8]) -> Option<&'f [u8]> {
@@ -788,8 +893,8 @@ mod tests {
         let mut ch = ChannelDef::new(1, 2, DataType::UI16);
         ch.lsb = 0.5;
         ch.offset = -5.0;
-        ch.min = Some(Bound::Raw(0x10));
-        ch.max = Some(Bound::Physical(100.0));
+        ch.min = Some(Value::Raw(0x10));
+        ch.max = Some(Value::Physical(100.0));
 
         assert_eq!(ch.min_value(), Some(3.0));
         assert_eq!(ch.max_value(), Some(100.0));
@@ -801,7 +906,7 @@ mod tests {
     #[test]
     fn bound_raw_sign_extends_for_si_channels() {
         let mut ch = ChannelDef::new(1, 1, DataType::SI8);
-        ch.min = Some(Bound::Raw(0xFF));
+        ch.min = Some(Value::Raw(0xFF));
 
         assert_eq!(ch.min_value(), Some(-1.0));
     }
@@ -817,8 +922,8 @@ mod tests {
     #[test]
     fn range_queries_use_the_bounds() {
         let mut ch = ChannelDef::new(1, 2, DataType::UI16);
-        ch.min = Some(Bound::Physical(-40.0));
-        ch.max = Some(Bound::Physical(120.0));
+        ch.min = Some(Value::Physical(-40.0));
+        ch.max = Some(Value::Physical(120.0));
 
         assert!(ch.range_contains(0.0));
         assert!(!ch.range_contains(-40.1));
@@ -991,6 +1096,119 @@ mod tests {
         let b = BitFieldDef::new(2, 3);
         assert_eq!(b.bit_of(0b0000_1000), 1);
         assert_eq!(b.bit_of(0b1111_0111), 0);
+    }
+
+    #[test]
+    fn value_parse_reads_raw_or_physical_notation() {
+        assert_eq!(Value::parse("0x7E"), Some(Value::Raw(0x7E)));
+        assert_eq!(Value::parse(" -1.5 "), Some(Value::Physical(-1.5)));
+        assert_eq!(Value::parse("abc"), None);
+        assert_eq!(Value::parse("0xZZ"), None);
+        assert_eq!(Value::parse("NaN"), None);
+    }
+
+    #[test]
+    fn channel_default_folds_bf_bits_into_the_channel_default() {
+        let bit = |b: u8, dv: Option<u8>| {
+            let mut x = BitFieldDef::new(2, b);
+            x.default_value = dv;
+            x
+        };
+
+        let mut parent = ChannelDef::new(2, 2, DataType::BF);
+        parent.default_value = Some(0x0010);
+        let layout = build_layout(
+            vec![parent],
+            vec![bit(0, Some(1)), bit(2, Some(1)), bit(4, None)],
+        )
+        .value;
+        assert_eq!(layout.channel_default(2), Some(0x0015));
+
+        let mut parent = ChannelDef::new(2, 2, DataType::BF);
+        parent.default_value = Some(0x00FF);
+        let layout = build_layout(vec![parent], vec![bit(0, Some(0)), bit(4, Some(0))]).value;
+        assert_eq!(layout.channel_default(2), Some(0x00EE));
+        assert_eq!(layout.channel_default(9), None);
+    }
+
+    #[test]
+    fn encode_fills_unnamed_channels_with_their_defaults() {
+        let mut a = ChannelDef::new(1, 1, DataType::UI8);
+        a.default_value = Some(0x7E);
+        let b = ChannelDef::new(2, 2, DataType::UI16);
+        let layout = build_layout(vec![a, b], vec![]).value;
+
+        let out = layout.encode(&[]);
+
+        assert!(out.issues.is_empty());
+        assert_eq!(out.value, vec![0x7E, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn encode_converts_physical_and_truncates_raw_values() {
+        let mut a = ChannelDef::new(1, 2, DataType::UI16);
+        a.lsb = 0.5;
+        a.offset = -5.0;
+        let b = ChannelDef::new(2, 1, DataType::UI8);
+        let layout = build_layout(vec![a, b], vec![]).value;
+
+        let out = layout.encode(&[(1, Value::Physical(5.0)), (2, Value::Raw(0x1FF))]);
+
+        assert_eq!(out.value, vec![20, 0, 0xFF]);
+        assert!(out.issues.is_empty());
+    }
+
+    #[test]
+    fn encode_respects_the_layout_endian() {
+        let mut layout = build_layout(vec![ChannelDef::new(1, 2, DataType::UI16)], vec![]).value;
+        layout.endian = Endian::Big;
+
+        assert_eq!(
+            layout.encode(&[(1, Value::Raw(0x1234))]).value,
+            vec![0x12, 0x34]
+        );
+    }
+
+    #[test]
+    fn encode_reports_values_it_cannot_place() {
+        let layout = build_layout(vec![ChannelDef::new(1, 2, DataType::UI16)], vec![]).value;
+
+        let out = layout.encode(&[(9, Value::Raw(1)), (1, Value::Physical(f64::NAN))]);
+
+        assert_eq!(out.value, vec![0, 0]);
+        let codes: Vec<_> = out.issues.iter().map(|i| i.code).collect();
+        assert_eq!(
+            codes,
+            vec![
+                crate::issue::IssueCode::EncodeUnknownChannel,
+                crate::issue::IssueCode::EncodeValueInvalid,
+            ]
+        );
+    }
+
+    #[test]
+    fn encode_lets_the_last_value_for_a_channel_win() {
+        let layout = build_layout(vec![ChannelDef::new(1, 1, DataType::UI8)], vec![]).value;
+
+        let out = layout.encode(&[(1, Value::Raw(1)), (1, Value::Raw(2))]);
+
+        assert_eq!(out.value, vec![2]);
+    }
+
+    #[test]
+    fn decode_reads_back_what_encode_wrote() {
+        let mut a = ChannelDef::new(1, 2, DataType::SI16);
+        a.lsb = 0.1;
+        let b = ChannelDef::new(2, 4, DataType::UI32);
+        let layout = build_layout(vec![a, b], vec![]).value;
+
+        let frame = layout
+            .encode(&[(1, Value::Physical(-1.5)), (2, Value::Raw(0xDEADBEEF))])
+            .value;
+        let decoded = layout.decode(&frame);
+
+        assert_eq!(decoded[0].value, -1.5);
+        assert_eq!(decoded[1].raw, 0xDEADBEEF);
     }
 
     #[test]

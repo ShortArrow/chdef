@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use crate::channel::{BitFieldDef, Bound, ChannelDef, DataType};
+use crate::channel::{BitFieldDef, ChannelDef, DataType, Value};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
@@ -209,9 +209,9 @@ pub(crate) fn interpret_ch(
         let min = match cell(record, ChColumn::Min) {
             None => None,
             Some(s) if s.is_empty() => None,
-            Some(s) => match parse_bound_cell(&s, bits) {
-                BoundCell::Value(b) => Some(b),
-                BoundCell::Overflow { value, masked } => {
+            Some(s) => match parse_value_cell(&s, bits) {
+                ValueCell::Value(b) => Some(b),
+                ValueCell::Overflow { value, masked } => {
                     issue(
                         IssueCode::RawOutOfRange,
                         ChColumn::Min,
@@ -219,9 +219,9 @@ pub(crate) fn interpret_ch(
                             "`min` 0x{value:X} exceeds the {bits}-bit width; the low bits (0x{masked:X}) were used."
                         ),
                     );
-                    Some(Bound::Raw(masked))
+                    Some(Value::Raw(masked))
                 }
-                BoundCell::Invalid => {
+                ValueCell::Invalid => {
                     issue(
                         IssueCode::MinInvalid,
                         ChColumn::Min,
@@ -237,9 +237,9 @@ pub(crate) fn interpret_ch(
         let max = match cell(record, ChColumn::Max) {
             None => None,
             Some(s) if s.is_empty() => None,
-            Some(s) => match parse_bound_cell(&s, bits) {
-                BoundCell::Value(b) => Some(b),
-                BoundCell::Overflow { value, masked } => {
+            Some(s) => match parse_value_cell(&s, bits) {
+                ValueCell::Value(b) => Some(b),
+                ValueCell::Overflow { value, masked } => {
                     issue(
                         IssueCode::RawOutOfRange,
                         ChColumn::Max,
@@ -247,9 +247,9 @@ pub(crate) fn interpret_ch(
                             "`max` 0x{value:X} exceeds the {bits}-bit width; the low bits (0x{masked:X}) were used."
                         ),
                     );
-                    Some(Bound::Raw(masked))
+                    Some(Value::Raw(masked))
                 }
-                BoundCell::Invalid => {
+                ValueCell::Invalid => {
                     issue(
                         IssueCode::MaxInvalid,
                         ChColumn::Max,
@@ -488,29 +488,22 @@ fn parse_type(s: &str) -> Option<(DataType, Option<usize>)> {
 
 /// A `min` / `max` cell as one of its two notations, or the ways it fails:
 /// a `0x` value wider than the channel, or text that is neither notation.
-enum BoundCell {
-    Value(Bound),
+enum ValueCell {
+    Value(Value),
     Overflow { value: u64, masked: u64 },
     Invalid,
 }
 
-/// Read a `min` / `max` cell: `0x` / `0X` prefix → raw bit pattern checked
-/// against `bits`; anything else → finite physical number.
-fn parse_bound_cell(s: &str, bits: u32) -> BoundCell {
-    if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
-        match u64::from_str_radix(hex, 16) {
-            Ok(v) if bits < 64 && v >> bits != 0 => BoundCell::Overflow {
-                value: v,
-                masked: v & ((1u64 << bits) - 1),
-            },
-            Ok(v) => BoundCell::Value(Bound::Raw(v)),
-            Err(_) => BoundCell::Invalid,
-        }
-    } else {
-        match s.parse::<f64>() {
-            Ok(v) if v.is_finite() => BoundCell::Value(Bound::Physical(v)),
-            _ => BoundCell::Invalid,
-        }
+/// Read a `min` / `max` cell by the notation rule ([`Value::parse`]), with
+/// a raw bit pattern additionally checked against `bits`.
+fn parse_value_cell(s: &str, bits: u32) -> ValueCell {
+    match Value::parse(s) {
+        Some(Value::Raw(v)) if bits < 64 && v >> bits != 0 => ValueCell::Overflow {
+            value: v,
+            masked: v & ((1u64 << bits) - 1),
+        },
+        Some(v) => ValueCell::Value(v),
+        None => ValueCell::Invalid,
     }
 }
 
@@ -785,8 +778,8 @@ mod tests {
 
         let parsed = parse_ch_csv(csv_data).unwrap();
 
-        assert_eq!(parsed.value[0].min, Some(Bound::Raw(0x10)));
-        assert_eq!(parsed.value[0].max, Some(Bound::Physical(100.0)));
+        assert_eq!(parsed.value[0].min, Some(Value::Raw(0x10)));
+        assert_eq!(parsed.value[0].max, Some(Value::Physical(100.0)));
         assert_eq!((parsed.value[1].min, parsed.value[1].max), (None, None));
         assert!(parsed.issues.is_empty());
     }
@@ -814,8 +807,8 @@ mod tests {
 
         let parsed = parse_ch_csv(csv_data).unwrap();
 
-        assert_eq!(parsed.value[0].min, Some(Bound::Physical(10.0)));
-        assert_eq!(parsed.value[0].max, Some(Bound::Physical(5.0)));
+        assert_eq!(parsed.value[0].min, Some(Value::Physical(10.0)));
+        assert_eq!(parsed.value[0].max, Some(Value::Physical(5.0)));
         assert_eq!(codes(&parsed.issues), vec![IssueCode::MinMaxSwapped]);
         assert!(!parsed.value[0].range_contains(7.0));
     }
@@ -828,7 +821,7 @@ mod tests {
 
         let parsed = parse_ch_csv(csv_data).unwrap();
 
-        assert_eq!(parsed.value[0].min, Some(Bound::Raw(0xFF)));
+        assert_eq!(parsed.value[0].min, Some(Value::Raw(0xFF)));
         assert_eq!(codes(&parsed.issues), vec![IssueCode::RawOutOfRange]);
     }
 

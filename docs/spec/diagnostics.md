@@ -53,6 +53,8 @@ found and what chdef did about it.
 | `bf_default_invalid` | yes | BF `default` is not `0` / `1`. Treated as unspecified |
 | `bf_duplicate` | yes | The same `(number, bit)` already exists. First row only |
 | `layout_exceeds_capacity` | — | `total_bytes` exceeds `capacity` |
+| `encode_unknown_channel` | — | An encode value names a channel the layout does not have. Ignored |
+| `encode_value_invalid` | — | An encode value is NaN / infinite. The channel default was used |
 
 ## 3. Errors
 

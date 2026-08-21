@@ -5,7 +5,7 @@
 //! and record separators are normalised to `docs/spec/format.md` §1).
 //! Rows and Layout are derived views: interpret again after editing.
 
-use crate::channel::{BitFieldDef, Bound, ChannelDef};
+use crate::channel::{BitFieldDef, ChannelDef, Value};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::csv::{decode_utf8, interpret_bf, interpret_ch, is_blank, is_comment};
 use crate::error::{ChdefError, Result};
@@ -118,10 +118,10 @@ fn shortest(v: f64) -> String {
     format!("{v}")
 }
 
-fn bound_cell(bound: Bound) -> String {
-    match bound {
-        Bound::Physical(v) => shortest(v),
-        Bound::Raw(r) => format!("0x{r:X}"),
+fn value_cell(value: Value) -> String {
+    match value {
+        Value::Physical(v) => shortest(v),
+        Value::Raw(r) => format!("0x{r:X}"),
     }
 }
 
@@ -276,10 +276,10 @@ impl ChTable {
             put(ChColumn::Default, v.to_string());
         }
         if let Some(b) = def.min {
-            put(ChColumn::Min, bound_cell(b));
+            put(ChColumn::Min, value_cell(b));
         }
         if let Some(b) = def.max {
-            put(ChColumn::Max, bound_cell(b));
+            put(ChColumn::Max, value_cell(b));
         }
         row
     }
@@ -359,7 +359,7 @@ impl Default for BfTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::channel::{Bound, ChannelDef, DataType};
+    use crate::channel::{ChannelDef, DataType, Value};
     use crate::issue::IssueCode;
 
     #[test]
@@ -451,8 +451,8 @@ mod tests {
         let mut table = ChTable::new();
         let mut def = ChannelDef::new(1, 2, DataType::SI16);
         def.lsb = 0.1;
-        def.min = Some(Bound::Raw(0x10));
-        def.max = Some(Bound::Physical(50.0));
+        def.min = Some(Value::Raw(0x10));
+        def.max = Some(Value::Physical(50.0));
         def.default_value = Some(126);
 
         table.insert_channel(0, &def);
@@ -462,8 +462,8 @@ mod tests {
         let ch = &parsed.value[0];
         assert_eq!(ch.data_type, DataType::SI16);
         assert_eq!(ch.lsb, 0.1);
-        assert_eq!(ch.min, Some(Bound::Raw(0x10)));
-        assert_eq!(ch.max, Some(Bound::Physical(50.0)));
+        assert_eq!(ch.min, Some(Value::Raw(0x10)));
+        assert_eq!(ch.max, Some(Value::Physical(50.0)));
         assert_eq!(ch.default_value, Some(126));
     }
 

@@ -70,6 +70,11 @@ pub enum IssueCode {
     BfParentNotBitfield,
     /// `total_bytes` exceeds the capacity handed to `check_capacity`.
     LayoutExceedsCapacity,
+    /// An encode value names a channel the layout does not have. Ignored.
+    EncodeUnknownChannel,
+    /// An encode value cannot be converted (NaN / infinite). The channel's
+    /// default was used.
+    EncodeValueInvalid,
 }
 
 impl IssueCode {
@@ -98,6 +103,8 @@ impl IssueCode {
             IssueCode::BfBitOutOfRange => "bf_bit_out_of_range",
             IssueCode::BfParentNotBitfield => "bf_parent_not_bitfield",
             IssueCode::LayoutExceedsCapacity => "layout_exceeds_capacity",
+            IssueCode::EncodeUnknownChannel => "encode_unknown_channel",
+            IssueCode::EncodeValueInvalid => "encode_value_invalid",
         }
     }
 }
@@ -134,6 +141,14 @@ mod tests {
         assert_eq!(
             IssueCode::LayoutExceedsCapacity.as_str(),
             "layout_exceeds_capacity"
+        );
+        assert_eq!(
+            IssueCode::EncodeUnknownChannel.as_str(),
+            "encode_unknown_channel"
+        );
+        assert_eq!(
+            IssueCode::EncodeValueInvalid.as_str(),
+            "encode_value_invalid"
         );
     }
 }

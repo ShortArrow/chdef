@@ -15,3 +15,4 @@ specification and the README never point back at an ADR.
 | [0008](./0008-layout-checks-have-no-rows.md) | 2026-08-21 | build_layout returns Issues, and its Issues carry no row | Accepted |
 | [0009](./0009-table-is-the-editing-substrate.md) | 2026-08-21 | The Table is the editing substrate, and the round trip is cell-level | Accepted |
 | [0010](./0010-renumbering-reports-its-effects.md) | 2026-08-21 | Renumbering shifts both files and reports its effects; outside references are the consumer's | Accepted |
+| [0011](./0011-one-notation-carrying-value-type.md) | 2026-08-21 | One notation-carrying Value type feeds bounds, forms, and encode | Accepted |

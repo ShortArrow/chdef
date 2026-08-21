@@ -8,8 +8,9 @@ and BF, LSB 0 → 1, offset, endian) and physical → raw (`value_to_raw` /
 complement), the raw ↔ bytes primitive pair (`raw_to_bytes_endian` /
 `raw_from_bytes_endian`; the low bits of the width, no rounding, no
 clamp), whole-frame decode (§6, `ChannelLayout::decode`), and the range
-queries of §8. 64-bit physical decode, BF default merging (§4), and
-whole-frame encode (§5) are not implemented yet.
+queries of §8, BF default merging (§4, `ChannelLayout::channel_default`),
+and whole-frame encode (§5, `ChannelLayout::encode`). 64-bit physical
+decode is not implemented yet.
 
 ## 1. Raw → physical
 
@@ -59,12 +60,17 @@ Example: channel default `0x0010`, BF `{BIT0=1, BIT2=1, BIT4=unspecified}`
 
 ## 5. encode (values → frame)
 
-- Input: a physical value, or a raw value (`0x`), per channel. Channels not
-  given use their default.
+- Input: a physical value, or a raw value (`0x`), per channel — the
+  notation-carrying pair `Value::parse` reads. Channels not given use their
+  default (§4). When one channel is named twice, the last entry wins.
 - Output: a byte string of `total_bytes`. Each channel's raw value is written
   at `at` for `bytes` bytes according to `endian`.
 - Values beyond the width are clamped as in §2; raw values keep the low bits
   as in §3.
+- A value naming a channel the layout does not have (Issue
+  `encode_unknown_channel`), or a physical value that is not finite (Issue
+  `encode_value_invalid`; the default is used), is reported — never dropped
+  silently.
 
 ## 6. decode (frame → values)
 

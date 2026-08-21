@@ -55,6 +55,13 @@ tag, published to crates.io.
 - `ChannelLayout::decode` / `channel_bytes` (`conversion.md` §6): slice a
   frame into per-channel bytes with raw and physical readings under the
   layout's `endian`; a channel that overruns a short frame is omitted.
+- `ChannelLayout::encode` / `channel_default` (`conversion.md` §5 / §4,
+  ADR-0011): build a frame from per-channel `Value`s — physical converted
+  and clamped, raw truncated, unnamed channels filled with their default
+  with BF bits folded in. Unknown numbers and non-finite values are
+  reported (`encode_unknown_channel` / `encode_value_invalid`), never
+  dropped. `Value::parse` reads the `0x`-raw / plain-physical notation for
+  consumer input.
 - `ChTable` / `BfTable` (`docs/spec/editing.md`, ADR-0009): the Table stage
   as a verbatim cell grid — unknown columns, comment rows and header
   spelling survive read → edit → `to_csv` at cell granularity. Cell / row
@@ -80,6 +87,9 @@ tag, published to crates.io.
   `default` is unspecified (the parent channel's bit is kept), no longer 0.
 - `ChannelDef::lsb` is stored resolved: an empty, `0`, or invalid `lsb`
   arrives as `1.0` instead of `0.0`.
+- `Bound` is renamed `Value` (ADR-0011): the same notation-carrying pair
+  now feeds `min` / `max`, form input and encode. `ChannelDef::min` /
+  `max` semantics are unchanged.
 - `ChannelLayout::total_bytes` is a method computed on demand instead of a
   stored field, so an edited `byte_count` can no longer leave it stale
   (ADR-0006).

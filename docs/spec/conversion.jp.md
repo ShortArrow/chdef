@@ -2,7 +2,7 @@
 
 🌐 [English](./conversion.md) | **日本語**
 
-実装済み（0.0.2）: 生値 → 物理値（`raw_to_value_endian`、UI/SI 8〜32 bit と BF、LSB 0 → 1、オフセット、endian）と物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`、1〜8 バイト、0 から遠い方へ丸め、clamp、2 の補数）、生値 ↔ バイト列の対（`raw_to_bytes_endian` / `raw_from_bytes_endian`。幅の下位ビットのみ、丸めも clamp もしない）、フレーム全体の decode（§6、`ChannelLayout::decode`）、§8 の範囲問い合わせ。64 bit の物理値 decode、BF 既定値の合成（§4）、フレーム全体の encode（§5）は未実装。
+実装済み（0.0.2）: 生値 → 物理値（`raw_to_value_endian`、UI/SI 8〜32 bit と BF、LSB 0 → 1、オフセット、endian）と物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`、1〜8 バイト、0 から遠い方へ丸め、clamp、2 の補数）、生値 ↔ バイト列の対（`raw_to_bytes_endian` / `raw_from_bytes_endian`。幅の下位ビットのみ、丸めも clamp もしない）、フレーム全体の decode（§6、`ChannelLayout::decode`）、§8 の範囲問い合わせ、BF 既定値の合成（§4、`ChannelLayout::channel_default`）、フレーム全体の encode（§5、`ChannelLayout::encode`）。64 bit の物理値 decode は未実装。
 
 ## 1. 生値 → 物理値
 
@@ -38,9 +38,10 @@ raw = clamp(round((value − offset) ÷ lsb))
 
 ## 5. encode（値 → フレーム）
 
-- 入力: 各チャンネルの物理値、または生値（`0x`）。指定の無いチャンネルは既定値。
+- 入力: 各チャンネルの物理値、または生値（`0x`）— `Value::parse` が読む記法つきの対。指定の無いチャンネルは既定値（§4）。同じチャンネルを複数回指定したら最後の指定が勝つ。
 - 出力: `total_bytes` のバイト列。各チャンネルの生値を `endian` に従って `at` から `bytes` 分書く。
 - 幅を超えた分は §2 の clamp、生値指定なら §3 の下位ビット採用。
+- レイアウトに無いチャンネルを指す値（Issue `encode_unknown_channel`）、有限でない物理値（Issue `encode_value_invalid`。既定値を使う）は黙って捨てず報告する。
 
 ## 6. decode（フレーム → 値）
 
