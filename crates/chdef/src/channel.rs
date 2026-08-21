@@ -11,6 +11,17 @@ pub enum Endian {
 /// Interpretation of a channel's bytes. Wider widths may become variants
 /// (the specification already names 64-bit suffixes), so matches need a
 /// catch-all arm.
+/// A `min` / `max` bound as written in the CSV: a plain number is a
+/// physical value; a `0x` value is a raw bit pattern, resolved with the
+/// channel's current `lsb` / `offset` at query time, so a runtime edit of
+/// `lsb` moves it. No conversion applies a bound — the caller opts in via
+/// [`ChannelDef::range_contains`] / [`ChannelDef::clamp_to_range`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Bound {
+    Physical(f64),
+    Raw(u64),
+}
+
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
@@ -92,6 +103,10 @@ pub struct ChannelDef {
     /// `ConstChannel::resolve` to fold CSV defaults into TOML-declared
     /// constants when the TOML omits an explicit `value`.
     pub default_value: Option<u32>,
+    /// Optional lower / upper bound of the physical value (`min` / `max`
+    /// columns). Carried, never applied automatically; see [`Bound`].
+    pub min: Option<Bound>,
+    pub max: Option<Bound>,
 }
 
 impl ChannelDef {
@@ -114,7 +129,67 @@ impl ChannelDef {
             offset: 0.0,
             unit: String::new(),
             default_value: None,
+            min: None,
+            max: None,
         }
+    }
+
+    /// The lower bound as a physical value, resolved with the current
+    /// `lsb` / `offset`; `None` when `min` is unspecified.
+    pub fn min_value(&self) -> Option<f64> {
+        self.min.as_ref().map(|b| self.resolve_bound(b))
+    }
+
+    /// The upper bound as a physical value, resolved with the current
+    /// `lsb` / `offset`; `None` when `max` is unspecified.
+    pub fn max_value(&self) -> Option<f64> {
+        self.max.as_ref().map(|b| self.resolve_bound(b))
+    }
+
+    fn resolve_bound(&self, bound: &Bound) -> f64 {
+        match *bound {
+            Bound::Physical(v) => v,
+            Bound::Raw(raw) => {
+                let bits = self.bits();
+                let raw_signed = if self.data_type.category() == "SI"
+                    && bits < 64
+                    && (raw >> (bits - 1)) & 1 == 1
+                {
+                    (raw | (u64::MAX << bits)) as i64 as f64
+                } else {
+                    raw as f64
+                };
+                let lsb = if self.lsb == 0.0 { 1.0 } else { self.lsb };
+                raw_signed * lsb + self.offset
+            }
+        }
+    }
+
+    /// Whether `value` lies inside the declared range. An unspecified side
+    /// is unbounded; NaN is never inside; a swapped range contains nothing.
+    /// Conversions never call this — range policy is the caller's.
+    pub fn range_contains(&self, value: f64) -> bool {
+        !value.is_nan()
+            && self.min_value().map_or(true, |lo| value >= lo)
+            && self.max_value().map_or(true, |hi| value <= hi)
+    }
+
+    /// `value` clamped into the declared range — the explicit way to apply
+    /// bounds that no conversion applies on its own. NaN stays NaN; a
+    /// swapped range clamps to `max`.
+    pub fn clamp_to_range(&self, value: f64) -> f64 {
+        let mut v = value;
+        if let Some(lo) = self.min_value() {
+            if v < lo {
+                v = lo;
+            }
+        }
+        if let Some(hi) = self.max_value() {
+            if v > hi {
+                v = hi;
+            }
+        }
+        v
     }
 
     pub fn raw_to_value(&self, raw_bytes: &[u8]) -> f64 {
@@ -245,20 +320,22 @@ impl BitFieldDef {
 }
 
 /// The Layout stage: channels with duplicates removed, their order fixing
-/// every position, and the total width. Built by [`build_layout`]; the field
-/// list can grow with the specification (a whole-layout `endian` is specced).
+/// every position. Built by [`build_layout`]; the field list can grow with
+/// the specification.
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct ChannelLayout {
     pub channels: Vec<ChannelDef>,
     pub bitfields: Vec<BitFieldDef>,
-    pub total_bytes: usize,
+    /// Byte order of every multi-byte channel of the frame. Not written in
+    /// the CSV; the consumer sets it (`Little` when unset).
+    pub endian: Endian,
 }
 
 /// Build the Layout stage from parsed Rows: duplicates are dropped (the
 /// first `number`, and the first `(number, bit)`, win; the parser already
-/// reported them as Issues) and `total_bytes` is the sum of the remaining
-/// channel widths in row order.
+/// reported them as Issues); positions and the total width follow from
+/// the remaining rows in order.
 pub fn build_layout(channels: Vec<ChannelDef>, bitfields: Vec<BitFieldDef>) -> ChannelLayout {
     let mut unique_channels: Vec<ChannelDef> = Vec::new();
     for ch in channels {
@@ -275,15 +352,20 @@ pub fn build_layout(channels: Vec<ChannelDef>, bitfields: Vec<BitFieldDef>) -> C
             unique_bitfields.push(bf);
         }
     }
-    let total_bytes = unique_channels.iter().map(|ch| ch.byte_count).sum();
     ChannelLayout {
         channels: unique_channels,
         bitfields: unique_bitfields,
-        total_bytes,
+        endian: Endian::Little,
     }
 }
 
 impl ChannelLayout {
+    /// Total data length of the frame: the sum of the channel widths.
+    /// Computed on demand, so an edited `byte_count` is never stale.
+    pub fn total_bytes(&self) -> usize {
+        self.channels.iter().map(|ch| ch.byte_count).sum()
+    }
+
     /// Byte offset (from the start of the payload) of the given channel.
     pub fn channel_offset(&self, number: u32) -> Option<usize> {
         let mut offset = 0usize;
@@ -323,6 +405,8 @@ mod tests {
             offset,
             unit: String::new(),
             default_value: None,
+            min: None,
+            max: None,
         }
     }
 
@@ -419,6 +503,8 @@ mod tests {
                 offset: 0.0,
                 unit: String::new(),
                 default_value: None,
+                min: None,
+                max: None,
             },
             ChannelDef {
                 number: 2,
@@ -429,6 +515,8 @@ mod tests {
                 offset: 0.0,
                 unit: String::new(),
                 default_value: None,
+                min: None,
+                max: None,
             },
             ChannelDef {
                 number: 3,
@@ -439,10 +527,12 @@ mod tests {
                 offset: 0.0,
                 unit: String::new(),
                 default_value: None,
+                min: None,
+                max: None,
             },
         ];
         let layout = build_layout(channels, vec![]);
-        assert_eq!(layout.total_bytes, 7);
+        assert_eq!(layout.total_bytes(), 7);
         assert_eq!(layout.channels.len(), 3);
     }
 
@@ -457,6 +547,8 @@ mod tests {
             offset: 0.0,
             unit: String::new(),
             default_value: None,
+            min: None,
+            max: None,
         };
         assert_eq!(ch.raw_to_value(&[0x2A, 0x00]), 42.0);
     }
@@ -472,6 +564,8 @@ mod tests {
             offset: 0.0,
             unit: "deg".into(),
             default_value: None,
+            min: None,
+            max: None,
         };
         let raw = 1_000_000i32.to_le_bytes();
         let val = ch.raw_to_value(&raw);
@@ -489,6 +583,8 @@ mod tests {
             offset: 0.0,
             unit: String::new(),
             default_value: None,
+            min: None,
+            max: None,
         };
         assert_eq!(ch.raw_to_value(&[0x0A, 0x00]), 10.0);
     }
@@ -504,6 +600,8 @@ mod tests {
             offset: 0.0,
             unit: "℃".into(),
             default_value: None,
+            min: None,
+            max: None,
         };
         assert_eq!(ch.raw_to_value(&[0xFE]), -2.0); // -2 as i8
     }
@@ -519,6 +617,8 @@ mod tests {
             offset: 0.0,
             unit: String::new(),
             default_value: None,
+            min: None,
+            max: None,
         };
         assert_eq!(ch.format_value(&[0x2A, 0x00]), "42");
     }
@@ -534,10 +634,61 @@ mod tests {
             offset: 0.0,
             unit: "deg".into(),
             default_value: None,
+            min: None,
+            max: None,
         };
         let raw = 1_000_000i32.to_le_bytes();
         let formatted = ch.format_value(&raw);
         assert!(formatted.contains("0.0419"), "Got: {}", formatted);
+    }
+
+    #[test]
+    fn bound_raw_resolves_with_the_current_lsb_and_offset() {
+        let mut ch = ChannelDef::new(1, 2, DataType::UI16);
+        ch.lsb = 0.5;
+        ch.offset = -5.0;
+        ch.min = Some(Bound::Raw(0x10));
+        ch.max = Some(Bound::Physical(100.0));
+
+        assert_eq!(ch.min_value(), Some(3.0));
+        assert_eq!(ch.max_value(), Some(100.0));
+
+        ch.lsb = 1.0;
+        assert_eq!(ch.min_value(), Some(11.0));
+    }
+
+    #[test]
+    fn bound_raw_sign_extends_for_si_channels() {
+        let mut ch = ChannelDef::new(1, 1, DataType::SI8);
+        ch.min = Some(Bound::Raw(0xFF));
+
+        assert_eq!(ch.min_value(), Some(-1.0));
+    }
+
+    #[test]
+    fn range_contains_is_true_when_unbounded_and_never_for_nan() {
+        let ch = ChannelDef::new(1, 2, DataType::UI16);
+
+        assert!(ch.range_contains(1e9));
+        assert!(!ch.range_contains(f64::NAN));
+    }
+
+    #[test]
+    fn range_queries_use_the_bounds() {
+        let mut ch = ChannelDef::new(1, 2, DataType::UI16);
+        ch.min = Some(Bound::Physical(-40.0));
+        ch.max = Some(Bound::Physical(120.0));
+
+        assert!(ch.range_contains(0.0));
+        assert!(!ch.range_contains(-40.1));
+        assert_eq!(ch.clamp_to_range(150.0), 120.0);
+        assert_eq!(ch.clamp_to_range(-100.0), -40.0);
+        assert_eq!(ch.clamp_to_range(0.5), 0.5);
+    }
+
+    #[test]
+    fn build_layout_defaults_to_little_endian() {
+        assert_eq!(build_layout(vec![], vec![]).endian, Endian::Little);
     }
 
     #[test]
@@ -548,6 +699,7 @@ mod tests {
         assert_eq!(ch.data_type, DataType::UI16);
         assert_eq!((ch.lsb, ch.offset), (1.0, 0.0));
         assert_eq!(ch.default_value, None);
+        assert_eq!((ch.min, ch.max), (None, None));
         assert!(ch.name.is_empty() && ch.unit.is_empty());
     }
 
@@ -581,13 +733,15 @@ mod tests {
             offset: 0.0,
             unit: String::new(),
             default_value: None,
+            min: None,
+            max: None,
         };
 
         let layout = build_layout(vec![dup(1, 2), dup(1, 4), dup(2, 1)], vec![]);
 
         assert_eq!(layout.channels.len(), 2);
         assert_eq!(layout.channels[0].byte_count, 2);
-        assert_eq!(layout.total_bytes, 3);
+        assert_eq!(layout.total_bytes(), 3);
     }
 
     #[test]

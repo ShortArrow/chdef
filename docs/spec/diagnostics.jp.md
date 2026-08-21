@@ -33,6 +33,9 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 | `default_invalid` | あり | `値(デフォルト)` が整数でも `0x` 表記でもない。未指定とみなした |
 | `hex_with_lsb` | あり | `表示形式` が `HEX` なのに `LSB` が 1 でない |
 | `raw_out_of_range` | あり | `0x` 指定の生値が幅を超える。下位ビットだけ使った |
+| `min_invalid` | あり | `値(最小)` が数値でも `0x` でもない。未指定として扱う |
+| `max_invalid` | あり | `値(最大)` が数値でも `0x` でもない。未指定として扱う |
+| `min_max_swapped` | あり | 解決後の `min` が `max` を上回る。両方保持し、範囲は何にも一致しない |
 | `bf_parent_invalid` | あり | BF の `番号` が整数でない。行を読み飛ばした |
 | `bf_bit_invalid` | あり | `BIT番号` が整数でない。行を読み飛ばした |
 | `bf_bit_out_of_range` | あり | `BIT番号` が親の幅以上。行を読み飛ばした |

@@ -41,6 +41,14 @@ tag, published to crates.io.
   directly (ADR-0005).
 - `serde` became an opt-in feature; the default build no longer depends on
   it (ADR-0005).
+- `min` / `max` are interpreted: physical bounds, or raw bit patterns with
+  the `0x` prefix (`Bound`), carried on `ChannelDef` and never applied by a
+  conversion; `min_value` / `max_value` / `range_contains` /
+  `clamp_to_range` are the explicit queries, and `min_invalid` /
+  `max_invalid` / `min_max_swapped` the new Issues (ADR-0006).
+- `ChannelLayout::endian`: the whole-layout byte order of `layout.md` §2,
+  set by the consumer (`Little` when unset); frame encode / decode will
+  consume it.
 
 ### Changed
 - `load_ch_csv` / `load_bf_csv` take `impl AsRef<Path>` instead of `&str`, so
@@ -53,6 +61,9 @@ tag, published to crates.io.
   `default` is unspecified (the parent channel's bit is kept), no longer 0.
 - `ChannelDef::lsb` is stored resolved: an empty, `0`, or invalid `lsb`
   arrives as `1.0` instead of `0.0`.
+- `ChannelLayout::total_bytes` is a method computed on demand instead of a
+  stored field, so an edited `byte_count` can no longer leave it stale
+  (ADR-0006).
 - The public surface is the crate root only (ADR-0005): the `channel` /
   `columns` / `csv` / `error` / `issue` module paths are private, and
   `ChColumn` / `BfColumn` / `ColumnMap` / `HeaderLanguage` are withdrawn

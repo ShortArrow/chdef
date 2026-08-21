@@ -44,6 +44,9 @@ found and what chdef did about it.
 | `default_invalid` | yes | `default` is neither an integer nor `0x`. Treated as unspecified |
 | `hex_with_lsb` | yes | `format` is `HEX` but `lsb` is not 1 |
 | `raw_out_of_range` | yes | A `0x` raw value exceeds the width. Used the low bits only |
+| `min_invalid` | yes | `min` is neither a number nor `0x`. Treated as unspecified |
+| `max_invalid` | yes | `max` is neither a number nor `0x`. Treated as unspecified |
+| `min_max_swapped` | yes | The resolved `min` exceeds the resolved `max`. Both kept; the range matches nothing |
 | `bf_parent_invalid` | yes | BF `number` is not an integer. Row skipped |
 | `bf_bit_invalid` | yes | `bit` is not an integer. Row skipped |
 | `bf_bit_out_of_range` | yes | `bit` ≥ parent width. Row skipped |

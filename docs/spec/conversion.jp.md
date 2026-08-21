@@ -2,7 +2,7 @@
 
 🌐 [English](./conversion.md) | **日本語**
 
-実装済み（0.0.2）: 生値 → 物理値（`raw_to_value_endian`、UI/SI 8〜32 bit と BF、LSB 0 → 1、オフセット、endian）と物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`、1〜8 バイト、0 から遠い方へ丸め、clamp、2 の補数）。64 bit の decode、BF 既定値の合成、フレーム全体の encode / decode は未実装。
+実装済み（0.0.2）: 生値 → 物理値（`raw_to_value_endian`、UI/SI 8〜32 bit と BF、LSB 0 → 1、オフセット、endian）と物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`、1〜8 バイト、0 から遠い方へ丸め、clamp、2 の補数）、§8 の範囲問い合わせ。64 bit の decode、BF 既定値の合成、フレーム全体の encode / decode は未実装。
 
 ## 1. 生値 → 物理値
 
@@ -50,3 +50,8 @@ raw = clamp(round((value − offset) ÷ lsb))
 ## 7. 表示形式
 
 - `表示形式` は chdef の変換に影響しない（`HEX` でも `value` は返す）。利用側が `HEX` のとき生値を表示する。`HEX` かつ `LSB ≠ 1` は Issue `hex_with_lsb`（[format.jp.md](./format.jp.md)）。
+
+## 8. 範囲（min / max）
+
+- `値(最小)` / `値(最大)` は物理値。`0x` 接頭辞なら生値のビットパターンで、問い合わせ時にそのチャネルの**現在の** `LSB` / `オフセット` で解決する（`SI` は符号拡張）。実行時に `LSB` を書き換えれば境界も動く。
+- どの変換も範囲を自動適用しない。利用側が明示的に選ぶ: `range_contains` は物理値が範囲内かを答え、`clamp_to_range` は範囲に収める。未指定の側は無制限、NaN はどの範囲にも入らず、逆転した範囲は何にも一致しない。

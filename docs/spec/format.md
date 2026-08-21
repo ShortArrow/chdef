@@ -5,8 +5,8 @@
 Implemented (0.0.2): BOM stripping; column identification by header name
 in English or Japanese with the 9-column positional fallback; blank rows
 and `#` rows; the column interpretations below with their Issues, except
-that `section` / `min` / `max` / `memo` / `var` / `favorite` are not yet
-carried on `ChannelDef` and `format` is only checked, not carried;
+that `section` / `memo` / `var` / `favorite` are not yet carried on
+`ChannelDef` and `format` is only checked, not carried;
 `parse_*_csv_bytes` for byte input; `load_*_csv` over any `AsRef<Path>`.
 Writing is entirely unimplemented.
 
@@ -75,7 +75,7 @@ rules.
 | `lsb` / `LSB` | `Scale`, `スケール` | no | Real number. Empty / `0` → `1`. Any other finite value is used as is (negative allowed). NaN / infinite → `1` (Issue `lsb_invalid`) |
 | `offset` / `オフセット` | `基準値` | no | Real number. Empty → `0`. Not a number → `0` (Issue `offset_invalid`) |
 | `unit` / `単位` | — | no | String |
-| `min` / `値(最小)`, `max` / `値(最大)` | `最小値` / `最大値` | no | Kept as strings. Not interpreted in 0.0.x |
+| `min` / `値(最小)`, `max` / `値(最大)` | `最小値` / `最大値` | no | Empty → unspecified. A number → **physical** bound (finite f64). `0x` / `0X` → **raw** bound, width-checked like `default` (Issue `raw_out_of_range`, low bits kept). Anything else → unspecified (Issue `min_invalid` / `max_invalid`). A resolved `min` above `max` → both kept (Issue `min_max_swapped`). Never applied by a conversion — `range_contains` / `clamp_to_range` are the explicit queries |
 | `default` / `値(デフォルト)` | `DefaultValue`, `デフォルト値` | no | Empty → unspecified. `0x` / `0X` prefix → hexadecimal raw value. Anything else → decimal **raw value** (integer). Non-integer → unspecified (Issue `default_invalid`). For `BF` channels, the BF CSV overrides it bit by bit ([conversion.md](./conversion.md)) |
 | `memo` / `備考` | `Description` | no | String |
 | `var` / `変数名` | `variable` | no | String. Preserved only |

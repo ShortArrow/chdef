@@ -48,6 +48,13 @@ pub enum IssueCode {
     HexWithLsb,
     /// A `0x` raw value exceeds the width. The low bits were used.
     RawOutOfRange,
+    /// `min` is neither a number nor `0x`. Treated as unspecified.
+    MinInvalid,
+    /// `max` is neither a number nor `0x`. Treated as unspecified.
+    MaxInvalid,
+    /// The resolved `min` exceeds the resolved `max`. Both kept; the range
+    /// matches nothing.
+    MinMaxSwapped,
     /// BF `number` is not an integer. Row skipped.
     BfParentInvalid,
     /// BF `bit` is not an integer. Row skipped.
@@ -74,6 +81,9 @@ impl IssueCode {
             IssueCode::DefaultInvalid => "default_invalid",
             IssueCode::HexWithLsb => "hex_with_lsb",
             IssueCode::RawOutOfRange => "raw_out_of_range",
+            IssueCode::MinInvalid => "min_invalid",
+            IssueCode::MaxInvalid => "max_invalid",
+            IssueCode::MinMaxSwapped => "min_max_swapped",
             IssueCode::BfParentInvalid => "bf_parent_invalid",
             IssueCode::BfBitInvalid => "bf_bit_invalid",
             IssueCode::BfDefaultInvalid => "bf_default_invalid",
@@ -103,5 +113,8 @@ mod tests {
     fn issue_codes_spell_their_stable_identifier() {
         assert_eq!(IssueCode::HeaderAssumed.as_str(), "header_assumed");
         assert_eq!(IssueCode::BfDuplicate.to_string(), "bf_duplicate");
+        assert_eq!(IssueCode::MinInvalid.as_str(), "min_invalid");
+        assert_eq!(IssueCode::MaxInvalid.as_str(), "max_invalid");
+        assert_eq!(IssueCode::MinMaxSwapped.as_str(), "min_max_swapped");
     }
 }

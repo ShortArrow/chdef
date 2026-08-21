@@ -5,8 +5,8 @@
 Implemented (0.0.2): raw → physical (`raw_to_value_endian`; UI / SI 8–32 bit
 and BF, LSB 0 → 1, offset, endian) and physical → raw (`value_to_raw` /
 `value_to_bytes_endian`; 1–8 bytes, half away from zero, clamp, two's
-complement). 64-bit decode, BF default merging, and encode / decode of whole
-frames are not implemented yet.
+complement), and the range queries of §8. 64-bit decode, BF default
+merging, and encode / decode of whole frames are not implemented yet.
 
 ## 1. Raw → physical
 
@@ -72,3 +72,13 @@ Example: channel default `0x0010`, BF `{BIT0=1, BIT2=1, BIT4=unspecified}`
 - `format` does not affect chdef's conversion (`value` is returned even
   for `HEX`). The consumer shows the raw value when the format is `HEX`.
   `HEX` with `lsb ≠ 1` is Issue `hex_with_lsb` ([format.md](./format.md)).
+
+## 8. Range (min / max)
+
+- A `min` / `max` bound is a physical value; with the `0x` prefix it is a
+  raw bit pattern, resolved with the channel's **current** `lsb` / `offset`
+  when queried (sign-extended for `SI`), so an edited `lsb` moves it.
+- No conversion applies the range. The caller opts in explicitly:
+  `range_contains` answers whether a physical value lies inside it, and
+  `clamp_to_range` clamps one into it. An unspecified side is unbounded;
+  NaN is never inside; a swapped range matches nothing.

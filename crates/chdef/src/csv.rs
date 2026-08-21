@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use crate::channel::{BitFieldDef, ChannelDef, DataType};
+use crate::channel::{BitFieldDef, Bound, ChannelDef, DataType};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
@@ -200,6 +200,64 @@ pub fn parse_ch_csv(content: &str) -> Result<Parsed<Vec<ChannelDef>>> {
             },
         };
 
+        let bits = (byte_count * 8) as u32;
+        let min = match cell(record, ChColumn::Min) {
+            None => None,
+            Some(s) if s.is_empty() => None,
+            Some(s) => match parse_bound_cell(&s, bits) {
+                BoundCell::Value(b) => Some(b),
+                BoundCell::Overflow { value, masked } => {
+                    issue(
+                        IssueCode::RawOutOfRange,
+                        ChColumn::Min,
+                        format!(
+                            "`min` 0x{value:X} exceeds the {bits}-bit width; the low bits (0x{masked:X}) were used."
+                        ),
+                    );
+                    Some(Bound::Raw(masked))
+                }
+                BoundCell::Invalid => {
+                    issue(
+                        IssueCode::MinInvalid,
+                        ChColumn::Min,
+                        format!(
+                            "`min` is {}, neither a number nor a `0x` value; treated as unspecified.",
+                            shown(&s)
+                        ),
+                    );
+                    None
+                }
+            },
+        };
+        let max = match cell(record, ChColumn::Max) {
+            None => None,
+            Some(s) if s.is_empty() => None,
+            Some(s) => match parse_bound_cell(&s, bits) {
+                BoundCell::Value(b) => Some(b),
+                BoundCell::Overflow { value, masked } => {
+                    issue(
+                        IssueCode::RawOutOfRange,
+                        ChColumn::Max,
+                        format!(
+                            "`max` 0x{value:X} exceeds the {bits}-bit width; the low bits (0x{masked:X}) were used."
+                        ),
+                    );
+                    Some(Bound::Raw(masked))
+                }
+                BoundCell::Invalid => {
+                    issue(
+                        IssueCode::MaxInvalid,
+                        ChColumn::Max,
+                        format!(
+                            "`max` is {}, neither a number nor a `0x` value; treated as unspecified.",
+                            shown(&s)
+                        ),
+                    );
+                    None
+                }
+            },
+        };
+
         if let Some(f) = cell(record, ChColumn::Format) {
             if f.eq_ignore_ascii_case("hex") && lsb != 1.0 {
                 issue(
@@ -212,7 +270,7 @@ pub fn parse_ch_csv(content: &str) -> Result<Parsed<Vec<ChannelDef>>> {
             }
         }
 
-        channels.push(ChannelDef {
+        let ch = ChannelDef {
             number,
             name: cell(record, ChColumn::Name).unwrap_or_default(),
             byte_count,
@@ -221,7 +279,21 @@ pub fn parse_ch_csv(content: &str) -> Result<Parsed<Vec<ChannelDef>>> {
             offset,
             unit: cell(record, ChColumn::Unit).unwrap_or_default(),
             default_value,
-        });
+            min,
+            max,
+        };
+        if let (Some(lo), Some(hi)) = (ch.min_value(), ch.max_value()) {
+            if lo > hi {
+                issue(
+                    IssueCode::MinMaxSwapped,
+                    ChColumn::Min,
+                    format!(
+                        "`min` resolves to {lo} but `max` to {hi}; both were kept, and the range matches nothing."
+                    ),
+                );
+            }
+        }
+        channels.push(ch);
     }
 
     Ok(Parsed {
@@ -433,6 +505,34 @@ fn parse_type(s: &str) -> Option<(DataType, Option<usize>)> {
     }
     let bits: usize = suffix.parse().ok().filter(|b| *b > 0 && *b % 8 == 0)?;
     Some((category, Some(bits / 8)))
+}
+
+/// A `min` / `max` cell as one of its two notations, or the ways it fails:
+/// a `0x` value wider than the channel, or text that is neither notation.
+enum BoundCell {
+    Value(Bound),
+    Overflow { value: u64, masked: u64 },
+    Invalid,
+}
+
+/// Read a `min` / `max` cell: `0x` / `0X` prefix → raw bit pattern checked
+/// against `bits`; anything else → finite physical number.
+fn parse_bound_cell(s: &str, bits: u32) -> BoundCell {
+    if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        match u64::from_str_radix(hex, 16) {
+            Ok(v) if bits < 64 && v >> bits != 0 => BoundCell::Overflow {
+                value: v,
+                masked: v & ((1u64 << bits) - 1),
+            },
+            Ok(v) => BoundCell::Value(Bound::Raw(v)),
+            Err(_) => BoundCell::Invalid,
+        }
+    } else {
+        match s.parse::<f64>() {
+            Ok(v) if v.is_finite() => BoundCell::Value(Bound::Physical(v)),
+            _ => BoundCell::Invalid,
+        }
+    }
 }
 
 /// A raw-value cell: `0x` / `0X` prefixed hexadecimal or decimal. The flag
@@ -692,6 +792,62 @@ mod tests {
 
         assert_eq!(codes(&parsed.issues), vec![IssueCode::HexWithLsb]);
         assert_eq!(parsed.issues[0].row, Some(0));
+    }
+
+    #[test]
+    fn parse_ch_csv_reads_min_max_as_physical_or_raw() {
+        let csv_data = "number,bytes,lsb,offset,min,max,name
+                         1,2,0.5,-5,0x10,100,A
+                         2,2,1,0,,,B
+";
+
+        let parsed = parse_ch_csv(csv_data).unwrap();
+
+        assert_eq!(parsed.value[0].min, Some(Bound::Raw(0x10)));
+        assert_eq!(parsed.value[0].max, Some(Bound::Physical(100.0)));
+        assert_eq!((parsed.value[1].min, parsed.value[1].max), (None, None));
+        assert!(parsed.issues.is_empty());
+    }
+
+    #[test]
+    fn parse_ch_csv_reports_min_max_that_are_not_values() {
+        let csv_data = "number,min,max,name
+1,abc,12x,A
+";
+
+        let parsed = parse_ch_csv(csv_data).unwrap();
+
+        assert_eq!((parsed.value[0].min, parsed.value[0].max), (None, None));
+        assert_eq!(
+            codes(&parsed.issues),
+            vec![IssueCode::MinInvalid, IssueCode::MaxInvalid]
+        );
+    }
+
+    #[test]
+    fn parse_ch_csv_reports_swapped_min_max_and_keeps_both() {
+        let csv_data = "number,min,max,name
+1,10,5,A
+";
+
+        let parsed = parse_ch_csv(csv_data).unwrap();
+
+        assert_eq!(parsed.value[0].min, Some(Bound::Physical(10.0)));
+        assert_eq!(parsed.value[0].max, Some(Bound::Physical(5.0)));
+        assert_eq!(codes(&parsed.issues), vec![IssueCode::MinMaxSwapped]);
+        assert!(!parsed.value[0].range_contains(7.0));
+    }
+
+    #[test]
+    fn parse_ch_csv_masks_raw_bounds_beyond_the_width() {
+        let csv_data = "number,bytes,min,name
+1,1,0x1FF,A
+";
+
+        let parsed = parse_ch_csv(csv_data).unwrap();
+
+        assert_eq!(parsed.value[0].min, Some(Bound::Raw(0xFF)));
+        assert_eq!(codes(&parsed.issues), vec![IssueCode::RawOutOfRange]);
     }
 
     #[test]
