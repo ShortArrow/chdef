@@ -2,7 +2,7 @@
 
 🌐 [English](./layout.md) | **日本語**
 
-実装済み（0.0.2）: 位置の累積計算と合計バイト数（`ChannelLayout::channel_offset` / `total_bytes()`、どちらも都度計算なので幅を編集しても陳腐化しない）、Rows / Layout の分離（`parse_*` は重複を保持し、`build_layout` が先勝ちで落とす）、§2 のレイアウト全体 `endian` フィールド（`decode` が参照）、`build_layout` での BF 横断検査と先勝ちの重複排除（Issue つきでレイアウトを返す）、§5 の `capacity`（明示の `check_capacity` 問い合わせ）。Table 段階とフレーム全体の encode は未実装。
+実装済み（0.0.2）: 位置の累積計算と合計バイト数（`ChannelLayout::channel_offset` / `total_bytes()`、どちらも都度計算なので幅を編集しても陳腐化しない）、Rows / Layout の分離（`parse_*` は重複を保持し、`build_layout` が先勝ちで落とす）、§2 のレイアウト全体 `endian` フィールド（`decode` が参照）、`build_layout` での BF 横断検査と先勝ちの重複排除（Issue つきでレイアウトを返す）、§5 の `capacity`（明示の `check_capacity` 問い合わせ）。Table 段階は `ChTable` / `BfTable`（[editing.jp.md](./editing.jp.md)）。フレーム全体の encode は未実装。
 
 ## 1. 三つの段階
 

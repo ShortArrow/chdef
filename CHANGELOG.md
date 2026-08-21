@@ -55,6 +55,14 @@ tag, published to crates.io.
 - `ChannelLayout::decode` / `channel_bytes` (`conversion.md` §6): slice a
   frame into per-channel bytes with raw and physical readings under the
   layout's `endian`; a channel that overruns a short frame is omitted.
+- `ChTable` / `BfTable` (`docs/spec/editing.md`, ADR-0009): the Table stage
+  as a verbatim cell grid — unknown columns, comment rows and header
+  spelling survive read → edit → `to_csv` at cell granularity. Cell / row
+  edits, `insert_channel` (typed insertion into the columns the file has),
+  and `insert_channel_renumbering`, which shifts later numbers with their
+  BF parents and reports every `(old, new)` pair as `Renumbered`
+  (ADR-0010). `parse_ch_csv` / `parse_bf_csv` are reimplemented on the
+  Table with unchanged behaviour.
 - `build_layout` runs the cross-file BF checks and returns
   `Parsed<ChannelLayout>` (`bf_parent_not_bitfield` / `bf_bit_out_of_range`,
   without rows — ADR-0008); `ChannelLayout::check_capacity` reports

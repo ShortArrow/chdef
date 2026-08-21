@@ -13,6 +13,7 @@ mod columns;
 mod csv;
 mod error;
 mod issue;
+mod table;
 
 pub use channel::{
     build_layout, BitFieldDef, Bound, ChannelDef, ChannelLayout, DataType, Decoded, Endian,
@@ -22,3 +23,4 @@ pub use csv::{
 };
 pub use error::{ChdefError, Result};
 pub use issue::{Issue, IssueCode, Parsed};
+pub use table::{BfTable, ChTable, Renumbered};

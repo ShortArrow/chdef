@@ -30,12 +30,17 @@ pub fn parse_ch_csv_bytes(bytes: &[u8]) -> Result<Parsed<Vec<ChannelDef>>> {
 ///
 /// [`build_layout`]: crate::build_layout
 pub fn parse_ch_csv(content: &str) -> Result<Parsed<Vec<ChannelDef>>> {
-    let (map, records) =
-        records_with_columns(content, ColumnMap::ch_from_header, ColumnMap::ch_positional)?;
-    let mut issues = assumed_header_issues(&map, &records, ChColumn::POSITIONAL.len());
-    let cell = |record: &csv::StringRecord, column: ChColumn| {
-        map.position(column).map(|i| field(record, i))
-    };
+    Ok(crate::table::ChTable::parse(content)?.channels())
+}
+
+/// Interpret the data rows of a CH table: the Rows stage behind
+/// [`parse_ch_csv`] and [`crate::ChTable::channels`].
+pub(crate) fn interpret_ch(
+    map: &ColumnMap<ChColumn>,
+    records: &[Vec<String>],
+) -> Parsed<Vec<ChannelDef>> {
+    let mut issues = assumed_header_issues(map, records, ChColumn::POSITIONAL.len());
+    let cell = |record: &[String], column: ChColumn| map.position(column).map(|i| field(record, i));
 
     let mut channels: Vec<ChannelDef> = Vec::new();
     for (row, record) in records.iter().enumerate() {
@@ -296,10 +301,10 @@ pub fn parse_ch_csv(content: &str) -> Result<Parsed<Vec<ChannelDef>>> {
         channels.push(ch);
     }
 
-    Ok(Parsed {
+    Parsed {
         value: channels,
         issues,
-    })
+    }
 }
 
 /// Load a BF CSV from `path` (see [`parse_bf_csv`]). The only part of the
@@ -325,12 +330,17 @@ pub fn parse_bf_csv_bytes(bytes: &[u8]) -> Result<Parsed<Vec<BitFieldDef>>> {
 ///
 /// [`build_layout`]: crate::build_layout
 pub fn parse_bf_csv(content: &str) -> Result<Parsed<Vec<BitFieldDef>>> {
-    let (map, records) =
-        records_with_columns(content, ColumnMap::bf_from_header, ColumnMap::bf_positional)?;
-    let mut issues = assumed_header_issues(&map, &records, BfColumn::CANONICAL.len());
-    let cell = |record: &csv::StringRecord, column: BfColumn| {
-        map.position(column).map(|i| field(record, i))
-    };
+    Ok(crate::table::BfTable::parse(content)?.bitfields())
+}
+
+/// Interpret the data rows of a BF table: the Rows stage behind
+/// [`parse_bf_csv`] and [`crate::BfTable::bitfields`].
+pub(crate) fn interpret_bf(
+    map: &ColumnMap<BfColumn>,
+    records: &[Vec<String>],
+) -> Parsed<Vec<BitFieldDef>> {
+    let mut issues = assumed_header_issues(map, records, BfColumn::CANONICAL.len());
+    let cell = |record: &[String], column: BfColumn| map.position(column).map(|i| field(record, i));
 
     let mut bitfields: Vec<BitFieldDef> = Vec::new();
     for (row, record) in records.iter().enumerate() {
@@ -417,48 +427,17 @@ pub fn parse_bf_csv(content: &str) -> Result<Parsed<Vec<BitFieldDef>>> {
         });
     }
 
-    Ok(Parsed {
+    Parsed {
         value: bitfields,
         issues,
-    })
-}
-
-/// Read every record of `content`. The first row is the header when
-/// `from_header` recognises it; otherwise it is data and `positional`
-/// supplies the column map (its `assumed` flag is set).
-fn records_with_columns<C: Copy + PartialEq>(
-    content: &str,
-    from_header: fn(&[&str]) -> Option<ColumnMap<C>>,
-    positional: fn() -> ColumnMap<C>,
-) -> Result<(ColumnMap<C>, Vec<csv::StringRecord>)> {
-    let content = content.trim_start_matches('\u{FEFF}');
-    let mut rdr = csv::ReaderBuilder::new()
-        .has_headers(false)
-        .flexible(true)
-        .from_reader(content.as_bytes());
-
-    let mut records = Vec::new();
-    for (index, record) in rdr.records().enumerate() {
-        records.push(record.map_err(|e| ChdefError::CsvParse {
-            row: index + 1,
-            message: e.to_string(),
-        })?);
     }
-
-    let header_map = records
-        .first()
-        .and_then(|first| from_header(&first.iter().collect::<Vec<_>>()));
-    Ok(match header_map {
-        Some(map) => (map, records.split_off(1)),
-        None => (positional(), records),
-    })
 }
 
 /// The `header_assumed` Issue when the positional order was assumed for a
 /// file that has records. An empty file reports nothing.
 fn assumed_header_issues<C: Copy + PartialEq>(
     map: &ColumnMap<C>,
-    records: &[csv::StringRecord],
+    records: &[Vec<String>],
     columns: usize,
 ) -> Vec<Issue> {
     if map.assumed && !records.is_empty() {
@@ -476,14 +455,14 @@ fn assumed_header_issues<C: Copy + PartialEq>(
 }
 
 /// A row whose cells are all empty; skipped without an Issue.
-fn is_blank(record: &csv::StringRecord) -> bool {
+pub(crate) fn is_blank(record: &[String]) -> bool {
     record.iter().all(|c| c.trim().is_empty())
 }
 
 /// A row whose first cell starts with `#`; skipped without an Issue.
-fn is_comment(record: &csv::StringRecord) -> bool {
+pub(crate) fn is_comment(record: &[String]) -> bool {
     record
-        .get(0)
+        .first()
         .map(|c| c.trim().starts_with('#'))
         .unwrap_or(false)
 }
@@ -557,7 +536,7 @@ fn shown(cell: &str) -> String {
 /// Drop every leading BOM and decode the rest as UTF-8. `valid_up_to` of the
 /// error counts from the start of `bytes`, BOMs included, so it points into
 /// what the caller passed.
-fn decode_utf8(bytes: &[u8]) -> Result<&str> {
+pub(crate) fn decode_utf8(bytes: &[u8]) -> Result<&str> {
     const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
     let mut body = bytes;
@@ -582,8 +561,11 @@ fn read_to_string(path: &Path) -> Result<String> {
     Ok(content)
 }
 
-fn field(record: &csv::StringRecord, index: usize) -> String {
-    record.get(index).unwrap_or("").trim().to_string()
+fn field(record: &[String], index: usize) -> String {
+    record
+        .get(index)
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

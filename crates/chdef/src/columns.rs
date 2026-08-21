@@ -79,6 +79,11 @@ impl ChColumn {
         }
     }
 
+    /// The English canonical spelling, written by newly created tables.
+    pub(crate) fn en(self) -> &'static str {
+        self.spellings()[0]
+    }
+
     /// The column a header cell denotes, if any.
     pub fn from_header(cell: &str) -> Option<ChColumn> {
         let cell = cell.trim().to_lowercase();
@@ -116,6 +121,11 @@ impl BfColumn {
             BfColumn::Default => &["default", "値(デフォルト)", "デフォルト値"],
             BfColumn::Memo => &["memo", "備考"],
         }
+    }
+
+    /// The English canonical spelling, written by newly created tables.
+    pub(crate) fn en(self) -> &'static str {
+        self.spellings()[0]
     }
 
     /// The column a header cell denotes, if any.

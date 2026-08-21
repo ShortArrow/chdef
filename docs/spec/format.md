@@ -8,7 +8,9 @@ and `#` rows; the column interpretations below with their Issues, except
 that `section` / `memo` / `var` / `favorite` are not yet carried on
 `ChannelDef` and `format` is only checked, not carried;
 `parse_*_csv_bytes` for byte input; `load_*_csv` over any `AsRef<Path>`.
-Writing is entirely unimplemented.
+Writing is `ChTable::to_csv` /
+`BfTable::to_csv` with the cell-level round trip of
+[editing.md §2](./editing.md#2-round-trip).
 
 ## 1. File
 

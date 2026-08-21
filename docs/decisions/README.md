@@ -13,3 +13,5 @@ specification and the README never point back at an ADR.
 | [0006](./0006-bounds-are-carried-not-applied.md) | 2026-08-21 | min / max are physical bounds with a raw escape, carried but never applied silently | Accepted |
 | [0007](./0007-raw-bytes-primitive-truncates.md) | 2026-08-21 | The raw→bytes primitive truncates; clamping belongs to the physical storey | Accepted |
 | [0008](./0008-layout-checks-have-no-rows.md) | 2026-08-21 | build_layout returns Issues, and its Issues carry no row | Accepted |
+| [0009](./0009-table-is-the-editing-substrate.md) | 2026-08-21 | The Table is the editing substrate, and the round trip is cell-level | Accepted |
+| [0010](./0010-renumbering-reports-its-effects.md) | 2026-08-21 | Renumbering shifts both files and reports its effects; outside references are the consumer's | Accepted |

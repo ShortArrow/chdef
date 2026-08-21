@@ -11,6 +11,7 @@ chdef が読む定義ファイル、計算するレイアウト、行う変換�
 | [layout.jp.md](./layout.jp.md) | 行 → チャンネル → レイアウト（位置・幅・合計）、重複・欠番・容量 |
 | [conversion.jp.md](./conversion.jp.md) | 生値と物理値の相互変換、符号拡張、丸め、BF の既定値合成、encode / decode |
 | [diagnostics.jp.md](./diagnostics.jp.md) | 診断（Issue）の粒度・コード・メッセージ、致命的エラーとの線引き |
+| [editing.jp.md](./editing.jp.md) | 編集の土台としての Table 段階: セル・行の編集、型付き挿入、番号の付け替え、往復の保証 |
 | [interchange.jp.md](./interchange.jp.md) | JSON 出力の形、ゴールデンベクタの書式 |
 
 ## 用語

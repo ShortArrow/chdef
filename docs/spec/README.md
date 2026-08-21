@@ -12,6 +12,7 @@ starts with the scope that the current release actually implements.
 | [layout.md](./layout.md) | Rows → channels → layout (position, width, total), duplicates, gaps, capacity |
 | [conversion.md](./conversion.md) | Raw ↔ physical conversion, sign extension, rounding, BF default merging, encode / decode |
 | [diagnostics.md](./diagnostics.md) | Diagnostics (Issue): granularity, codes, messages, and the line between an Issue and a fatal error |
+| [editing.md](./editing.md) | The Table stage as the editing substrate: cell / row edits, typed insertion, renumbering, the round-trip guarantee |
 | [interchange.md](./interchange.md) | JSON output shape and the golden-vector format |
 
 ## Terms

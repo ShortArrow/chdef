@@ -9,8 +9,8 @@ demand so edited widths are never stale); the Rows / Layout split
 whole-layout `endian` field of §2 (consumed by `decode`); the BF
 cross-checks and first-wins duplicate dropping in `build_layout`, which
 returns the layout with those Issues; `capacity` as the opt-in
-`check_capacity` query (§5). The Table stage and whole-frame encode are
-not implemented yet.
+`check_capacity` query (§5). The Table stage is `ChTable` / `BfTable`
+([editing.md](./editing.md)); whole-frame encode is not implemented yet.
 
 ## 1. Three stages
 
