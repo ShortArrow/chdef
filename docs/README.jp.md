@@ -37,7 +37,7 @@ let bytes = layout.channels[0].value_to_bytes(value);
 
 ## 由来
 
-[chbridge](https://github.com/ShortArrow/chbridge) の `chbridge-core` にあった CH / BF の概念を独立させたもの。
+社内テレメトリブリッジ chbridge の `chbridge-core` にあった CH / BF の概念を独立させたもの。
 定義ファイルそのもの（実機の CH 表）は利用側が持ち、本リポジトリには合成データしか置かない。
 
 ## ライセンス

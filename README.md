@@ -45,8 +45,8 @@ decisions in [docs/decisions/](./docs/decisions/README.md).
 
 ## Origin
 
-The CH / BF concept was extracted from `chbridge-core` of
-[chbridge](https://github.com/ShortArrow/chbridge). Definition files
+The CH / BF concept was extracted from `chbridge-core` of chbridge, an
+internal telemetry bridge. Definition files
 themselves (real-device channel tables) belong to each consumer; this
 repository holds synthetic data only.
 

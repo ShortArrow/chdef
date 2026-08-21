@@ -8,7 +8,7 @@
 
 The CH definition CSV (`番号,バイト数,ビット数,セクション名,メッセージ名称,型,LSB,オフセット,単位,…`)
 and the BF definition CSV (`番号,BIT番号,メッセージ名称,値(デフォルト),備考`) are a
-format defined by [chbridge](https://github.com/ShortArrow/chbridge). Since
+format defined by chbridge, an internal telemetry bridge. Since
 then several consumers (Rust / C# / TypeScript) have come to read the same,
 or a derived, column set. The parser, the layout computation and the
 raw ↔ physical conversion were reimplemented per language and per consumer,
