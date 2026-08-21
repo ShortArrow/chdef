@@ -1,3 +1,5 @@
+use crate::issue::{Issue, IssueCode, Parsed};
+
 /// Byte order of multi-byte channels on the wire.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -275,12 +277,44 @@ impl ChannelDef {
 
     /// Physical value → the channel's `byte_count` bytes in the given byte order.
     pub fn value_to_bytes_endian(&self, value: f64, endian: Endian) -> Option<Vec<u8>> {
-        let raw = self.value_to_raw(value)?;
+        Some(self.raw_to_bytes_endian(self.value_to_raw(value)?, endian))
+    }
+
+    /// Raw bit pattern → the channel's `byte_count` bytes in the given byte
+    /// order: the storey below [`value_to_bytes_endian`]. No rounding and no
+    /// clamp — bits beyond the width are cut, so a caller that wants a
+    /// wrapping counter passes the wrapped raw and gets the low bytes.
+    ///
+    /// [`value_to_bytes_endian`]: ChannelDef::value_to_bytes_endian
+    pub fn raw_to_bytes_endian(&self, raw: u64, endian: Endian) -> Vec<u8> {
         let mut bytes = raw.to_le_bytes()[..self.byte_count.min(8)].to_vec();
         if endian == Endian::Big {
             bytes.reverse();
         }
-        Some(bytes)
+        bytes
+    }
+
+    /// The inverse of [`raw_to_bytes_endian`]: read the channel's raw bit
+    /// pattern out of `bytes` (at most `byte_count` of them) in the given
+    /// byte order.
+    ///
+    /// [`raw_to_bytes_endian`]: ChannelDef::raw_to_bytes_endian
+    pub fn raw_from_bytes_endian(&self, bytes: &[u8], endian: Endian) -> u64 {
+        let n = bytes.len().min(self.byte_count).min(8);
+        let mut raw = 0u64;
+        match endian {
+            Endian::Little => {
+                for i in (0..n).rev() {
+                    raw = (raw << 8) | bytes[i] as u64;
+                }
+            }
+            Endian::Big => {
+                for &b in &bytes[..n] {
+                    raw = (raw << 8) | b as u64;
+                }
+            }
+        }
+        raw
     }
 
     pub fn format_value(&self, raw_bytes: &[u8]) -> String {
@@ -307,6 +341,16 @@ pub struct BitFieldDef {
 }
 
 impl BitFieldDef {
+    /// The value of this bit inside the parent channel's raw value:
+    /// `(raw >> bit) & 1`.
+    pub fn bit_of(&self, raw: u64) -> u8 {
+        if self.bit_number >= 64 {
+            0
+        } else {
+            ((raw >> self.bit_number) & 1) as u8
+        }
+    }
+
     /// A bit with the given parent channel and position; `name` and
     /// `default_value` start unspecified and are set directly.
     pub fn new(parent_channel: u32, bit_number: u8) -> Self {
@@ -334,9 +378,15 @@ pub struct ChannelLayout {
 
 /// Build the Layout stage from parsed Rows: duplicates are dropped (the
 /// first `number`, and the first `(number, bit)`, win; the parser already
-/// reported them as Issues); positions and the total width follow from
-/// the remaining rows in order.
-pub fn build_layout(channels: Vec<ChannelDef>, bitfields: Vec<BitFieldDef>) -> ChannelLayout {
+/// reported them as Issues), and the cross-file checks run here — a BF row
+/// whose parent is missing or not `BF`, or whose bit is beyond the parent
+/// width, is skipped with an Issue. Those Issues carry no row: the CSV rows
+/// are gone by this stage.
+pub fn build_layout(
+    channels: Vec<ChannelDef>,
+    bitfields: Vec<BitFieldDef>,
+) -> Parsed<ChannelLayout> {
+    let mut issues = Vec::new();
     let mut unique_channels: Vec<ChannelDef> = Vec::new();
     for ch in channels {
         if !unique_channels.iter().any(|c| c.number == ch.number) {
@@ -345,6 +395,40 @@ pub fn build_layout(channels: Vec<ChannelDef>, bitfields: Vec<BitFieldDef>) -> C
     }
     let mut unique_bitfields: Vec<BitFieldDef> = Vec::new();
     for bf in bitfields {
+        let no_row = |code: IssueCode, message: String| Issue {
+            code,
+            row: None,
+            col: None,
+            message,
+        };
+        let parent = unique_channels
+            .iter()
+            .find(|c| c.number == bf.parent_channel);
+        let parent = match parent {
+            Some(p) if p.data_type.is_bitfield() => p,
+            _ => {
+                issues.push(no_row(
+                    IssueCode::BfParentNotBitfield,
+                    format!(
+                        "bit {} of channel {} has no `BF` parent channel; the row was skipped.",
+                        bf.bit_number, bf.parent_channel
+                    ),
+                ));
+                continue;
+            }
+        };
+        if (bf.bit_number as u32) >= parent.bits() {
+            issues.push(no_row(
+                IssueCode::BfBitOutOfRange,
+                format!(
+                    "bit {} of channel {} is beyond its {}-bit width; the row was skipped.",
+                    bf.bit_number,
+                    bf.parent_channel,
+                    parent.bits()
+                ),
+            ));
+            continue;
+        }
         if !unique_bitfields
             .iter()
             .any(|b| b.parent_channel == bf.parent_channel && b.bit_number == bf.bit_number)
@@ -352,11 +436,25 @@ pub fn build_layout(channels: Vec<ChannelDef>, bitfields: Vec<BitFieldDef>) -> C
             unique_bitfields.push(bf);
         }
     }
-    ChannelLayout {
-        channels: unique_channels,
-        bitfields: unique_bitfields,
-        endian: Endian::Little,
+    Parsed {
+        value: ChannelLayout {
+            channels: unique_channels,
+            bitfields: unique_bitfields,
+            endian: Endian::Little,
+        },
+        issues,
     }
+}
+
+/// One channel of a decoded frame: its definition, the bytes it occupies,
+/// and the raw / physical readings.
+#[non_exhaustive]
+#[derive(Debug)]
+pub struct Decoded<'l, 'f> {
+    pub channel: &'l ChannelDef,
+    pub bytes: &'f [u8],
+    pub raw: u64,
+    pub value: f64,
 }
 
 impl ChannelLayout {
@@ -364,6 +462,49 @@ impl ChannelLayout {
     /// Computed on demand, so an edited `byte_count` is never stale.
     pub fn total_bytes(&self) -> usize {
         self.channels.iter().map(|ch| ch.byte_count).sum()
+    }
+
+    /// The `layout_exceeds_capacity` Issue when the frame does not fit in
+    /// `capacity` bytes, `None` when it does. Nothing calls this on its
+    /// own — a consumer with a capacity opts in.
+    pub fn check_capacity(&self, capacity: usize) -> Option<Issue> {
+        let total = self.total_bytes();
+        (total > capacity).then(|| Issue {
+            code: IssueCode::LayoutExceedsCapacity,
+            row: None,
+            col: None,
+            message: format!("the frame needs {total} bytes but the capacity is {capacity}."),
+        })
+    }
+
+    /// Decode a frame: every channel that fits, in row order, with its
+    /// bytes and its raw / physical readings under the layout's `endian`.
+    /// A channel that overruns a short frame is omitted (never zero-filled),
+    /// and so is everything after it — positions are cumulative.
+    pub fn decode<'l, 'f>(&'l self, frame: &'f [u8]) -> Vec<Decoded<'l, 'f>> {
+        let mut offset = 0;
+        let mut decoded = Vec::new();
+        for ch in &self.channels {
+            let end = offset + ch.byte_count;
+            if end > frame.len() {
+                break;
+            }
+            let bytes = &frame[offset..end];
+            decoded.push(Decoded {
+                channel: ch,
+                bytes,
+                raw: ch.raw_from_bytes_endian(bytes, self.endian),
+                value: ch.raw_to_value_endian(bytes, self.endian),
+            });
+            offset = end;
+        }
+        decoded
+    }
+
+    /// The byte slice of one channel inside `frame`; `None` when the
+    /// channel is unknown or overruns the frame.
+    pub fn channel_bytes<'f>(&self, number: u32, frame: &'f [u8]) -> Option<&'f [u8]> {
+        frame.get(self.channel_offset(number)?..self.channel_end(number)?)
     }
 
     /// Byte offset (from the start of the payload) of the given channel.
@@ -531,7 +672,7 @@ mod tests {
                 max: None,
             },
         ];
-        let layout = build_layout(channels, vec![]);
+        let layout = build_layout(channels, vec![]).value;
         assert_eq!(layout.total_bytes(), 7);
         assert_eq!(layout.channels.len(), 3);
     }
@@ -688,7 +829,7 @@ mod tests {
 
     #[test]
     fn build_layout_defaults_to_little_endian() {
-        assert_eq!(build_layout(vec![], vec![]).endian, Endian::Little);
+        assert_eq!(build_layout(vec![], vec![]).value.endian, Endian::Little);
     }
 
     #[test]
@@ -722,6 +863,136 @@ mod tests {
         assert_eq!(serde_json::to_string(&Endian::Big).unwrap(), "\"big\"");
     }
 
+    fn bf_parent() -> ChannelDef {
+        ChannelDef::new(2, 2, DataType::BF)
+    }
+
+    #[test]
+    fn raw_to_bytes_endian_writes_the_low_bytes_of_the_width() {
+        let c = ch(1, DataType::UI8, 1.0, 0.0);
+        assert_eq!(c.raw_to_bytes_endian(0x1FF, Endian::Little), vec![0xFF]);
+        assert_eq!(c.raw_to_bytes_endian(256, Endian::Little), vec![0x00]);
+
+        let c = ch(2, DataType::UI16, 1.0, 0.0);
+        assert_eq!(
+            c.raw_to_bytes_endian(0x1234, Endian::Little),
+            vec![0x34, 0x12]
+        );
+        assert_eq!(c.raw_to_bytes_endian(0x1234, Endian::Big), vec![0x12, 0x34]);
+
+        let wrapped = (-2i64) as u64;
+        assert_eq!(
+            c.raw_to_bytes_endian(wrapped, Endian::Little),
+            vec![0xFE, 0xFF]
+        );
+    }
+
+    #[test]
+    fn raw_from_bytes_endian_reads_the_width_back() {
+        let c = ch(2, DataType::UI16, 1.0, 0.0);
+        assert_eq!(
+            c.raw_from_bytes_endian(&[0x34, 0x12], Endian::Little),
+            0x1234
+        );
+        assert_eq!(c.raw_from_bytes_endian(&[0x12, 0x34], Endian::Big), 0x1234);
+
+        let c = ch(4, DataType::UI32, 1.0, 0.0);
+        let bytes = c.raw_to_bytes_endian(0xDEADBEEF, Endian::Big);
+        assert_eq!(c.raw_from_bytes_endian(&bytes, Endian::Big), 0xDEADBEEF);
+    }
+
+    #[test]
+    fn build_layout_skips_bf_rows_whose_parent_is_not_a_bitfield() {
+        let channels = vec![ChannelDef::new(1, 2, DataType::UI16)];
+        let bitfields = vec![bf(0, "on ui16"), BitFieldDef::new(9, 0)];
+
+        let parsed = build_layout(channels, bitfields);
+
+        assert!(parsed.value.bitfields.is_empty());
+        assert_eq!(parsed.issues.len(), 2);
+        assert!(parsed
+            .issues
+            .iter()
+            .all(|i| i.code == crate::issue::IssueCode::BfParentNotBitfield));
+        assert_eq!(parsed.issues[0].row, None);
+    }
+
+    #[test]
+    fn build_layout_skips_bf_bits_beyond_the_parent_width() {
+        let parsed = build_layout(vec![bf_parent()], vec![bf(15, "top"), bf(16, "beyond")]);
+
+        assert_eq!(parsed.value.bitfields.len(), 1);
+        assert_eq!(parsed.value.bitfields[0].bit_number, 15);
+        assert_eq!(parsed.issues.len(), 1);
+        assert_eq!(
+            parsed.issues[0].code,
+            crate::issue::IssueCode::BfBitOutOfRange
+        );
+    }
+
+    #[test]
+    fn check_capacity_reports_only_when_the_frame_does_not_fit() {
+        let layout = build_layout(vec![ch(4, DataType::UI32, 1.0, 0.0)], vec![]).value;
+
+        assert!(layout.check_capacity(4).is_none());
+        let issue = layout.check_capacity(3).unwrap();
+        assert_eq!(issue.code, crate::issue::IssueCode::LayoutExceedsCapacity);
+        assert_eq!(issue.row, None);
+    }
+
+    #[test]
+    fn decode_slices_the_frame_in_row_order_and_omits_overruns() {
+        let mut a = ChannelDef::new(1, 2, DataType::UI16);
+        a.lsb = 0.5;
+        let b = ChannelDef::new(2, 1, DataType::UI8);
+        let layout = build_layout(vec![a, b], vec![]).value;
+
+        let decoded = layout.decode(&[0x0A, 0x00, 0x07]);
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].bytes, &[0x0A, 0x00]);
+        assert_eq!(decoded[0].raw, 10);
+        assert_eq!(decoded[0].value, 5.0);
+        assert_eq!((decoded[1].channel.number, decoded[1].raw), (2, 7));
+
+        let short = layout.decode(&[0x0A, 0x00]);
+        assert_eq!(short.len(), 1);
+        assert_eq!(short[0].channel.number, 1);
+    }
+
+    #[test]
+    fn decode_reads_raw_with_the_layout_endian() {
+        let mut layout = build_layout(vec![ChannelDef::new(1, 2, DataType::UI16)], vec![]).value;
+        layout.endian = Endian::Big;
+
+        let decoded = layout.decode(&[0x12, 0x34]);
+        assert_eq!(decoded[0].raw, 0x1234);
+        assert_eq!(decoded[0].value, 0x1234 as f64);
+    }
+
+    #[test]
+    fn channel_bytes_finds_the_slice_of_one_channel() {
+        let layout = build_layout(
+            vec![
+                ChannelDef::new(1, 2, DataType::UI16),
+                ChannelDef::new(2, 1, DataType::UI8),
+            ],
+            vec![],
+        )
+        .value;
+
+        let frame = [0xAA, 0xBB, 0xCC];
+        assert_eq!(layout.channel_bytes(2, &frame), Some(&frame[2..3]));
+        assert_eq!(layout.channel_bytes(2, &frame[..2]), None);
+        assert_eq!(layout.channel_bytes(9, &frame), None);
+    }
+
+    #[test]
+    fn bit_of_extracts_the_bit_from_the_parent_raw() {
+        let b = BitFieldDef::new(2, 3);
+        assert_eq!(b.bit_of(0b0000_1000), 1);
+        assert_eq!(b.bit_of(0b1111_0111), 0);
+    }
+
     #[test]
     fn build_layout_keeps_the_first_of_duplicate_numbers() {
         let dup = |number: u32, byte_count: usize| ChannelDef {
@@ -737,26 +1008,26 @@ mod tests {
             max: None,
         };
 
-        let layout = build_layout(vec![dup(1, 2), dup(1, 4), dup(2, 1)], vec![]);
+        let layout = build_layout(vec![dup(1, 2), dup(1, 4), dup(2, 1)], vec![]).value;
 
         assert_eq!(layout.channels.len(), 2);
         assert_eq!(layout.channels[0].byte_count, 2);
         assert_eq!(layout.total_bytes(), 3);
     }
 
+    fn bf(bit: u8, name: &str) -> BitFieldDef {
+        let mut b = BitFieldDef::new(2, bit);
+        b.name = name.into();
+        b
+    }
+
     #[test]
     fn build_layout_keeps_the_first_of_duplicate_bits() {
-        let bf = |bit: u8, name: &str| BitFieldDef {
-            parent_channel: 2,
-            bit_number: bit,
-            name: name.into(),
-            default_value: None,
-        };
-
         let layout = build_layout(
-            vec![],
+            vec![bf_parent()],
             vec![bf(0, "first"), bf(0, "second"), bf(1, "other")],
-        );
+        )
+        .value;
 
         assert_eq!(layout.bitfields.len(), 2);
         assert_eq!(layout.bitfields[0].name, "first");

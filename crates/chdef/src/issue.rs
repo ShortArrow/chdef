@@ -63,6 +63,13 @@ pub enum IssueCode {
     BfDefaultInvalid,
     /// The same `(number, bit)` already exists. The layout keeps the first row.
     BfDuplicate,
+    /// BF `bit` is at or beyond the parent width. Row skipped by the layout.
+    BfBitOutOfRange,
+    /// BF parent channel missing, or its `type` is not `BF`. Row skipped by
+    /// the layout.
+    BfParentNotBitfield,
+    /// `total_bytes` exceeds the capacity handed to `check_capacity`.
+    LayoutExceedsCapacity,
 }
 
 impl IssueCode {
@@ -88,6 +95,9 @@ impl IssueCode {
             IssueCode::BfBitInvalid => "bf_bit_invalid",
             IssueCode::BfDefaultInvalid => "bf_default_invalid",
             IssueCode::BfDuplicate => "bf_duplicate",
+            IssueCode::BfBitOutOfRange => "bf_bit_out_of_range",
+            IssueCode::BfParentNotBitfield => "bf_parent_not_bitfield",
+            IssueCode::LayoutExceedsCapacity => "layout_exceeds_capacity",
         }
     }
 }
@@ -116,5 +126,14 @@ mod tests {
         assert_eq!(IssueCode::MinInvalid.as_str(), "min_invalid");
         assert_eq!(IssueCode::MaxInvalid.as_str(), "max_invalid");
         assert_eq!(IssueCode::MinMaxSwapped.as_str(), "min_max_swapped");
+        assert_eq!(IssueCode::BfBitOutOfRange.as_str(), "bf_bit_out_of_range");
+        assert_eq!(
+            IssueCode::BfParentNotBitfield.as_str(),
+            "bf_parent_not_bitfield"
+        );
+        assert_eq!(
+            IssueCode::LayoutExceedsCapacity.as_str(),
+            "layout_exceeds_capacity"
+        );
     }
 }

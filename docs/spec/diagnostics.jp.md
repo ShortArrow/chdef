@@ -2,7 +2,7 @@
 
 🌐 [English](./diagnostics.md) | **日本語**
 
-実装済み（0.0.2）: `Issue` 型、全ローダーの戻り値 `Parsed { value, issues }`、および下表のコードのうち `bf_bit_out_of_range`・`bf_parent_not_bitfield`・`layout_exceeds_capacity` を除く全部。除いた 3 つは CH 定義や `capacity` を BF 行と同時に受け取る入口がまだないため未実装。
+実装済み（0.0.2）: `Issue` 型、全ローダー（`build_layout` 含む）の戻り値 `Parsed { value, issues }`、および下表の全コード。横断コードは `build_layout` が、`layout_exceeds_capacity` は `ChannelLayout::check_capacity` が報告する。横断コードの行なしは ADR-0008 の決定。
 
 ## 1. 原則
 
@@ -38,8 +38,8 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 | `min_max_swapped` | あり | 解決後の `min` が `max` を上回る。両方保持し、範囲は何にも一致しない |
 | `bf_parent_invalid` | あり | BF の `番号` が整数でない。行を読み飛ばした |
 | `bf_bit_invalid` | あり | `BIT番号` が整数でない。行を読み飛ばした |
-| `bf_bit_out_of_range` | あり | `BIT番号` が親の幅以上。行を読み飛ばした |
-| `bf_parent_not_bitfield` | あり | 親チャンネルが無い、または `型` が `BF` でない。行を読み飛ばした |
+| `bf_bit_out_of_range` | — | `BIT番号` が親の幅以上。行を読み飛ばした |
+| `bf_parent_not_bitfield` | — | 親チャンネルが無い、または `型` が `BF` でない。行を読み飛ばした |
 | `bf_default_invalid` | あり | BF の `値(デフォルト)` が `0` / `1` でない。未指定とみなした |
 | `bf_duplicate` | あり | 同じ `(番号, BIT番号)` が既にある。最初の行だけを使う |
 | `layout_exceeds_capacity` | — | 合計バイト数が `capacity` を超える |

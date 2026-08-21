@@ -2,7 +2,7 @@
 
 🌐 [English](./conversion.md) | **日本語**
 
-実装済み（0.0.2）: 生値 → 物理値（`raw_to_value_endian`、UI/SI 8〜32 bit と BF、LSB 0 → 1、オフセット、endian）と物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`、1〜8 バイト、0 から遠い方へ丸め、clamp、2 の補数）、§8 の範囲問い合わせ。64 bit の decode、BF 既定値の合成、フレーム全体の encode / decode は未実装。
+実装済み（0.0.2）: 生値 → 物理値（`raw_to_value_endian`、UI/SI 8〜32 bit と BF、LSB 0 → 1、オフセット、endian）と物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`、1〜8 バイト、0 から遠い方へ丸め、clamp、2 の補数）、生値 ↔ バイト列の対（`raw_to_bytes_endian` / `raw_from_bytes_endian`。幅の下位ビットのみ、丸めも clamp もしない）、フレーム全体の decode（§6、`ChannelLayout::decode`）、§8 の範囲問い合わせ。64 bit の物理値 decode、BF 既定値の合成（§4）、フレーム全体の encode（§5）は未実装。
 
 ## 1. 生値 → 物理値
 

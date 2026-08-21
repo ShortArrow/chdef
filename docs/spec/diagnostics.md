@@ -3,10 +3,9 @@
 🌐 **English** | [日本語](./diagnostics.jp.md)
 
 Implemented (0.0.2): the `Issue` type, `Parsed { value, issues }` as the
-return shape of every loader, and every code below except
-`bf_bit_out_of_range`, `bf_parent_not_bitfield` and
-`layout_exceeds_capacity` — those need the CH definitions or a `capacity`
-next to the BF rows, and no entry point takes them together yet.
+return shape of every loader (`build_layout` included), and every code
+below. The cross-file codes come from `build_layout`, and
+`layout_exceeds_capacity` from `ChannelLayout::check_capacity`.
 
 ## 1. Principles
 
@@ -49,8 +48,8 @@ found and what chdef did about it.
 | `min_max_swapped` | yes | The resolved `min` exceeds the resolved `max`. Both kept; the range matches nothing |
 | `bf_parent_invalid` | yes | BF `number` is not an integer. Row skipped |
 | `bf_bit_invalid` | yes | `bit` is not an integer. Row skipped |
-| `bf_bit_out_of_range` | yes | `bit` ≥ parent width. Row skipped |
-| `bf_parent_not_bitfield` | yes | Parent channel missing, or its `type` is not `BF`. Row skipped |
+| `bf_bit_out_of_range` | — | `bit` ≥ parent width. Row skipped by the layout; the message names `(number, bit)` |
+| `bf_parent_not_bitfield` | — | Parent channel missing, or its `type` is not `BF`. Row skipped by the layout; the message names `(number, bit)` |
 | `bf_default_invalid` | yes | BF `default` is not `0` / `1`. Treated as unspecified |
 | `bf_duplicate` | yes | The same `(number, bit)` already exists. First row only |
 | `layout_exceeds_capacity` | — | `total_bytes` exceeds `capacity` |

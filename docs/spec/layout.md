@@ -6,9 +6,11 @@ Implemented (0.0.2): cumulative positions and total byte count
 (`ChannelLayout::channel_offset` / `total_bytes()`, both computed on
 demand so edited widths are never stale); the Rows / Layout split
 (`parse_*` keeps duplicates, `build_layout` drops them first-wins); the
-whole-layout `endian` field of §2 (consumed by encode / decode, which are
-still unimplemented). The Table stage, `capacity` and the BF cross-checks
-are not implemented yet.
+whole-layout `endian` field of §2 (consumed by `decode`); the BF
+cross-checks and first-wins duplicate dropping in `build_layout`, which
+returns the layout with those Issues; `capacity` as the opt-in
+`check_capacity` query (§5). The Table stage and whole-frame encode are
+not implemented yet.
 
 ## 1. Three stages
 

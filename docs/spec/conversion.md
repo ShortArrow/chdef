@@ -5,8 +5,11 @@
 Implemented (0.0.2): raw → physical (`raw_to_value_endian`; UI / SI 8–32 bit
 and BF, LSB 0 → 1, offset, endian) and physical → raw (`value_to_raw` /
 `value_to_bytes_endian`; 1–8 bytes, half away from zero, clamp, two's
-complement), and the range queries of §8. 64-bit decode, BF default
-merging, and encode / decode of whole frames are not implemented yet.
+complement), the raw ↔ bytes primitive pair (`raw_to_bytes_endian` /
+`raw_from_bytes_endian`; the low bits of the width, no rounding, no
+clamp), whole-frame decode (§6, `ChannelLayout::decode`), and the range
+queries of §8. 64-bit physical decode, BF default merging (§4), and
+whole-frame encode (§5) are not implemented yet.
 
 ## 1. Raw → physical
 
@@ -39,6 +42,10 @@ raw = clamp(round((value − offset) ÷ lsb))
 - A string with the `0x` prefix is read as a raw value (LSB / offset are not
   applied). Bits beyond the width are reported as Issue `raw_out_of_range`
   and only the low bits are used.
+- A raw value handed to the byte writer (`raw_to_bytes_endian`) is the
+  caller's exact bits: the low `bytes × 8` of it are written, with no
+  rounding, no clamp and no Issue. A wrapping counter is therefore the
+  caller's one-line policy on top of this primitive.
 
 ## 4. Defaults
 
