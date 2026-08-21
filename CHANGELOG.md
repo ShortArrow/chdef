@@ -64,6 +64,8 @@ tag, published to crates.io.
 - `ChannelLayout::total_bytes` is a method computed on demand instead of a
   stored field, so an edited `byte_count` can no longer leave it stale
   (ADR-0006).
+- `ChdefError` is `#[non_exhaustive]` like the other growing vocabularies
+  (ADR-0005): external matches need a catch-all arm.
 - The public surface is the crate root only (ADR-0005): the `channel` /
   `columns` / `csv` / `error` / `issue` module paths are private, and
   `ChColumn` / `BfColumn` / `ColumnMap` / `HeaderLanguage` are withdrawn

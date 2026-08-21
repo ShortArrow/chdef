@@ -1,6 +1,8 @@
 use thiserror::Error;
 
 /// Errors raised while loading or parsing CH / BF definition files.
+/// New variants may appear in any release, so matches need a catch-all arm.
+#[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum ChdefError {
     #[error("{path}: {source}")]
