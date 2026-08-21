@@ -49,6 +49,17 @@ tag, published to crates.io.
 - `ChannelLayout::endian`: the whole-layout byte order of `layout.md` §2,
   set by the consumer (`Little` when unset); frame encode / decode will
   consume it.
+- `raw_to_bytes_endian` / `raw_from_bytes_endian`: the storey below the
+  physical conversion — a raw bit pattern to / from the channel's bytes,
+  truncating to the width with no rounding and no clamp (ADR-0007).
+- `ChannelLayout::decode` / `channel_bytes` (`conversion.md` §6): slice a
+  frame into per-channel bytes with raw and physical readings under the
+  layout's `endian`; a channel that overruns a short frame is omitted.
+- `build_layout` runs the cross-file BF checks and returns
+  `Parsed<ChannelLayout>` (`bf_parent_not_bitfield` / `bf_bit_out_of_range`,
+  without rows — ADR-0008); `ChannelLayout::check_capacity` reports
+  `layout_exceeds_capacity`. Every code of the diagnostics spec is now
+  emitted. `BitFieldDef::bit_of` extracts a bit from the parent's raw value.
 
 ### Changed
 - `load_ch_csv` / `load_bf_csv` take `impl AsRef<Path>` instead of `&str`, so
