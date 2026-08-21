@@ -40,7 +40,15 @@ Table 段階（[layout.jp.md §1](./layout.jp.md)）は、見出し行と全デ�
   10 進表記、`値(最小)` / `値(最大)` は各自の記法（物理値は数値、生値は
   `0x`）。
 
-## 4. 番号の付け替え
+## 4. グリッド上の横断検査
+
+`BfTable::cross_issues(&channels)` は、レイアウトの横断検査
+（`bf_parent_not_bitfield` / `bf_bit_out_of_range`）を行がまだ生きている
+場所で実行する。指摘はグリッドの行と `番号` / `BIT番号` の列を持つので、
+エディタは行なしのメッセージではなくセルを赤くできる。`番号` / `BIT番号`
+が読めない行は `bitfields()` が行つきで報告済み。
+
+## 5. 番号の付け替え
 
 `insert_channel_renumbering(row_index, &def, Some(&mut bf_table))` は
 連番維持の挿入: `番号` ≥ `def.number` の全チャネルを +1 し（`番号` セルを

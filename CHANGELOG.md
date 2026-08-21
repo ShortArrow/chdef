@@ -55,6 +55,9 @@ tag, published to crates.io.
 - `ChannelLayout::decode` / `channel_bytes` (`conversion.md` §6): slice a
   frame into per-channel bytes with raw and physical readings under the
   layout's `endian`; a channel that overruns a short frame is omitted.
+- `BfTable::cross_issues` (ADR-0012): the layout's cross-file BF checks,
+  run on the grid where rows still exist — each finding carries the row
+  and the `number` / `bit` column, so an editor can point at the cell.
 - `ChannelLayout::encode` / `channel_default` (`conversion.md` §5 / §4,
   ADR-0011): build a frame from per-channel `Value`s — physical converted
   and clamped, raw truncated, unnamed channels filled with their default

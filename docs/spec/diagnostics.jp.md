@@ -38,13 +38,15 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 | `min_max_swapped` | あり | 解決後の `min` が `max` を上回る。両方保持し、範囲は何にも一致しない |
 | `bf_parent_invalid` | あり | BF の `番号` が整数でない。行を読み飛ばした |
 | `bf_bit_invalid` | あり | `BIT番号` が整数でない。行を読み飛ばした |
-| `bf_bit_out_of_range` | — | `BIT番号` が親の幅以上。行を読み飛ばした |
-| `bf_parent_not_bitfield` | — | 親チャンネルが無い、または `型` が `BF` でない。行を読み飛ばした |
+| `bf_bit_out_of_range` | —¹ | `BIT番号` が親の幅以上。行を読み飛ばした |
+| `bf_parent_not_bitfield` | —¹ | 親チャンネルが無い、または `型` が `BF` でない。行を読み飛ばした |
 | `bf_default_invalid` | あり | BF の `値(デフォルト)` が `0` / `1` でない。未指定とみなした |
 | `bf_duplicate` | あり | 同じ `(番号, BIT番号)` が既にある。最初の行だけを使う |
 | `layout_exceeds_capacity` | — | 合計バイト数が `capacity` を超える |
 | `encode_unknown_channel` | — | encode の値がレイアウトに無いチャンネルを指す。無視した |
 | `encode_value_invalid` | — | encode の値が NaN / 無限大。チャンネルの既定値を使った |
+
+¹ `build_layout` からは行なし（型付き行はファイル座標を持たない）。同じ指摘を `BfTable::cross_issues` がグリッドの行・列つきで報告し、エディタはセルに落とせる。
 
 ## 3. エラー
 

@@ -9,7 +9,7 @@ use crate::channel::{BitFieldDef, ChannelDef, Value};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::csv::{decode_utf8, interpret_bf, interpret_ch, is_blank, is_comment};
 use crate::error::{ChdefError, Result};
-use crate::issue::Parsed;
+use crate::issue::{Issue, IssueCode, Parsed};
 
 /// What [`ChTable::insert_channel_renumbering`] moved: `(old, new)` per
 /// renumbered channel, ascending by old number. The consumer repairs or
@@ -331,6 +331,56 @@ impl BfTable {
         interpret_bf(&self.cells.map, &self.cells.rows)
     }
 
+    /// The cross-file checks of `build_layout`, run where the grid rows
+    /// still exist: every readable BF row is checked against `channels`,
+    /// and each finding carries the grid row and the `number` / `bit`
+    /// column, so an editor can point at the cell. Rows whose `number` or
+    /// `bit` does not parse are left to `bitfields()`, which already
+    /// reports them.
+    pub fn cross_issues(&self, channels: &[ChannelDef]) -> Vec<Issue> {
+        let number_col = self.cells.map.position(BfColumn::Number);
+        let bit_col = self.cells.map.position(BfColumn::Bit);
+        let read = |row: &[String], col: Option<usize>| {
+            col.and_then(|c| row.get(c)).map(|s| s.trim().to_string())
+        };
+
+        let mut issues = Vec::new();
+        for (row_index, row) in self.cells.rows.iter().enumerate() {
+            if is_blank(row) || is_comment(row) {
+                continue;
+            }
+            let parent = read(row, number_col).and_then(|s| s.parse::<u32>().ok());
+            let bit = read(row, bit_col).and_then(|s| s.parse::<u8>().ok());
+            let (Some(parent), Some(bit)) = (parent, bit) else {
+                continue;
+            };
+            match channels.iter().find(|c| c.number == parent) {
+                Some(ch) if ch.data_type.is_bitfield() => {
+                    if (bit as u32) >= ch.bits() {
+                        issues.push(Issue {
+                            code: IssueCode::BfBitOutOfRange,
+                            row: Some(row_index),
+                            col: bit_col,
+                            message: format!(
+                                "bit {bit} of channel {parent} is beyond its {}-bit width; the layout skips this row.",
+                                ch.bits()
+                            ),
+                        });
+                    }
+                }
+                _ => issues.push(Issue {
+                    code: IssueCode::BfParentNotBitfield,
+                    row: Some(row_index),
+                    col: number_col,
+                    message: format!(
+                        "bit {bit} of channel {parent} has no `BF` parent channel; the layout skips this row."
+                    ),
+                }),
+            }
+        }
+        issues
+    }
+
     /// Rewrite every parent `number` ≥ `from` up by one, following a
     /// channel renumbering.
     fn shift_parents(&mut self, from: u32) {
@@ -477,6 +527,54 @@ mod tests {
 
         let bf = BfTable::new();
         assert!(bf.to_csv().contains("number,bit,name,default,memo"));
+    }
+
+    #[test]
+    fn cross_issues_point_at_the_grid_cells() {
+        let bf = BfTable::parse(
+            "number,bit,name
+2,3,ok
+# note
+9,0,orphan
+2,16,beyond
+1,0,not bf
+",
+        )
+        .unwrap();
+        let channels = vec![
+            ChannelDef::new(1, 2, DataType::UI16),
+            ChannelDef::new(2, 2, DataType::BF),
+        ];
+
+        let issues = bf.cross_issues(&channels);
+
+        assert_eq!(issues.len(), 3);
+        assert_eq!(
+            (issues[0].code, issues[0].row, issues[0].col),
+            (IssueCode::BfParentNotBitfield, Some(2), Some(0))
+        );
+        assert_eq!(
+            (issues[1].code, issues[1].row, issues[1].col),
+            (IssueCode::BfBitOutOfRange, Some(3), Some(1))
+        );
+        assert_eq!(
+            (issues[2].code, issues[2].row),
+            (IssueCode::BfParentNotBitfield, Some(4))
+        );
+    }
+
+    #[test]
+    fn cross_issues_skip_rows_the_parser_already_rejected() {
+        let bf = BfTable::parse(
+            "number,bit,name
+x,0,bad number
+2,y,bad bit
+",
+        )
+        .unwrap();
+        let channels = vec![ChannelDef::new(2, 2, DataType::BF)];
+
+        assert!(bf.cross_issues(&channels).is_empty());
     }
 
     #[test]

@@ -44,7 +44,16 @@ Read → Table → write preserves **rows and cell contents**, not bytes:
   `lsb` / `offset` in shortest decimal form, `min` / `max` in their own
   notation (physical as a number, raw as `0x`).
 
-## 4. Renumbering
+## 4. Cross-file checks on the grid
+
+`BfTable::cross_issues(&channels)` runs the layout's cross-file checks
+(`bf_parent_not_bitfield` / `bf_bit_out_of_range`) where the rows still
+exist, so each finding carries the grid row and the `number` / `bit`
+column — an editor paints the cell instead of a rowless message. Rows
+whose `number` / `bit` do not parse are already reported, with rows, by
+`bitfields()`.
+
+## 5. Renumbering
 
 `insert_channel_renumbering(row_index, &def, Some(&mut bf_table))` is the
 consecutive-numbering insertion: every channel whose `number` ≥

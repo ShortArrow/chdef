@@ -48,13 +48,17 @@ found and what chdef did about it.
 | `min_max_swapped` | yes | The resolved `min` exceeds the resolved `max`. Both kept; the range matches nothing |
 | `bf_parent_invalid` | yes | BF `number` is not an integer. Row skipped |
 | `bf_bit_invalid` | yes | `bit` is not an integer. Row skipped |
-| `bf_bit_out_of_range` | — | `bit` ≥ parent width. Row skipped by the layout; the message names `(number, bit)` |
-| `bf_parent_not_bitfield` | — | Parent channel missing, or its `type` is not `BF`. Row skipped by the layout; the message names `(number, bit)` |
+| `bf_bit_out_of_range` | —¹ | `bit` ≥ parent width. Row skipped by the layout; the message names `(number, bit)` |
+| `bf_parent_not_bitfield` | —¹ | Parent channel missing, or its `type` is not `BF`. Row skipped by the layout; the message names `(number, bit)` |
 | `bf_default_invalid` | yes | BF `default` is not `0` / `1`. Treated as unspecified |
 | `bf_duplicate` | yes | The same `(number, bit)` already exists. First row only |
 | `layout_exceeds_capacity` | — | `total_bytes` exceeds `capacity` |
 | `encode_unknown_channel` | — | An encode value names a channel the layout does not have. Ignored |
 | `encode_value_invalid` | — | An encode value is NaN / infinite. The channel default was used |
+
+¹ Rowless from `build_layout` (typed rows carry no file coordinates);
+`BfTable::cross_issues` reports the same finding with the grid row and
+column for editors.
 
 ## 3. Errors
 
