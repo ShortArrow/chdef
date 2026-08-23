@@ -25,6 +25,9 @@ value = raw_signed × lsb + offset
 - An 8-byte (64-bit) raw value may lose precision in f64 (integers beyond
   53 bits). The physical value is returned as f64; the raw value is returned
   separately as a 64-bit integer.
+- The same conversion is available for a raw value already held as an
+  integer (`raw_to_value_u64`), with no byte order involved. Bits beyond
+  the width are ignored.
 
 ## 2. Physical → raw
 

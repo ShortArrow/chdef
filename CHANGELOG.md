@@ -55,6 +55,14 @@ tag, published to crates.io.
 - `ChannelLayout::decode` / `channel_bytes` (`conversion.md` §6): slice a
   frame into per-channel bytes with raw and physical readings under the
   layout's `endian`; a channel that overruns a short frame is omitted.
+- `ChannelDef` carries `section` / `memo` / `var` / `format` / `favorite`
+  and `BitFieldDef` carries `memo`, so a consumer no longer re-scans the
+  cells to recover columns chdef already read. `DisplayFormat` (`DEC` /
+  `HEX`) is a type with its own parse; it never affects a conversion.
+- `ChannelDef::raw_to_value_u64`: the physical conversion for a raw value
+  already held as an integer, without the byte round trip.
+- `ChannelLayout::positions`: every channel with its byte offset, in row
+  order — the walk `encode` and `decode` perform.
 - `BfTable::cross_issues` (ADR-0012): the layout's cross-file BF checks,
   run on the grid where rows still exist — each finding carries the row
   and the `number` / `bit` column, so an editor can point at the cell.

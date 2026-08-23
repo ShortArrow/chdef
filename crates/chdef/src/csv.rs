@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use crate::channel::{BitFieldDef, ChannelDef, DataType, Value};
+use crate::channel::{BitFieldDef, ChannelDef, DataType, DisplayFormat, Value};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
@@ -263,16 +263,17 @@ pub(crate) fn interpret_ch(
             },
         };
 
-        if let Some(f) = cell(record, ChColumn::Format) {
-            if f.eq_ignore_ascii_case("hex") && lsb != 1.0 {
-                issue(
-                    IssueCode::HexWithLsb,
-                    ChColumn::Format,
-                    format!(
-                        "`format` is HEX but `lsb` is {lsb}; the HEX display shows the raw value, not the physical one."
-                    ),
-                );
-            }
+        let format = cell(record, ChColumn::Format)
+            .and_then(|f| DisplayFormat::parse(&f))
+            .unwrap_or_default();
+        if format == DisplayFormat::Hex && lsb != 1.0 {
+            issue(
+                IssueCode::HexWithLsb,
+                ChColumn::Format,
+                format!(
+                    "`format` is HEX but `lsb` is {lsb}; the HEX display shows the raw value, not the physical one."
+                ),
+            );
         }
 
         let ch = ChannelDef {
@@ -286,6 +287,13 @@ pub(crate) fn interpret_ch(
             default_value,
             min,
             max,
+            section: cell(record, ChColumn::Section).unwrap_or_default(),
+            memo: cell(record, ChColumn::Memo).unwrap_or_default(),
+            var: cell(record, ChColumn::Var).unwrap_or_default(),
+            format,
+            favorite: cell(record, ChColumn::Favorite)
+                .map(|f| f == "1" || f.eq_ignore_ascii_case("true"))
+                .unwrap_or(false),
         };
         if let (Some(lo), Some(hi)) = (ch.min_value(), ch.max_value()) {
             if lo > hi {
@@ -424,6 +432,7 @@ pub(crate) fn interpret_bf(
             bit_number,
             name: cell(record, BfColumn::Name).unwrap_or_default(),
             default_value,
+            memo: cell(record, BfColumn::Memo).unwrap_or_default(),
         });
     }
 
@@ -782,6 +791,45 @@ mod tests {
         assert_eq!(parsed.value[0].max, Some(Value::Physical(100.0)));
         assert_eq!((parsed.value[1].min, parsed.value[1].max), (None, None));
         assert!(parsed.issues.is_empty());
+    }
+
+    #[test]
+    fn parse_ch_csv_carries_the_text_columns_it_used_to_drop() {
+        let csv_data = "number,section,name,memo,var,format,favorite\n\
+                         1,General,Status,see note,g_status,HEX,1\n\
+                         2,,Plain,,,,\n";
+
+        let parsed = parse_ch_csv(csv_data).unwrap();
+
+        let first = &parsed.value[0];
+        assert_eq!(first.section, "General");
+        assert_eq!(first.memo, "see note");
+        assert_eq!(first.var, "g_status");
+        assert_eq!(first.format, DisplayFormat::Hex);
+        assert!(first.favorite);
+
+        let second = &parsed.value[1];
+        assert!(second.section.is_empty() && second.memo.is_empty());
+        assert_eq!(second.format, DisplayFormat::Dec);
+        assert!(!second.favorite);
+        assert!(parsed.issues.is_empty());
+    }
+
+    #[test]
+    fn parse_ch_csv_reads_favorite_as_one_or_true() {
+        let csv_data = "number,favorite,name\n1,true,a\n2,TRUE,b\n3,0,c\n4,yes,d\n";
+
+        let parsed = parse_ch_csv(csv_data).unwrap();
+
+        let flags: Vec<bool> = parsed.value.iter().map(|c| c.favorite).collect();
+        assert_eq!(flags, vec![true, true, false, false]);
+    }
+
+    #[test]
+    fn parse_bf_csv_carries_the_memo() {
+        let parsed = parse_bf_csv("number,bit,name,memo\n2,1,Enabled,fixed value\n").unwrap();
+
+        assert_eq!(parsed.value[0].memo, "fixed value");
     }
 
     #[test]

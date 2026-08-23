@@ -4,9 +4,7 @@
 
 Implemented (0.0.2): BOM stripping; column identification by header name
 in English or Japanese with the 9-column positional fallback; blank rows
-and `#` rows; the column interpretations below with their Issues, except
-that `section` / `memo` / `var` / `favorite` are not yet carried on
-`ChannelDef` and `format` is only checked, not carried;
+and `#` rows; every column interpretation below with its Issues;
 `parse_*_csv_bytes` for byte input; `load_*_csv` over any `AsRef<Path>`.
 Writing is `ChTable::to_csv` /
 `BfTable::to_csv` with the cell-level round trip of
@@ -81,7 +79,7 @@ rules.
 | `default` / `値(デフォルト)` | `DefaultValue`, `デフォルト値` | no | Empty → unspecified. `0x` / `0X` prefix → hexadecimal raw value. Anything else → decimal **raw value** (integer). Non-integer → unspecified (Issue `default_invalid`). For `BF` channels, the BF CSV overrides it bit by bit ([conversion.md](./conversion.md)) |
 | `memo` / `備考` | `Description` | no | String |
 | `var` / `変数名` | `variable` | no | String. Preserved only |
-| `format` / `表示形式` | `DisplayFormat` | no | `DEC` / `HEX` (case-insensitive). Empty / unknown → `DEC`. `HEX` with `lsb` ≠ 1 → Issue `hex_with_lsb` |
+| `format` / `表示形式` | `DisplayFormat` | no | `DEC` / `HEX` (case-insensitive). Empty / unknown → `DEC`. `HEX` with `lsb` ≠ 1 → Issue `hex_with_lsb`. Carried for the consumer to render with; it never affects a conversion |
 | `favorite` / `お気に入り` | `IsFavorite` | no | `1` or `true` (case-insensitive) → true, anything else → false. Written as `1` / `0` |
 
 Type prefix and width: the width is `bytes × 8` bits. `UI` is an unsigned

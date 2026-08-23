@@ -16,7 +16,8 @@ mod issue;
 mod table;
 
 pub use channel::{
-    build_layout, BitFieldDef, ChannelDef, ChannelLayout, DataType, Decoded, Endian, Value,
+    build_layout, BitFieldDef, ChannelDef, ChannelLayout, DataType, Decoded, DisplayFormat, Endian,
+    Value,
 };
 pub use csv::{
     load_bf_csv, load_ch_csv, parse_bf_csv, parse_bf_csv_bytes, parse_ch_csv, parse_ch_csv_bytes,

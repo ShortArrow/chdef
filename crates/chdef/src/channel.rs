@@ -13,6 +13,32 @@ pub enum Endian {
 /// Interpretation of a channel's bytes. Wider widths may become variants
 /// (the specification already names 64-bit suffixes), so matches need a
 /// catch-all arm.
+/// How a consumer renders the channel's value (`format` column). It never
+/// affects a conversion: `raw_to_value` returns the physical value for a
+/// `Hex` channel too, and the consumer shows the raw value instead.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
+pub enum DisplayFormat {
+    #[default]
+    Dec,
+    Hex,
+}
+
+impl DisplayFormat {
+    /// `DEC` / `HEX`, case-insensitively; `None` for anything else.
+    pub fn parse(s: &str) -> Option<DisplayFormat> {
+        let s = s.trim();
+        if s.eq_ignore_ascii_case("dec") {
+            Some(DisplayFormat::Dec)
+        } else if s.eq_ignore_ascii_case("hex") {
+            Some(DisplayFormat::Hex)
+        } else {
+            None
+        }
+    }
+}
+
 /// A number carrying its notation, as the CSV and consumer input spell it:
 /// a plain number is a physical value, a `0x` value is a raw bit pattern.
 /// Used by the `min` / `max` bounds (resolved with the channel's current
@@ -128,6 +154,16 @@ pub struct ChannelDef {
     /// columns). Carried, never applied automatically; see [`Value`].
     pub min: Option<Value>,
     pub max: Option<Value>,
+    /// Free text columns carried for consumers that group, annotate or
+    /// generate code from the definitions (`section` / `memo` / `var`).
+    /// chdef never interprets them.
+    pub section: String,
+    pub memo: String,
+    pub var: String,
+    /// How the consumer renders the value (`format` column).
+    pub format: DisplayFormat,
+    /// The `favorite` flag a consumer uses to pin the channel.
+    pub favorite: bool,
 }
 
 impl ChannelDef {
@@ -152,6 +188,11 @@ impl ChannelDef {
             default_value: None,
             min: None,
             max: None,
+            section: String::new(),
+            memo: String::new(),
+            var: String::new(),
+            format: DisplayFormat::default(),
+            favorite: false,
         }
     }
 
@@ -170,19 +211,7 @@ impl ChannelDef {
     fn resolve_value(&self, value: &Value) -> f64 {
         match *value {
             Value::Physical(v) => v,
-            Value::Raw(raw) => {
-                let bits = self.bits();
-                let raw_signed = if self.data_type.category() == "SI"
-                    && bits < 64
-                    && (raw >> (bits - 1)) & 1 == 1
-                {
-                    (raw | (u64::MAX << bits)) as i64 as f64
-                } else {
-                    raw as f64
-                };
-                let lsb = if self.lsb == 0.0 { 1.0 } else { self.lsb };
-                raw_signed * lsb + self.offset
-            }
+            Value::Raw(raw) => self.raw_to_value_u64(raw),
         }
     }
 
@@ -256,6 +285,30 @@ impl ChannelDef {
         };
         let lsb = if self.lsb == 0.0 { 1.0 } else { self.lsb };
         raw * lsb + self.offset
+    }
+
+    /// Physical value of a raw bit pattern already held as an integer
+    /// (`raw × lsb + offset`): the register-shaped counterpart of
+    /// [`raw_to_value_endian`], with no byte order involved. An `SI`
+    /// channel's pattern is sign-extended from its width; `UI` / `BF` are
+    /// unsigned. Bits beyond the width are ignored.
+    ///
+    /// [`raw_to_value_endian`]: ChannelDef::raw_to_value_endian
+    pub fn raw_to_value_u64(&self, raw: u64) -> f64 {
+        let bits = self.bits();
+        let masked = if bits >= 64 {
+            raw
+        } else {
+            raw & ((1u64 << bits) - 1)
+        };
+        let signed =
+            if self.data_type.category() == "SI" && bits < 64 && (masked >> (bits - 1)) & 1 == 1 {
+                (masked | (u64::MAX << bits)) as i64 as f64
+            } else {
+                masked as f64
+            };
+        let lsb = if self.lsb == 0.0 { 1.0 } else { self.lsb };
+        signed * lsb + self.offset
     }
 
     /// Width of the channel on the wire in bits (`byte_count × 8`, capped at 64).
@@ -357,6 +410,9 @@ pub struct BitFieldDef {
     /// Optional protocol-spec default of the bit (`0` / `1`); `None` keeps
     /// the default bit of the parent channel.
     pub default_value: Option<u8>,
+    /// Free text carried for the consumer (`memo` column); never
+    /// interpreted.
+    pub memo: String,
 }
 
 impl BitFieldDef {
@@ -378,6 +434,7 @@ impl BitFieldDef {
             bit_number,
             name: String::new(),
             default_value: None,
+            memo: String::new(),
         }
     }
 }
@@ -612,6 +669,17 @@ impl ChannelLayout {
         frame.get(self.channel_offset(number)?..self.channel_end(number)?)
     }
 
+    /// Every channel with its byte offset from the start of the frame, in
+    /// row order — the walk that `decode` and `encode` perform, for a
+    /// consumer laying out its own view.
+    pub fn positions(&self) -> impl Iterator<Item = (usize, &ChannelDef)> {
+        self.channels.iter().scan(0usize, |at, ch| {
+            let start = *at;
+            *at += ch.byte_count;
+            Some((start, ch))
+        })
+    }
+
     /// Byte offset (from the start of the payload) of the given channel.
     pub fn channel_offset(&self, number: u32) -> Option<usize> {
         let mut offset = 0usize;
@@ -642,18 +710,17 @@ mod tests {
     use super::*;
 
     fn ch(byte_count: usize, data_type: DataType, lsb: f64, offset: f64) -> ChannelDef {
-        ChannelDef {
-            number: 1,
-            name: "t".into(),
-            byte_count,
-            data_type,
-            lsb,
-            offset,
-            unit: String::new(),
-            default_value: None,
-            min: None,
-            max: None,
-        }
+        let mut c = ChannelDef::new(1, byte_count, data_type);
+        c.name = "t".into();
+        c.lsb = lsb;
+        c.offset = offset;
+        c
+    }
+
+    fn named(number: u32, byte_count: usize, data_type: DataType, name: &str) -> ChannelDef {
+        let mut c = ChannelDef::new(number, byte_count, data_type);
+        c.name = name.into();
+        c
     }
 
     #[test]
@@ -740,42 +807,9 @@ mod tests {
     #[test]
     fn build_layout_total_bytes() {
         let channels = vec![
-            ChannelDef {
-                number: 1,
-                name: "a".into(),
-                byte_count: 4,
-                data_type: DataType::UI32,
-                lsb: 1.0,
-                offset: 0.0,
-                unit: String::new(),
-                default_value: None,
-                min: None,
-                max: None,
-            },
-            ChannelDef {
-                number: 2,
-                name: "b".into(),
-                byte_count: 2,
-                data_type: DataType::UI16,
-                lsb: 1.0,
-                offset: 0.0,
-                unit: String::new(),
-                default_value: None,
-                min: None,
-                max: None,
-            },
-            ChannelDef {
-                number: 3,
-                name: "c".into(),
-                byte_count: 1,
-                data_type: DataType::UI8,
-                lsb: 1.0,
-                offset: 0.0,
-                unit: String::new(),
-                default_value: None,
-                min: None,
-                max: None,
-            },
+            named(1, 4, DataType::UI32, "a"),
+            named(2, 2, DataType::UI16, "b"),
+            named(3, 1, DataType::UI8, "c"),
         ];
         let layout = build_layout(channels, vec![]).value;
         assert_eq!(layout.total_bytes(), 7);
@@ -784,34 +818,18 @@ mod tests {
 
     #[test]
     fn raw_to_value_identity() {
-        let ch = ChannelDef {
-            number: 1,
-            name: "test".into(),
-            byte_count: 2,
-            data_type: DataType::UI16,
-            lsb: 1.0,
-            offset: 0.0,
-            unit: String::new(),
-            default_value: None,
-            min: None,
-            max: None,
-        };
+        let ch = named(1, 2, DataType::UI16, "test");
         assert_eq!(ch.raw_to_value(&[0x2A, 0x00]), 42.0);
     }
 
     #[test]
     fn raw_to_value_with_lsb_and_offset() {
-        let ch = ChannelDef {
-            number: 1,
-            name: "lat".into(),
-            byte_count: 4,
-            data_type: DataType::SI32,
-            lsb: 4.19e-08,
-            offset: 0.0,
-            unit: "deg".into(),
-            default_value: None,
-            min: None,
-            max: None,
+        let ch = {
+            let mut c = named(1, 4, DataType::SI32, "lat");
+            c.lsb = 4.19e-08;
+            c.offset = 0.0;
+            c.unit = "deg".into();
+            c
         };
         let raw = 1_000_000i32.to_le_bytes();
         let val = ch.raw_to_value(&raw);
@@ -820,68 +838,41 @@ mod tests {
 
     #[test]
     fn raw_to_value_lsb_zero_treated_as_identity() {
-        let ch = ChannelDef {
-            number: 1,
-            name: "test".into(),
-            byte_count: 2,
-            data_type: DataType::UI16,
-            lsb: 0.0,
-            offset: 0.0,
-            unit: String::new(),
-            default_value: None,
-            min: None,
-            max: None,
+        let ch = {
+            let mut c = named(1, 2, DataType::UI16, "test");
+            c.lsb = 0.0;
+            c.offset = 0.0;
+            c
         };
         assert_eq!(ch.raw_to_value(&[0x0A, 0x00]), 10.0);
     }
 
     #[test]
     fn raw_to_value_signed() {
-        let ch = ChannelDef {
-            number: 1,
-            name: "temp".into(),
-            byte_count: 1,
-            data_type: DataType::SI8,
-            lsb: 1.0,
-            offset: 0.0,
-            unit: "℃".into(),
-            default_value: None,
-            min: None,
-            max: None,
+        let ch = {
+            let mut c = named(1, 1, DataType::SI8, "temp");
+            c.lsb = 1.0;
+            c.offset = 0.0;
+            c.unit = "℃".into();
+            c
         };
         assert_eq!(ch.raw_to_value(&[0xFE]), -2.0); // -2 as i8
     }
 
     #[test]
     fn format_value_integer_when_lsb_is_one() {
-        let ch = ChannelDef {
-            number: 1,
-            name: "cnt".into(),
-            byte_count: 2,
-            data_type: DataType::UI16,
-            lsb: 1.0,
-            offset: 0.0,
-            unit: String::new(),
-            default_value: None,
-            min: None,
-            max: None,
-        };
+        let ch = named(1, 2, DataType::UI16, "cnt");
         assert_eq!(ch.format_value(&[0x2A, 0x00]), "42");
     }
 
     #[test]
     fn format_value_decimal_when_lsb_is_fractional() {
-        let ch = ChannelDef {
-            number: 1,
-            name: "lat".into(),
-            byte_count: 4,
-            data_type: DataType::SI32,
-            lsb: 4.19e-08,
-            offset: 0.0,
-            unit: "deg".into(),
-            default_value: None,
-            min: None,
-            max: None,
+        let ch = {
+            let mut c = named(1, 4, DataType::SI32, "lat");
+            c.lsb = 4.19e-08;
+            c.offset = 0.0;
+            c.unit = "deg".into();
+            c
         };
         let raw = 1_000_000i32.to_le_bytes();
         let formatted = ch.format_value(&raw);
@@ -1099,6 +1090,63 @@ mod tests {
     }
 
     #[test]
+    fn new_channels_start_with_every_carried_column_empty() {
+        let c = ChannelDef::new(1, 2, DataType::UI16);
+
+        assert!(c.section.is_empty() && c.memo.is_empty() && c.var.is_empty());
+        assert_eq!(c.format, DisplayFormat::Dec);
+        assert!(!c.favorite);
+    }
+
+    #[test]
+    fn display_format_parses_case_insensitively() {
+        assert_eq!(DisplayFormat::parse("HEX"), Some(DisplayFormat::Hex));
+        assert_eq!(DisplayFormat::parse("dec"), Some(DisplayFormat::Dec));
+        assert_eq!(DisplayFormat::parse("octal"), None);
+    }
+
+    #[test]
+    fn raw_to_value_u64_matches_the_byte_form() {
+        let mut c = ch(2, DataType::SI16, 0.1, -5.0);
+        c.lsb = 0.1;
+
+        let bytes = c.raw_to_bytes_endian(0xFFFE, Endian::Little);
+        assert_eq!(
+            c.raw_to_value_u64(0xFFFE),
+            c.raw_to_value_endian(&bytes, Endian::Little)
+        );
+        assert_eq!(c.raw_to_value_u64(0xFFFE), -5.2);
+    }
+
+    #[test]
+    fn raw_to_value_u64_sign_extends_only_signed_channels() {
+        assert_eq!(ch(1, DataType::SI8, 1.0, 0.0).raw_to_value_u64(0xFF), -1.0);
+        assert_eq!(ch(1, DataType::UI8, 1.0, 0.0).raw_to_value_u64(0xFF), 255.0);
+        assert_eq!(
+            ch(2, DataType::BF, 1.0, 0.0).raw_to_value_u64(0xFFFF),
+            65535.0
+        );
+    }
+
+    #[test]
+    fn positions_pair_each_channel_with_its_offset() {
+        let layout = build_layout(
+            vec![
+                ChannelDef::new(1, 4, DataType::UI32),
+                ChannelDef::new(2, 2, DataType::UI16),
+                ChannelDef::new(3, 1, DataType::UI8),
+            ],
+            vec![],
+        )
+        .value;
+
+        let seen: Vec<(usize, u32)> = layout.positions().map(|(at, ch)| (at, ch.number)).collect();
+
+        assert_eq!(seen, vec![(0, 1), (4, 2), (6, 3)]);
+        assert_eq!(layout.total_bytes(), 7);
+    }
+
+    #[test]
     fn value_parse_reads_raw_or_physical_notation() {
         assert_eq!(Value::parse("0x7E"), Some(Value::Raw(0x7E)));
         assert_eq!(Value::parse(" -1.5 "), Some(Value::Physical(-1.5)));
@@ -1213,18 +1261,8 @@ mod tests {
 
     #[test]
     fn build_layout_keeps_the_first_of_duplicate_numbers() {
-        let dup = |number: u32, byte_count: usize| ChannelDef {
-            number,
-            name: String::new(),
-            byte_count,
-            data_type: DataType::UI16,
-            lsb: 1.0,
-            offset: 0.0,
-            unit: String::new(),
-            default_value: None,
-            min: None,
-            max: None,
-        };
+        let dup =
+            |number: u32, byte_count: usize| ChannelDef::new(number, byte_count, DataType::UI16);
 
         let layout = build_layout(vec![dup(1, 2), dup(1, 4), dup(2, 1)], vec![]).value;
 

@@ -5,7 +5,7 @@
 //! and record separators are normalised to `docs/spec/format.md` §1).
 //! Rows and Layout are derived views: interpret again after editing.
 
-use crate::channel::{BitFieldDef, ChannelDef, Value};
+use crate::channel::{BitFieldDef, ChannelDef, DisplayFormat, Value};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::csv::{decode_utf8, interpret_bf, interpret_ch, is_blank, is_comment};
 use crate::error::{ChdefError, Result};
@@ -272,6 +272,19 @@ impl ChTable {
         put(ChColumn::Lsb, shortest(def.lsb));
         put(ChColumn::Offset, shortest(def.offset));
         put(ChColumn::Unit, def.unit.clone());
+        put(ChColumn::Section, def.section.clone());
+        put(ChColumn::Memo, def.memo.clone());
+        put(ChColumn::Var, def.var.clone());
+        put(
+            ChColumn::Format,
+            match def.format {
+                DisplayFormat::Dec => "DEC".into(),
+                DisplayFormat::Hex => "HEX".into(),
+            },
+        );
+        if def.favorite {
+            put(ChColumn::Favorite, "1".into());
+        }
         if let Some(v) = def.default_value {
             put(ChColumn::Default, v.to_string());
         }
@@ -515,6 +528,30 @@ mod tests {
         assert_eq!(ch.min, Some(Value::Raw(0x10)));
         assert_eq!(ch.max, Some(Value::Physical(50.0)));
         assert_eq!(ch.default_value, Some(126));
+    }
+
+    #[test]
+    fn insert_channel_writes_the_text_columns_too() {
+        let mut table = ChTable::new();
+        let mut def = ChannelDef::new(1, 2, DataType::UI16);
+        def.section = "General".into();
+        def.memo = "a, quoted memo".into();
+        def.var = "g_status".into();
+        def.format = crate::channel::DisplayFormat::Hex;
+        def.favorite = true;
+
+        table.insert_channel(0, &def);
+        let round_tripped = ChTable::parse(table.to_csv().trim_start_matches('\u{FEFF}'))
+            .unwrap()
+            .channels()
+            .value;
+
+        let ch = &round_tripped[0];
+        assert_eq!(ch.section, "General");
+        assert_eq!(ch.memo, "a, quoted memo");
+        assert_eq!(ch.var, "g_status");
+        assert_eq!(ch.format, crate::channel::DisplayFormat::Hex);
+        assert!(ch.favorite);
     }
 
     #[test]
