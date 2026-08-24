@@ -13,7 +13,17 @@ snapshots it by cloning.
 The Table stage ([layout.md §1](./layout.md#1-three-stages)) holds the
 header row and every data row as verbatim cell strings — comment rows,
 blank rows and unknown columns included. It is the source of truth during
-an editing session. Rows and Layout are derived views: interpret again
+an editing session.
+
+That much is a `Grid`, and it needs no column vocabulary: a consumer that
+displays or edits a file without reading its columns uses one and never
+picks between a CH and a BF table. `ChTable` and `BfTable` are a grid plus
+the columns its header names, and add only what needs them — interpreting
+rows, inserting a typed channel, renumbering, the cross-file checks.
+Whether the first record is a header is the one interpretation a bare grid
+makes, and it takes the first record as one; deciding it from the
+vocabulary (§2 of [format.md](./format.md), including the positional
+fallback) is the typed tables'. Rows and Layout are derived views: interpret again
 after an edit (`channels()` / `bitfields()`, then `build_layout`), the
 same way positions and `total_bytes()` are always recomputed. Nothing is
 cached, so nothing goes stale.

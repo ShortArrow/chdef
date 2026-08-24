@@ -1,9 +1,11 @@
-//! The Table stage (`docs/spec/layout.md` §1): header and cells as a
-//! two-dimensional array, verbatim. The substrate for editing and for
-//! writing back — unknown columns, comment rows and the header spelling all
-//! survive a read → edit → write round trip at cell granularity (quoting
-//! and record separators are normalised to `docs/spec/format.md` §1).
-//! Rows and Layout are derived views: interpret again after editing.
+//! The Table stage (`docs/spec/layout.md` §1): a CSV file as its cells.
+//!
+//! [`Grid`] is the file with nothing interpreted — the header row and every
+//! data row as verbatim strings, unknown columns and comment rows included.
+//! [`ChTable`] and [`BfTable`] are a grid plus a column vocabulary, and add
+//! the operations that need one. All three write the file back in the shape
+//! it was read (`docs/spec/editing.md` §2); Rows and Layout are derived
+//! views, interpreted again after each edit.
 
 use crate::channel::{BitFieldDef, ChannelDef};
 use crate::columns::{BfColumn, ChColumn, ColumnAliases, ColumnMap, HeaderLanguage};
@@ -32,11 +34,11 @@ impl LineEnding {
 }
 
 /// The shape of a CSV file, apart from its cells: whether it starts with a
-/// byte-order mark and how it separates records. A table reads this from
-/// the file it parsed and writes it back, so editing one cell of a file
-/// kept with `\n` endings does not rewrite every line of it. The default —
-/// what a table created in code uses — is the write column of
-/// `docs/spec/format.md` §1: a BOM and `\r\n`.
+/// byte-order mark and how it separates records. A grid reads this from the
+/// file it parsed and writes it back, so editing one cell of a file kept
+/// with LF endings does not rewrite every line of it. The default — what a
+/// grid created in code uses — is the write column of
+/// `docs/spec/format.md` §1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CsvStyle {
     pub bom: bool,
@@ -63,26 +65,53 @@ pub struct Renumbered {
     pub moved: Vec<(u32, u32)>,
 }
 
-/// The cell grid shared by [`ChTable`] and [`BfTable`].
-#[derive(Debug, Clone)]
-struct Cells<C> {
-    /// The header row as read (or as created); `None` for a positional file.
+/// A CSV file as its cells, with nothing interpreted: a consumer that
+/// displays or edits a definition without reading its columns needs no more
+/// than this, and needs not know whether the file is a CH or a BF CSV.
+///
+/// Whether the first record is a header is the one interpretation a grid
+/// makes, and it makes it the simple way: [`parse`](Grid::parse) takes the
+/// first record as the header. Deciding it from the column vocabulary —
+/// which is what `docs/spec/format.md` §2 specifies, and what lets a
+/// headerless file be read positionally — is [`ChTable`]'s and
+/// [`BfTable`]'s.
+#[derive(Debug, Clone, Default)]
+pub struct Grid {
     header: Option<Vec<String>>,
-    map: ColumnMap<C>,
     rows: Vec<Vec<String>>,
     style: CsvStyle,
 }
 
-impl<C: Copy + PartialEq> Cells<C> {
-    fn parse(
-        content: &str,
-        from_header: impl Fn(&[&str]) -> Option<ColumnMap<C>>,
-        positional: fn() -> ColumnMap<C>,
-    ) -> Result<Self> {
+impl Grid {
+    /// An empty grid with no header, writing the defaults of
+    /// `docs/spec/format.md` §1.
+    pub fn new() -> Grid {
+        Grid {
+            header: None,
+            rows: Vec::new(),
+            style: CsvStyle::default(),
+        }
+    }
+
+    /// Parse CSV text, taking the first record as the header. Only a
+    /// structurally broken file fails (`docs/spec/diagnostics.md` §1);
+    /// everything interpretable-or-not is kept as cells.
+    pub fn parse(content: &str) -> Result<Grid> {
+        Grid::split(content, |records| !records.is_empty())
+    }
+
+    /// [`parse`](Grid::parse) after stripping BOMs and decoding UTF-8.
+    pub fn parse_bytes(bytes: &[u8]) -> Result<Grid> {
+        Grid::parse(decode_utf8(bytes)?)
+    }
+
+    /// Read the records of `content` and let `has_header` decide, from all
+    /// of them, whether the first is a header.
+    fn split(content: &str, mut has_header: impl FnMut(&[Vec<String>]) -> bool) -> Result<Grid> {
         let bom = content.starts_with('\u{FEFF}');
         let content = content.trim_start_matches('\u{FEFF}');
-        let scan = scan_shape(content);
-        if let Some(line) = scan.unterminated_on {
+        let shape = scan_shape(content);
+        if let Some(line) = shape.unterminated_on {
             return Err(ChdefError::CsvParse {
                 line,
                 message:
@@ -90,11 +119,11 @@ impl<C: Copy + PartialEq> Cells<C> {
                         .to_string(),
             });
         }
+
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
             .flexible(true)
             .from_reader(content.as_bytes());
-
         let mut rows: Vec<Vec<String>> = Vec::new();
         for (index, record) in rdr.records().enumerate() {
             let record = record.map_err(|e| ChdefError::CsvParse {
@@ -104,59 +133,131 @@ impl<C: Copy + PartialEq> Cells<C> {
             rows.push(record.iter().map(str::to_string).collect());
         }
 
-        let map = rows
-            .first()
-            .and_then(|first| from_header(&first.iter().map(String::as_str).collect::<Vec<_>>()));
-        let style = CsvStyle {
-            bom,
-            line_ending: scan.line_ending.unwrap_or_default(),
-        };
-        Ok(match map {
-            Some(map) => Cells {
-                header: Some(rows.remove(0)),
-                map,
-                rows,
-                style,
-            },
-            None => Cells {
-                header: None,
-                map: positional(),
-                rows,
-                style,
+        let header = has_header(&rows).then(|| rows.remove(0));
+        Ok(Grid {
+            header,
+            rows,
+            style: CsvStyle {
+                bom,
+                line_ending: shape.line_ending.unwrap_or_default(),
             },
         })
     }
 
-    fn to_csv(&self) -> String {
+    /// A grid with the given header row and no data rows.
+    fn with_header(header: Vec<String>) -> Grid {
+        Grid {
+            header: Some(header),
+            rows: Vec::new(),
+            style: CsvStyle::default(),
+        }
+    }
+
+    /// The header row, or `None` for a file read without one.
+    pub fn header(&self) -> Option<&[String]> {
+        self.header.as_deref()
+    }
+
+    /// Every data row in order, header excluded — the grid an editor draws.
+    /// Comment and blank rows are rows like any other.
+    pub fn rows(&self) -> impl Iterator<Item = &[String]> {
+        self.rows.iter().map(Vec::as_slice)
+    }
+
+    /// One data row, by the same index [`cell`](Grid::cell) uses.
+    pub fn row(&self, index: usize) -> Option<&[String]> {
+        self.rows.get(index).map(Vec::as_slice)
+    }
+
+    /// The cell at `(row, col)` of the data rows, exactly as it will be
+    /// written. `None` outside the grid.
+    pub fn cell(&self, row: usize, col: usize) -> Option<&str> {
+        self.rows.get(row)?.get(col).map(String::as_str)
+    }
+
+    /// Number of data rows (comment and blank rows included).
+    pub fn row_count(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// Overwrite one cell; a row shorter than `col` is padded with empty
+    /// cells. A row outside the grid is ignored.
+    pub fn set_cell(&mut self, row: usize, col: usize, value: impl Into<String>) {
+        if let Some(cells) = self.rows.get_mut(row) {
+            if cells.len() <= col {
+                cells.resize(col + 1, String::new());
+            }
+            cells[col] = value.into();
+        }
+    }
+
+    /// Insert a row of cells at `index` (clamped to the end).
+    pub fn insert_row(&mut self, index: usize, cells: Vec<String>) {
+        let index = index.min(self.rows.len());
+        self.rows.insert(index, cells);
+    }
+
+    /// Append a row of cells.
+    pub fn append_row(&mut self, cells: Vec<String>) {
+        self.rows.push(cells);
+    }
+
+    /// Remove and return the row at `index`; `None` when the grid has no
+    /// such row.
+    pub fn remove_row(&mut self, index: usize) -> Option<Vec<String>> {
+        (index < self.rows.len()).then(|| self.rows.remove(index))
+    }
+
+    /// The shape the file is written in — its byte-order mark and record
+    /// separator — read from the file this grid was parsed from, or the
+    /// write defaults for one created in code.
+    pub fn style(&self) -> CsvStyle {
+        self.style
+    }
+
+    /// Write the file in another shape from now on.
+    pub fn set_style(&mut self, style: CsvStyle) {
+        self.style = style;
+    }
+
+    /// Serialise back to CSV text in this grid's shape: a cell is quoted
+    /// only when it holds `,` `"` or a newline
+    /// (`docs/spec/format.md` §1). Cells and rows round-trip; the source's
+    /// unnecessary quotes are dropped.
+    pub fn to_csv(&self) -> String {
         let mut out = String::new();
         if self.style.bom {
             out.push('\u{FEFF}');
         }
         let separator = self.style.line_ending.as_str();
-        if let Some(header) = &self.header {
-            push_row(&mut out, header, separator);
-        }
-        for row in &self.rows {
+        for row in self.header.iter().chain(self.rows.iter()) {
             push_row(&mut out, row, separator);
         }
         out
     }
 
-    fn cell(&self, row: usize, col: usize) -> Option<&str> {
-        self.rows.get(row)?.get(col).map(String::as_str)
-    }
-
-    fn set_cell(&mut self, row: usize, col: usize, value: String) {
-        if let Some(cells) = self.rows.get_mut(row) {
-            if cells.len() <= col {
-                cells.resize(col + 1, String::new());
-            }
-            cells[col] = value;
+    /// The grid in the Table JSON shape of `docs/spec/interchange.md` §2:
+    /// the header (absent for a file read without one) and every row,
+    /// verbatim, unknown columns included.
+    #[cfg(feature = "serde")]
+    pub fn to_json(&self) -> crate::interchange::TableJson<'_> {
+        crate::interchange::TableJson {
+            header: self.header.as_deref(),
+            rows: &self.rows,
         }
     }
 
-    /// Width for a generated row: the header width, or the widest position
-    /// the column map knows.
+    /// The data rows as the interpreters read them.
+    pub(crate) fn data(&self) -> &[Vec<String>] {
+        &self.rows
+    }
+
+    /// The data rows, to renumber a `number` cell in place.
+    pub(crate) fn data_mut(&mut self) -> &mut [Vec<String>] {
+        &mut self.rows
+    }
+
+    /// Width for a generated row: the header's, or none.
     fn new_row_width(&self) -> usize {
         self.header.as_ref().map(Vec::len).unwrap_or_default()
     }
@@ -245,101 +346,89 @@ fn shortest(v: f64) -> String {
     format!("{v}")
 }
 
-macro_rules! grid_api {
+/// The grid operations a typed table forwards to the [`Grid`] it holds.
+/// They are the same on both tables and mean the same thing; the macro
+/// exists so the documentation lands on each type rather than behind one
+/// more indirection.
+macro_rules! grid_delegates {
     () => {
-        /// Serialise the table back to CSV text: UTF-8 BOM first, `\r\n`
-        /// separators, and a cell quoted only when it holds `,` `"` or a
-        /// newline (`docs/spec/format.md` §1). Cell contents and row
-        /// structure round-trip; the original quoting and separators are
-        /// normalised to those rules.
-        pub fn to_csv(&self) -> String {
-            self.cells.to_csv()
-        }
-
-        /// The cell at `(row, col)` of the data grid (header excluded),
-        /// exactly as it will be written. `None` outside the grid.
-        pub fn cell(&self, row: usize, col: usize) -> Option<&str> {
-            self.cells.cell(row, col)
-        }
-
-        /// Overwrite one cell; a row shorter than `col` is padded with
-        /// empty cells. Out-of-grid rows are ignored.
-        pub fn set_cell(&mut self, row: usize, col: usize, value: impl Into<String>) {
-            self.cells.set_cell(row, col, value.into());
-        }
-
-        /// Number of data rows (comment and blank rows included).
-        pub fn row_count(&self) -> usize {
-            self.cells.rows.len()
-        }
-
-        /// The shape the file is written in — its byte-order mark and
-        /// record separator — read from the file this table was parsed
-        /// from, or the write defaults for one created in code.
-        pub fn style(&self) -> CsvStyle {
-            self.cells.style
-        }
-
-        /// Write the file in another shape from now on.
-        pub fn set_style(&mut self, style: CsvStyle) {
-            self.cells.style = style;
-        }
-
-        /// The header row as it was read, or `None` for a file read
-        /// positionally, which has none (`docs/spec/format.md` §2).
+        /// See [`Grid::header`].
         pub fn header(&self) -> Option<&[String]> {
-            self.cells.header.as_deref()
+            self.grid.header()
         }
 
-        /// Every data row in order, header excluded — the grid an editor
-        /// draws. Comment and blank rows are rows like any other.
+        /// See [`Grid::rows`].
         pub fn rows(&self) -> impl Iterator<Item = &[String]> {
-            self.cells.rows.iter().map(Vec::as_slice)
+            self.grid.rows()
         }
 
-        /// One data row, by the same index `cell` and `set_cell` use.
+        /// See [`Grid::row`].
         pub fn row(&self, index: usize) -> Option<&[String]> {
-            self.cells.rows.get(index).map(Vec::as_slice)
+            self.grid.row(index)
         }
 
-        /// Insert a raw row of cells at `index` (clamped to the end).
+        /// See [`Grid::cell`].
+        pub fn cell(&self, row: usize, col: usize) -> Option<&str> {
+            self.grid.cell(row, col)
+        }
+
+        /// See [`Grid::row_count`].
+        pub fn row_count(&self) -> usize {
+            self.grid.row_count()
+        }
+
+        /// See [`Grid::set_cell`].
+        pub fn set_cell(&mut self, row: usize, col: usize, value: impl Into<String>) {
+            self.grid.set_cell(row, col, value)
+        }
+
+        /// See [`Grid::insert_row`].
         pub fn insert_row(&mut self, index: usize, cells: Vec<String>) {
-            let index = index.min(self.cells.rows.len());
-            self.cells.rows.insert(index, cells);
+            self.grid.insert_row(index, cells)
         }
 
-        /// Append a raw row of cells.
+        /// See [`Grid::append_row`].
         pub fn append_row(&mut self, cells: Vec<String>) {
-            self.cells.rows.push(cells);
+            self.grid.append_row(cells)
         }
 
-        /// Remove and return the row at `index`; `None` when the grid has
-        /// no such row.
+        /// See [`Grid::remove_row`].
         pub fn remove_row(&mut self, index: usize) -> Option<Vec<String>> {
-            (index < self.cells.rows.len()).then(|| self.cells.rows.remove(index))
+            self.grid.remove_row(index)
         }
 
-        /// The grid in the Table JSON shape of `docs/spec/interchange.md`
-        /// §2: the header (absent for a positional file) and every row,
-        /// verbatim, unknown columns included.
+        /// See [`Grid::style`].
+        pub fn style(&self) -> CsvStyle {
+            self.grid.style()
+        }
+
+        /// See [`Grid::set_style`].
+        pub fn set_style(&mut self, style: CsvStyle) {
+            self.grid.set_style(style)
+        }
+
+        /// See [`Grid::to_csv`].
+        pub fn to_csv(&self) -> String {
+            self.grid.to_csv()
+        }
+
+        /// See [`Grid::to_json`].
         #[cfg(feature = "serde")]
         pub fn to_json(&self) -> crate::interchange::TableJson<'_> {
-            crate::interchange::TableJson {
-                header: self.cells.header.as_deref(),
-                rows: &self.cells.rows,
-            }
+            self.grid.to_json()
         }
     };
 }
 
-/// A CH CSV as its cell grid. See the module docs.
+/// A CH CSV: a [`Grid`] plus the columns its header names.
 #[derive(Debug, Clone)]
 pub struct ChTable {
-    cells: Cells<ChColumn>,
+    grid: Grid,
+    map: ColumnMap<ChColumn>,
 }
 
 impl ChTable {
-    /// Parse CSV text into the grid, by the spellings
+    /// Parse CSV text, identifying the columns by the spellings
     /// `docs/spec/format.md` §2 defines. Only a structurally broken file
     /// fails; everything interpretable-or-not is kept as cells.
     pub fn parse(content: &str) -> Result<ChTable> {
@@ -349,12 +438,19 @@ impl ChTable {
     /// [`parse`](ChTable::parse), also accepting the header spellings this
     /// reader was taught ([`ColumnAliases`]).
     pub fn parse_with(content: &str, aliases: &ColumnAliases) -> Result<ChTable> {
+        let mut map = None;
+        let grid = Grid::split(content, |records| {
+            map = records.first().and_then(|first| {
+                ColumnMap::ch_from_header(
+                    &first.iter().map(String::as_str).collect::<Vec<_>>(),
+                    aliases,
+                )
+            });
+            map.is_some()
+        })?;
         Ok(ChTable {
-            cells: Cells::parse(
-                content,
-                |cells| ColumnMap::ch_from_header(cells, aliases),
-                ColumnMap::ch_positional,
-            )?,
+            grid,
+            map: map.unwrap_or_else(ColumnMap::ch_positional),
         })
     }
 
@@ -385,30 +481,30 @@ impl ChTable {
     /// positionally.
     pub fn with_columns(columns: &[ChColumn], language: HeaderLanguage) -> ChTable {
         ChTable {
-            cells: Cells {
-                header: Some(columns.iter().map(|c| c.name(language).into()).collect()),
-                map: ColumnMap::in_order(columns),
-                rows: Vec::new(),
-                style: CsvStyle::default(),
-            },
+            grid: Grid::with_header(columns.iter().map(|c| c.name(language).into()).collect()),
+            map: ColumnMap::in_order(columns),
         }
+    }
+
+    /// The cells, with nothing interpreted — for code that wants the grid
+    /// and not the columns.
+    pub fn grid(&self) -> &Grid {
+        &self.grid
     }
 
     /// Interpret the current cells as Rows (`docs/spec/format.md` §3) —
     /// the derived view behind [`crate::parse_ch_csv`]. Interpret again
     /// after editing; nothing is cached.
     pub fn channels(&self) -> Parsed<Vec<ChannelDef>> {
-        interpret_ch(&self.cells.map, &self.cells.rows)
+        interpret_ch(&self.map, self.grid.data())
     }
 
     /// Insert `def` as a new data row at `row_index`, rendering the columns
-    /// this file has (a field without a column is dropped): `number` /
-    /// `bytes` in decimal, `type` as its category (`UI` / `SI` / `BF` — the
-    /// width stays in `bytes`), `min` / `max` in their own notation, and
-    /// `default` in decimal.
+    /// this file has (a field without a column is dropped);
+    /// `docs/spec/editing.md` §3 lists the renderings.
     pub fn insert_channel(&mut self, row_index: usize, def: &ChannelDef) {
         let row = self.channel_cells(def);
-        self.insert_row(row_index, row);
+        self.grid.insert_row(row_index, row);
     }
 
     /// [`insert_channel`](ChTable::insert_channel), renumbering every
@@ -423,8 +519,8 @@ impl ChTable {
         bf: Option<&mut BfTable>,
     ) -> Renumbered {
         let mut moved = Vec::new();
-        if let Some(col) = self.cells.map.position(ChColumn::Number) {
-            for row in &mut self.cells.rows {
+        if let Some(col) = self.map.position(ChColumn::Number) {
+            for row in self.grid.data_mut() {
                 if is_blank(row) || is_comment(row) {
                     continue;
                 }
@@ -450,9 +546,9 @@ impl ChTable {
     }
 
     fn channel_cells(&self, def: &ChannelDef) -> Vec<String> {
-        let mut row = vec![String::new(); self.cells.new_row_width()];
+        let mut row = vec![String::new(); self.grid.new_row_width()];
         let mut put = |column: ChColumn, value: String| {
-            if let Some(i) = self.cells.map.position(column) {
+            if let Some(i) = self.map.position(column) {
                 if row.len() <= i {
                     row.resize(i + 1, String::new());
                 }
@@ -486,7 +582,7 @@ impl ChTable {
         row
     }
 
-    grid_api!();
+    grid_delegates!();
 }
 
 impl Default for ChTable {
@@ -495,14 +591,15 @@ impl Default for ChTable {
     }
 }
 
-/// A BF CSV as its cell grid. See the module docs.
+/// A BF CSV: a [`Grid`] plus the columns its header names.
 #[derive(Debug, Clone)]
 pub struct BfTable {
-    cells: Cells<BfColumn>,
+    grid: Grid,
+    map: ColumnMap<BfColumn>,
 }
 
 impl BfTable {
-    /// Parse CSV text into the grid. Only a structurally broken file fails.
+    /// Parse CSV text. Only a structurally broken file fails.
     pub fn parse(content: &str) -> Result<BfTable> {
         BfTable::parse_with(content, &ColumnAliases::new())
     }
@@ -510,12 +607,19 @@ impl BfTable {
     /// [`parse`](BfTable::parse), also accepting the header spellings this
     /// reader was taught ([`ColumnAliases`]).
     pub fn parse_with(content: &str, aliases: &ColumnAliases) -> Result<BfTable> {
+        let mut map = None;
+        let grid = Grid::split(content, |records| {
+            map = records.first().and_then(|first| {
+                ColumnMap::bf_from_header(
+                    &first.iter().map(String::as_str).collect::<Vec<_>>(),
+                    aliases,
+                )
+            });
+            map.is_some()
+        })?;
         Ok(BfTable {
-            cells: Cells::parse(
-                content,
-                |cells| ColumnMap::bf_from_header(cells, aliases),
-                ColumnMap::bf_positional,
-            )?,
+            grid,
+            map: map.unwrap_or_else(ColumnMap::bf_positional),
         })
     }
 
@@ -540,19 +644,21 @@ impl BfTable {
     /// language (ADR-0003). See [`ChTable::with_columns`].
     pub fn with_columns(columns: &[BfColumn], language: HeaderLanguage) -> BfTable {
         BfTable {
-            cells: Cells {
-                header: Some(columns.iter().map(|c| c.name(language).into()).collect()),
-                map: ColumnMap::in_order(columns),
-                rows: Vec::new(),
-                style: CsvStyle::default(),
-            },
+            grid: Grid::with_header(columns.iter().map(|c| c.name(language).into()).collect()),
+            map: ColumnMap::in_order(columns),
         }
+    }
+
+    /// The cells, with nothing interpreted — for code that wants the grid
+    /// and not the columns.
+    pub fn grid(&self) -> &Grid {
+        &self.grid
     }
 
     /// Interpret the current cells as Rows — the derived view behind
     /// [`crate::parse_bf_csv`]. Interpret again after editing.
     pub fn bitfields(&self) -> Parsed<Vec<BitFieldDef>> {
-        interpret_bf(&self.cells.map, &self.cells.rows)
+        interpret_bf(&self.map, self.grid.data())
     }
 
     /// The cross-file checks of `build_layout`, run where the grid rows
@@ -562,14 +668,14 @@ impl BfTable {
     /// `bit` does not parse are left to `bitfields()`, which already
     /// reports them.
     pub fn cross_issues(&self, channels: &[ChannelDef]) -> Vec<Issue> {
-        let number_col = self.cells.map.position(BfColumn::Number);
-        let bit_col = self.cells.map.position(BfColumn::Bit);
+        let number_col = self.map.position(BfColumn::Number);
+        let bit_col = self.map.position(BfColumn::Bit);
         let read = |row: &[String], col: Option<usize>| {
             col.and_then(|c| row.get(c)).map(|s| s.trim().to_string())
         };
 
         let mut issues = Vec::new();
-        for (row_index, row) in self.cells.rows.iter().enumerate() {
+        for (row_index, row) in self.grid.data().iter().enumerate() {
             if is_blank(row) || is_comment(row) {
                 continue;
             }
@@ -614,20 +720,20 @@ impl BfTable {
     /// Rewrite every parent `number` ≥ `from` up by one, following a
     /// channel renumbering.
     fn shift_parents(&mut self, from: u32) {
-        if let Some(col) = self.cells.map.position(BfColumn::Number) {
-            for row in &mut self.cells.rows {
+        if let Some(col) = self.map.position(BfColumn::Number) {
+            for row in self.grid.data_mut() {
                 if is_blank(row) || is_comment(row) {
                     continue;
                 }
                 let number = row.get(col).and_then(|c| c.trim().parse::<u32>().ok());
-                if let Some(n) = number.filter(|n| *n >= from) {
+                if let Some(n) = number.filter(|n| *n >= from && *n < u32::MAX) {
                     row[col] = (n + 1).to_string();
                 }
             }
         }
     }
 
-    grid_api!();
+    grid_delegates!();
 }
 
 impl Default for BfTable {

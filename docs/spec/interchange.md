@@ -54,7 +54,9 @@ of §3.
 {"header": ["番号", "バイト数", "..."], "rows": [["1", "4", "..."], ["2", "2", "..."]]}
 ```
 
-For editing UIs. Verbatim, including unknown columns.
+For editing UIs. Verbatim, including unknown columns — the grid's shape,
+so a consumer that reads a file only as cells produces it without
+choosing between a CH and a BF table.
 
 ## 3. Golden vectors
 

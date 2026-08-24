@@ -659,20 +659,13 @@ fn shown(cell: &str) -> String {
     }
 }
 
-/// Drop every leading BOM and decode the rest as UTF-8. `valid_up_to` of the
-/// error counts from the start of `bytes`, BOMs included, so it points into
-/// what the caller passed.
+/// Decode `bytes` as UTF-8. A leading byte-order mark is left in the text:
+/// it is valid UTF-8, the reader ignores it, and leaving it there is what
+/// lets a grid know the file had one. `valid_up_to` of the error counts
+/// from the start of `bytes`, so it points into what the caller passed.
 pub(crate) fn decode_utf8(bytes: &[u8]) -> Result<&str> {
-    const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
-
-    let mut body = bytes;
-    while let Some(rest) = body.strip_prefix(&BOM) {
-        body = rest;
-    }
-    let stripped = bytes.len() - body.len();
-
-    std::str::from_utf8(body).map_err(|e| ChdefError::Encoding {
-        valid_up_to: stripped + e.valid_up_to(),
+    std::str::from_utf8(bytes).map_err(|e| ChdefError::Encoding {
+        valid_up_to: e.valid_up_to(),
     })
 }
 
