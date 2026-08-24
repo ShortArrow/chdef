@@ -123,6 +123,10 @@ pub struct IssueJson<'l> {
     pub code: &'static str,
     pub row: Option<usize>,
     pub col: Option<usize>,
+    pub channel: Option<u32>,
+    pub bit: Option<u8>,
+    pub found: Option<&'l str>,
+    pub used: Option<&'l str>,
     pub message: &'l str,
 }
 
@@ -132,6 +136,10 @@ impl<'l> IssueJson<'l> {
             code: issue.code.as_str(),
             row: issue.row,
             col: issue.col,
+            channel: issue.channel,
+            bit: issue.bit,
+            found: issue.found.as_deref(),
+            used: issue.used.as_deref(),
             message: &issue.message,
         }
     }

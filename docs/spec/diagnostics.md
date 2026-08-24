@@ -22,12 +22,32 @@ below. The cross-file codes come from `build_layout`, and
 ## 2. Issue
 
 ```
-Issue { code, row: Option<usize>, col: Option<usize>, message: String }
+Issue {
+    code,
+    row: Option<usize>, col: Option<usize>,     // where in the file
+    channel: Option<u32>, bit: Option<u8>,      // what it is about
+    found: Option<String>, used: Option<String>,// the values
+    message: String,                            // the same, in English
+}
 ```
 
-`code` is a stable ASCII identifier; consumers key localisation and
-filtering on it. `message` is one English sentence that says what was
-found and what chdef did about it.
+Everything a consumer needs to write its own sentence is a field:
+
+- `code` is a stable ASCII identifier; consumers key localisation and
+  filtering on it.
+- `found` is the value chdef could not use, spelled as the file spells it
+  — a raw value keeps its cell's notation, so `0x1FF` comes back as
+  `0x1FF` and `511` as `511`. It is the one fact parsing throws away.
+- `used` is the value chdef put in its place, where it substituted one.
+- `channel` and `bit` say which channel, or which bit of which channel,
+  the finding is about — the only way to name a finding that carries no
+  row.
+- A field the finding has nothing to put in is absent, never invented.
+
+`message` is an English rendering of the same facts, for a log and for a
+reader who wants one. **Its wording is not part of the contract and may
+change in any release**; a consumer that builds its own sentence reads
+the fields.
 
 | code | row | Meaning / behaviour |
 |---|---|---|
@@ -49,14 +69,15 @@ found and what chdef did about it.
 | `bf_parent_invalid` | yes | BF `number` is not an integer. Row skipped |
 | `bf_bit_invalid` | yes | `bit` is not an integer. Row skipped |
 | `bf_bit_out_of_range` | yes / —¹ | `bit` ≥ 64, the widest a channel can be, from the reader with its row; or `bit` ≥ the parent's own width, from the layout without one |
-| `bf_parent_not_bitfield` | —¹ | Parent channel missing, or its `type` is not `BF`. Row skipped by the layout; the message names `(number, bit)` |
+| `bf_parent_not_bitfield` | —¹ | Parent channel missing, or its `type` is not `BF`. Row skipped by the layout |
 | `bf_default_invalid` | yes | BF `default` is not `0` / `1`. Treated as unspecified |
 | `bf_duplicate` | yes | The same `(number, bit)` already exists. First row only |
 | `layout_exceeds_capacity` | — | `total_bytes` exceeds `capacity` |
 | `encode_unknown_channel` | — | An encode value names a channel the layout does not have. Ignored |
 | `encode_value_invalid` | — | An encode value is NaN / infinite. The channel default was used |
 
-¹ Rowless from `build_layout` (typed rows carry no file coordinates);
+¹ Rowless from `build_layout` (typed rows carry no file coordinates); the
+`channel` and `bit` fields name what it is about, and
 `BfTable::cross_issues` reports the same finding with the grid row and
 column for editors.
 

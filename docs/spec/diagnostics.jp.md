@@ -14,10 +14,24 @@
 ## 2. Issue
 
 ```
-Issue { code, row: Option<usize>, col: Option<usize>, message: String }
+Issue {
+    code,
+    row: Option<usize>, col: Option<usize>,     // ファイル上の位置
+    channel: Option<u32>, bit: Option<u8>,      // 何についての指摘か
+    found: Option<String>, used: Option<String>,// 値
+    message: String,                            // 同じ内容の英文
+}
 ```
 
-`code` は安定な識別子（ASCII）。利用側は `code` を鍵にして翻訳・絞り込みを行う。`message` は英語 1 文で、見つけたことと chdef がどう扱ったかを述べる。
+利用側が自前の文を組み立てるのに必要なものは、全てフィールドにある:
+
+- `code` は安定な識別子（ASCII）。利用側は `code` を鍵にして翻訳・絞り込みを行う。
+- `found` は chdef が使えなかった値を、ファイルの綴りのまま持つ。生値はセルの記法を保つので、`0x1FF` は `0x1FF`、`511` は `511` として返る。解釈が捨ててしまう唯一の事実。
+- `used` は chdef が代わりに使った値（置き換えた場合）。
+- `channel` と `bit` は、どのチャンネル、どのチャンネルのどのビットについての指摘かを言う。行を持たない指摘を名指す唯一の手段。
+- 入れるものが無いフィールドは空にする。でっち上げない。
+
+`message` は同じ事実の英語表現で、ログや英文を読みたい人のためのもの。**その文面は契約の一部ではなく、どのリリースでも変わりうる**。自前の文を組み立てる利用側はフィールドを読む。
 
 | code | 行 | 意味 / 挙動 |
 |---|---|---|
@@ -46,7 +60,7 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 | `encode_unknown_channel` | — | encode の値がレイアウトに無いチャンネルを指す。無視した |
 | `encode_value_invalid` | — | encode の値が NaN / 無限大。チャンネルの既定値を使った |
 
-¹ `build_layout` からは行なし（型付き行はファイル座標を持たない）。同じ指摘を `BfTable::cross_issues` がグリッドの行・列つきで報告し、エディタはセルに落とせる。
+¹ `build_layout` からは行なし（型付き行はファイル座標を持たない）。`channel` と `bit` のフィールドが何についての指摘かを名指す。同じ指摘を `BfTable::cross_issues` がグリッドの行・列つきで報告し、エディタはセルに落とせる。
 
 ² `encode` から出る場合は行なし。encode が受け取るのは行ではなく値だから。
 

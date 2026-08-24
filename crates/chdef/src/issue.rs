@@ -6,6 +6,14 @@
 //! failure, a structurally broken CSV, or bytes that are not UTF-8.
 
 /// A per-row problem found while loading; loading continued.
+///
+/// Everything a consumer needs to write its own sentence is a field: the
+/// stable [`code`](Issue::code), where in the file the finding is, which
+/// channel or bit it is about, the value that could not be used and the
+/// value used instead. [`message`](Issue::message) is an English rendering
+/// of the same facts, for a log — its wording is not part of the contract
+/// and may change in any release.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Issue {
     pub code: IssueCode,
@@ -14,8 +22,60 @@ pub struct Issue {
     pub row: Option<usize>,
     /// 0-based column position in the file. `None` when not tied to a column.
     pub col: Option<usize>,
-    /// One English sentence: what was found and what chdef did about it.
+    /// The channel the finding is about, when it is about one. The only way
+    /// to name the row for a finding that carries none.
+    pub channel: Option<u32>,
+    /// The bit, for a finding about one bit of a `BF` channel.
+    pub bit: Option<u8>,
+    /// The value chdef could not use, spelled as the file spells it — the
+    /// one thing parsing throws away.
+    pub found: Option<String>,
+    /// The value chdef used instead, where it substituted one.
+    pub used: Option<String>,
+    /// One English sentence saying the same as the fields above.
     pub message: String,
+}
+
+impl Issue {
+    pub(crate) fn new(code: IssueCode, message: String) -> Issue {
+        Issue {
+            code,
+            row: None,
+            col: None,
+            channel: None,
+            bit: None,
+            found: None,
+            used: None,
+            message,
+        }
+    }
+
+    pub(crate) fn at(mut self, row: usize, col: Option<usize>) -> Issue {
+        self.row = Some(row);
+        self.col = col;
+        self
+    }
+
+    pub(crate) fn about_channel(mut self, channel: u32) -> Issue {
+        self.channel = Some(channel);
+        self
+    }
+
+    pub(crate) fn about_bit(mut self, channel: u32, bit: u8) -> Issue {
+        self.channel = Some(channel);
+        self.bit = Some(bit);
+        self
+    }
+
+    pub(crate) fn found(mut self, found: impl Into<String>) -> Issue {
+        self.found = Some(found.into());
+        self
+    }
+
+    pub(crate) fn used(mut self, used: impl Into<String>) -> Issue {
+        self.used = Some(used.into());
+        self
+    }
 }
 
 /// What an [`Issue`] is about. Consumers key localisation and filtering on

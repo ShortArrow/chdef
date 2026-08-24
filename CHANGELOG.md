@@ -22,6 +22,11 @@ tag, published to crates.io.
   set, so a consumer displaying a bit field writes no shifts.
 - `ChTable` / `BfTable`: `header`, `rows` and `row(index)` hand over the
   grid an editor draws.
+- `Issue` carries `found`, `used`, `channel` and `bit` (ADR-0018), so a
+  consumer writes its own sentence in its own language without parsing
+  chdef's English. `found` keeps the notation of the cell it came from,
+  and the fields name what a rowless finding is about. `message` remains,
+  now stated as prose whose wording is not part of the contract.
 - `CsvStyle` / `LineEnding`, with `style` / `set_style`: a table writes the
   byte-order mark and record separator it read, so editing one cell of a
   file kept with LF endings no longer rewrites every line (ADR-0017). A
@@ -29,6 +34,8 @@ tag, published to crates.io.
   table created in code still writes a BOM and CRLF.
 
 ### Changed
+- `Issue` is `#[non_exhaustive]`: it is chdef's to construct, and more
+  fields may follow.
 - `DisplayFormat` is `ValueDisplay { Physical, Raw }`, naming the choice
   the `format` column makes rather than the base its cell is spelled in
   (ADR-0015). `parse` still reads `DEC` / `HEX` and `as_str` writes them.

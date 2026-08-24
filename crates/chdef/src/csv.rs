@@ -47,13 +47,8 @@ pub(crate) fn interpret_ch(
         if is_blank(record) || is_comment(record) {
             continue;
         }
-        let mut issue = |code: IssueCode, column: ChColumn, message: String| {
-            issues.push(Issue {
-                code,
-                row: Some(row),
-                col: map.position(column),
-                message,
-            });
+        let mut issue = |built: Issue, column: ChColumn| {
+            issues.push(built.at(row, map.position(column)));
         };
 
         let number_cell = cell(record, ChColumn::Number).unwrap_or_default();
@@ -61,23 +56,34 @@ pub(crate) fn interpret_ch(
             Ok(n) if n >= 1 => n,
             _ => {
                 issue(
-                    IssueCode::ChannelNumberInvalid,
+                    Issue::new(
+                        IssueCode::ChannelNumberInvalid,
+                        format!(
+                            "`number` is {}, not an integer >= 1; the row was skipped.",
+                            shown(&number_cell)
+                        ),
+                    )
+                    .found(number_cell.clone()),
                     ChColumn::Number,
-                    format!(
-                        "`number` is {}, not an integer >= 1; the row was skipped.",
-                        shown(&number_cell)
-                    ),
                 );
                 continue;
             }
         };
+        // Every finding from here on is about a channel whose number is known.
+        let mut issue = |built: Issue, column: ChColumn| {
+            issues.push(built.at(row, map.position(column)).about_channel(number));
+        };
+
         if channels.iter().any(|c| c.number == number) {
             issue(
-                IssueCode::ChannelDuplicate,
+                Issue::new(
+                    IssueCode::ChannelDuplicate,
+                    format!(
+                        "channel {number} is already defined; the layout keeps the first definition."
+                    ),
+                )
+                .about_channel(number),
                 ChColumn::Number,
-                format!(
-                    "channel {number} is already defined; the layout keeps the first definition."
-                ),
             );
         }
 
@@ -87,12 +93,16 @@ pub(crate) fn interpret_ch(
                 Some(parsed) => parsed,
                 None => {
                     issue(
-                        IssueCode::TypeAssumed,
+                        Issue::new(
+                            IssueCode::TypeAssumed,
+                            format!(
+                                "`type` is {}, not `UI` / `SI` / `BF` with an optional bit width; UI was assumed.",
+                                shown(&s)
+                            ),
+                        )
+                        .found(s.clone())
+                        .used(DataType::UI.as_str()),
                         ChColumn::Type,
-                        format!(
-                            "`type` is {}, not `UI` / `SI` / `BF` with an optional bit width; UI was assumed.",
-                            shown(&s)
-                        ),
                     );
                     (DataType::UI, None)
                 }
@@ -107,20 +117,28 @@ pub(crate) fn interpret_ch(
                 Ok(n) => {
                     let clamped = n.clamp(1, 8);
                     issue(
-                        IssueCode::BytesOutOfRange,
+                        Issue::new(
+                            IssueCode::BytesOutOfRange,
+                            format!("`bytes` is {n}, outside 1-8; clamped to {clamped}."),
+                        )
+                        .found(n.to_string())
+                        .used(clamped.to_string()),
                         ChColumn::Bytes,
-                        format!("`bytes` is {n}, outside 1-8; clamped to {clamped}."),
                     );
                     clamped as usize
                 }
                 Err(_) => {
                     issue(
-                        IssueCode::BytesAssumed,
+                        Issue::new(
+                            IssueCode::BytesAssumed,
+                            format!(
+                                "`bytes` is {}, not an integer; {fallback} was assumed.",
+                                shown(&s)
+                            ),
+                        )
+                        .found(s.clone())
+                        .used(fallback.to_string()),
                         ChColumn::Bytes,
-                        format!(
-                            "`bytes` is {}, not an integer; {fallback} was assumed.",
-                            shown(&s)
-                        ),
                     );
                     fallback
                 }
@@ -129,11 +147,15 @@ pub(crate) fn interpret_ch(
         if let Some(implied) = suffix_bytes {
             if implied != byte_count {
                 issue(
-                    IssueCode::TypeWidthMismatch,
+                    Issue::new(
+                        IssueCode::TypeWidthMismatch,
+                        format!(
+                            "the width suffix of `type` implies {implied} bytes but `bytes` is {byte_count}; `bytes` wins."
+                        ),
+                    )
+                    .found(implied.to_string())
+                    .used(byte_count.to_string()),
                     ChColumn::Type,
-                    format!(
-                        "the width suffix of `type` implies {implied} bytes but `bytes` is {byte_count}; `bytes` wins."
-                    ),
                 );
             }
         }
@@ -146,9 +168,13 @@ pub(crate) fn interpret_ch(
                 Ok(v) if v.is_finite() => v,
                 _ => {
                     issue(
-                        IssueCode::LsbInvalid,
+                        Issue::new(
+                            IssueCode::LsbInvalid,
+                            format!("`lsb` is {}, not a finite number; 1 was used.", shown(&s)),
+                        )
+                        .found(s.clone())
+                        .used("1"),
                         ChColumn::Lsb,
-                        format!("`lsb` is {}, not a finite number; 1 was used.", shown(&s)),
                     );
                     1.0
                 }
@@ -162,9 +188,13 @@ pub(crate) fn interpret_ch(
                 Ok(v) if v.is_finite() => v,
                 _ => {
                     issue(
-                        IssueCode::OffsetInvalid,
+                        Issue::new(
+                            IssueCode::OffsetInvalid,
+                            format!("`offset` is {}, not a number; 0 was used.", shown(&s)),
+                        )
+                        .found(s.clone())
+                        .used("0"),
                         ChColumn::Offset,
-                        format!("`offset` is {}, not a number; 0 was used.", shown(&s)),
                     );
                     0.0
                 }
@@ -183,22 +213,29 @@ pub(crate) fn interpret_ch(
                     shown_masked,
                 } => {
                     issue(
-                        IssueCode::RawOutOfRange,
+                        Issue::new(
+                            IssueCode::RawOutOfRange,
+                            format!(
+                                "`default` {shown_value} exceeds the {bits}-bit width; the low bits ({shown_masked}) were used."
+                            ),
+                        )
+                        .found(shown_value)
+                        .used(shown_masked),
                         ChColumn::Default,
-                        format!(
-                            "`default` {shown_value} exceeds the {bits}-bit width; the low bits ({shown_masked}) were used."
-                        ),
                     );
                     Some(masked)
                 }
                 RawCell::Invalid => {
                     issue(
-                        IssueCode::DefaultInvalid,
+                        Issue::new(
+                            IssueCode::DefaultInvalid,
+                            format!(
+                                "`default` is {}, neither an integer nor a `0x` value; treated as unspecified.",
+                                shown(&s)
+                            ),
+                        )
+                        .found(s.clone()),
                         ChColumn::Default,
-                        format!(
-                            "`default` is {}, neither an integer nor a `0x` value; treated as unspecified.",
-                            shown(&s)
-                        ),
                     );
                     None
                 }
@@ -212,22 +249,29 @@ pub(crate) fn interpret_ch(
                 ValueCell::Value(b) => Some(b),
                 ValueCell::Overflow { value, masked } => {
                     issue(
-                        IssueCode::RawOutOfRange,
+                        Issue::new(
+                            IssueCode::RawOutOfRange,
+                            format!(
+                                "`min` 0x{value:X} exceeds the {bits}-bit width; the low bits (0x{masked:X}) were used."
+                            ),
+                        )
+                        .found(format!("0x{value:X}"))
+                        .used(format!("0x{masked:X}")),
                         ChColumn::Min,
-                        format!(
-                            "`min` 0x{value:X} exceeds the {bits}-bit width; the low bits (0x{masked:X}) were used."
-                        ),
                     );
                     Some(Value::Raw(masked))
                 }
                 ValueCell::Invalid => {
                     issue(
-                        IssueCode::MinInvalid,
+                        Issue::new(
+                            IssueCode::MinInvalid,
+                            format!(
+                                "`min` is {}, neither a number nor a `0x` value; treated as unspecified.",
+                                shown(&s)
+                            ),
+                        )
+                        .found(s.clone()),
                         ChColumn::Min,
-                        format!(
-                            "`min` is {}, neither a number nor a `0x` value; treated as unspecified.",
-                            shown(&s)
-                        ),
                     );
                     None
                 }
@@ -240,22 +284,29 @@ pub(crate) fn interpret_ch(
                 ValueCell::Value(b) => Some(b),
                 ValueCell::Overflow { value, masked } => {
                     issue(
-                        IssueCode::RawOutOfRange,
+                        Issue::new(
+                            IssueCode::RawOutOfRange,
+                            format!(
+                                "`max` 0x{value:X} exceeds the {bits}-bit width; the low bits (0x{masked:X}) were used."
+                            ),
+                        )
+                        .found(format!("0x{value:X}"))
+                        .used(format!("0x{masked:X}")),
                         ChColumn::Max,
-                        format!(
-                            "`max` 0x{value:X} exceeds the {bits}-bit width; the low bits (0x{masked:X}) were used."
-                        ),
                     );
                     Some(Value::Raw(masked))
                 }
                 ValueCell::Invalid => {
                     issue(
-                        IssueCode::MaxInvalid,
+                        Issue::new(
+                            IssueCode::MaxInvalid,
+                            format!(
+                                "`max` is {}, neither a number nor a `0x` value; treated as unspecified.",
+                                shown(&s)
+                            ),
+                        )
+                        .found(s.clone()),
                         ChColumn::Max,
-                        format!(
-                            "`max` is {}, neither a number nor a `0x` value; treated as unspecified.",
-                            shown(&s)
-                        ),
                     );
                     None
                 }
@@ -267,11 +318,14 @@ pub(crate) fn interpret_ch(
             .unwrap_or_default();
         if format == ValueDisplay::Raw && lsb != 1.0 {
             issue(
-                IssueCode::RawDisplayWithLsb,
+                Issue::new(
+                    IssueCode::RawDisplayWithLsb,
+                    format!(
+                        "`format` selects the raw value but `lsb` is {lsb}, so what is shown is not the physical quantity."
+                    ),
+                )
+                .found(lsb.to_string()),
                 ChColumn::Format,
-                format!(
-                    "`format` selects the raw value but `lsb` is {lsb}, so what is shown is not the physical quantity."
-                ),
             );
         }
 
@@ -297,11 +351,16 @@ pub(crate) fn interpret_ch(
         if let (Some(lo), Some(hi)) = (ch.min_value(), ch.max_value()) {
             if lo > hi {
                 issue(
-                    IssueCode::MinMaxSwapped,
+                    Issue::new(
+                        IssueCode::MinMaxSwapped,
+                        format!(
+                            "`min` resolves to {lo} but `max` to {hi}; both were kept, and the range matches nothing."
+                        ),
+                    )
+                    .about_channel(ch.number)
+                    .found(lo.to_string())
+                    .used(hi.to_string()),
                     ChColumn::Min,
-                    format!(
-                        "`min` resolves to {lo} but `max` to {hi}; both were kept, and the range matches nothing."
-                    ),
                 );
             }
         }
@@ -354,13 +413,8 @@ pub(crate) fn interpret_bf(
         if is_blank(record) || is_comment(record) {
             continue;
         }
-        let mut issue = |code: IssueCode, column: BfColumn, message: String| {
-            issues.push(Issue {
-                code,
-                row: Some(row),
-                col: map.position(column),
-                message,
-            });
+        let mut issue = |built: Issue, column: BfColumn| {
+            issues.push(built.at(row, map.position(column)));
         };
 
         let number_cell = cell(record, BfColumn::Number).unwrap_or_default();
@@ -368,37 +422,55 @@ pub(crate) fn interpret_bf(
             Ok(n) => n,
             Err(_) => {
                 issue(
-                    IssueCode::BfParentInvalid,
+                    Issue::new(
+                        IssueCode::BfParentInvalid,
+                        format!(
+                            "`number` is {}, not an integer; the row was skipped.",
+                            shown(&number_cell)
+                        ),
+                    )
+                    .found(number_cell.clone()),
                     BfColumn::Number,
-                    format!(
-                        "`number` is {}, not an integer; the row was skipped.",
-                        shown(&number_cell)
-                    ),
                 );
                 continue;
             }
         };
+        let mut issue = |built: Issue, column: BfColumn| {
+            issues.push(
+                built
+                    .at(row, map.position(column))
+                    .about_channel(parent_channel),
+            );
+        };
+
         let bit_cell = cell(record, BfColumn::Bit).unwrap_or_default();
         let bit_number = match bit_cell.parse::<u64>() {
             Ok(n) if n < 64 => n as u8,
             Ok(n) => {
                 issue(
-                    IssueCode::BfBitOutOfRange,
+                    Issue::new(
+                        IssueCode::BfBitOutOfRange,
+                        format!(
+                            "`bit` is {n}, at or beyond the 64 bits of the widest channel; the row was skipped."
+                        ),
+                    )
+                    .found(n.to_string())
+                    .used("64"),
                     BfColumn::Bit,
-                    format!(
-                        "`bit` is {n}, at or beyond the 64 bits of the widest channel; the row was skipped."
-                    ),
                 );
                 continue;
             }
             Err(_) => {
                 issue(
-                    IssueCode::BfBitInvalid,
+                    Issue::new(
+                        IssueCode::BfBitInvalid,
+                        format!(
+                            "`bit` is {}, not an integer; the row was skipped.",
+                            shown(&bit_cell)
+                        ),
+                    )
+                    .found(bit_cell.clone()),
                     BfColumn::Bit,
-                    format!(
-                        "`bit` is {}, not an integer; the row was skipped.",
-                        shown(&bit_cell)
-                    ),
                 );
                 continue;
             }
@@ -408,11 +480,14 @@ pub(crate) fn interpret_bf(
             .any(|b| b.parent_channel == parent_channel && b.bit_number == bit_number)
         {
             issue(
-                IssueCode::BfDuplicate,
+                Issue::new(
+                    IssueCode::BfDuplicate,
+                    format!(
+                        "bit {bit_number} of channel {parent_channel} is already defined; the layout keeps the first definition."
+                    ),
+                )
+                .about_bit(parent_channel, bit_number),
                 BfColumn::Bit,
-                format!(
-                    "bit {bit_number} of channel {parent_channel} is already defined; the layout keeps the first definition."
-                ),
             );
         }
 
@@ -424,12 +499,16 @@ pub(crate) fn interpret_bf(
                 "1" => Some(1),
                 _ => {
                     issue(
-                        IssueCode::BfDefaultInvalid,
+                        Issue::new(
+                            IssueCode::BfDefaultInvalid,
+                            format!(
+                                "`default` is {}, not 0 or 1; treated as unspecified.",
+                                shown(&s)
+                            ),
+                        )
+                        .about_bit(parent_channel, bit_number)
+                        .found(s.clone()),
                         BfColumn::Default,
-                        format!(
-                            "`default` is {}, not 0 or 1; treated as unspecified.",
-                            shown(&s)
-                        ),
                     );
                     None
                 }
@@ -459,14 +538,12 @@ fn assumed_header_issues<C: Copy + PartialEq>(
     columns: usize,
 ) -> Vec<Issue> {
     if map.assumed && !records.is_empty() {
-        vec![Issue {
-            code: IssueCode::HeaderAssumed,
-            row: None,
-            col: None,
-            message: format!(
+        vec![Issue::new(
+            IssueCode::HeaderAssumed,
+            format!(
                 "No `number` column was found in the first row; the first {columns} columns were taken in canonical order."
             ),
-        }]
+        )]
     } else {
         Vec::new()
     }

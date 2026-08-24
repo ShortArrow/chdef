@@ -22,7 +22,8 @@
     {"n": 2, "bit": 0, "name": "Reserved", "default": null, "memo": ""}
   ],
   "issues": [
-    {"code": "type_assumed", "row": 3, "col": 5, "message": "type must be UI, SI or BF; assuming UI"}
+    {"code": "type_assumed", "row": 3, "col": 5, "channel": 4, "bit": null,
+     "found": "ZZ", "used": "UI", "message": "..."}
   ]
 }
 ```

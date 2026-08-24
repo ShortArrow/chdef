@@ -493,38 +493,40 @@ pub fn build_layout(
     }
     let mut unique_bitfields: Vec<BitFieldDef> = Vec::new();
     for bf in bitfields {
-        let no_row = |code: IssueCode, message: String| Issue {
-            code,
-            row: None,
-            col: None,
-            message,
-        };
         let parent = unique_channels
             .iter()
             .find(|c| c.number == bf.parent_channel);
         let parent = match parent {
             Some(p) if p.data_type.is_bitfield() => p,
             _ => {
-                issues.push(no_row(
-                    IssueCode::BfParentNotBitfield,
-                    format!(
-                        "bit {} of channel {} has no `BF` parent channel; the row was skipped.",
-                        bf.bit_number, bf.parent_channel
-                    ),
-                ));
+                issues.push(
+                    Issue::new(
+                        IssueCode::BfParentNotBitfield,
+                        format!(
+                            "bit {} of channel {} has no `BF` parent channel; the row was skipped.",
+                            bf.bit_number, bf.parent_channel
+                        ),
+                    )
+                    .about_bit(bf.parent_channel, bf.bit_number),
+                );
                 continue;
             }
         };
         if (bf.bit_number as u32) >= parent.bits() {
-            issues.push(no_row(
-                IssueCode::BfBitOutOfRange,
-                format!(
-                    "bit {} of channel {} is beyond its {}-bit width; the row was skipped.",
-                    bf.bit_number,
-                    bf.parent_channel,
-                    parent.bits()
-                ),
-            ));
+            issues.push(
+                Issue::new(
+                    IssueCode::BfBitOutOfRange,
+                    format!(
+                        "bit {} of channel {} is beyond its {}-bit width; the row was skipped.",
+                        bf.bit_number,
+                        bf.parent_channel,
+                        parent.bits()
+                    ),
+                )
+                .about_bit(bf.parent_channel, bf.bit_number)
+                .found(bf.bit_number.to_string())
+                .used(parent.bits().to_string()),
+            );
             continue;
         }
         if !unique_bitfields
@@ -592,11 +594,13 @@ impl ChannelLayout {
     pub fn check_capacity(&self) -> Option<Issue> {
         let capacity = self.capacity?;
         let total = self.total_bytes();
-        (total > capacity).then(|| Issue {
-            code: IssueCode::LayoutExceedsCapacity,
-            row: None,
-            col: None,
-            message: format!("the frame needs {total} bytes but the capacity is {capacity}."),
+        (total > capacity).then(|| {
+            Issue::new(
+                IssueCode::LayoutExceedsCapacity,
+                format!("the frame needs {total} bytes but the capacity is {capacity}."),
+            )
+            .found(total.to_string())
+            .used(capacity.to_string())
         })
     }
 
@@ -636,14 +640,13 @@ impl ChannelLayout {
         let mut issues = Vec::new();
         for (number, _) in values {
             if !self.channels.iter().any(|c| c.number == *number) {
-                issues.push(Issue {
-                    code: IssueCode::EncodeUnknownChannel,
-                    row: None,
-                    col: None,
-                    message: format!(
-                        "channel {number} is not in the layout; the value was ignored."
-                    ),
-                });
+                issues.push(
+                    Issue::new(
+                        IssueCode::EncodeUnknownChannel,
+                        format!("channel {number} is not in the layout; the value was ignored."),
+                    )
+                    .about_channel(*number),
+                );
             }
         }
 
@@ -658,30 +661,35 @@ impl ChannelLayout {
             let raw = match given {
                 Some(Value::Raw(r)) => {
                     if bits < 64 && r >> bits != 0 {
-                        issues.push(Issue {
-                            code: IssueCode::RawOutOfRange,
-                            row: None,
-                            col: None,
-                            message: format!(
-                                "the raw value 0x{r:X} for channel {} exceeds its {bits}-bit width; the low bits were used.",
-                                ch.number
-                            ),
-                        });
+                        issues.push(
+                            Issue::new(
+                                IssueCode::RawOutOfRange,
+                                format!(
+                                    "the raw value 0x{r:X} for channel {} exceeds its {bits}-bit width; the low bits were used.",
+                                    ch.number
+                                ),
+                            )
+                            .about_channel(ch.number)
+                            .found(format!("0x{r:X}"))
+                            .used(format!("0x{:X}", r & ((1u64 << bits) - 1))),
+                        );
                     }
                     *r
                 }
                 Some(Value::Physical(p)) => match ch.value_to_raw(*p) {
                     Some(raw) => raw,
                     None => {
-                        issues.push(Issue {
-                            code: IssueCode::EncodeValueInvalid,
-                            row: None,
-                            col: None,
-                            message: format!(
-                                "the value for channel {} is not a finite number; its default was used.",
-                                ch.number
-                            ),
-                        });
+                        issues.push(
+                            Issue::new(
+                                IssueCode::EncodeValueInvalid,
+                                format!(
+                                    "the value for channel {} is not a finite number; its default was used.",
+                                    ch.number
+                                ),
+                            )
+                            .about_channel(ch.number)
+                            .found(p.to_string()),
+                        );
                         self.default_raw(ch)
                     }
                 },

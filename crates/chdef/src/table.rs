@@ -532,25 +532,31 @@ impl BfTable {
             match channels.iter().find(|c| c.number == parent) {
                 Some(ch) if ch.data_type.is_bitfield() => {
                     if (bit as u32) >= ch.bits() {
-                        issues.push(Issue {
-                            code: IssueCode::BfBitOutOfRange,
-                            row: Some(row_index),
-                            col: bit_col,
-                            message: format!(
-                                "bit {bit} of channel {parent} is beyond its {}-bit width; the layout skips this row.",
-                                ch.bits()
-                            ),
-                        });
+                        issues.push(
+                            Issue::new(
+                                IssueCode::BfBitOutOfRange,
+                                format!(
+                                    "bit {bit} of channel {parent} is beyond its {}-bit width; the layout skips this row.",
+                                    ch.bits()
+                                ),
+                            )
+                            .at(row_index, bit_col)
+                            .about_bit(parent, bit)
+                            .found(bit.to_string())
+                            .used(ch.bits().to_string()),
+                        );
                     }
                 }
-                _ => issues.push(Issue {
-                    code: IssueCode::BfParentNotBitfield,
-                    row: Some(row_index),
-                    col: number_col,
-                    message: format!(
-                        "bit {bit} of channel {parent} has no `BF` parent channel; the layout skips this row."
-                    ),
-                }),
+                _ => issues.push(
+                    Issue::new(
+                        IssueCode::BfParentNotBitfield,
+                        format!(
+                            "bit {bit} of channel {parent} has no `BF` parent channel; the layout skips this row."
+                        ),
+                    )
+                    .at(row_index, number_col)
+                    .about_bit(parent, bit),
+                ),
             }
         }
         issues
