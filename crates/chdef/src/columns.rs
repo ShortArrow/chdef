@@ -2,6 +2,19 @@
 //! spelled in. Every column has an English and a Japanese canonical spelling
 //! plus aliases; header cells are matched case-insensitively after trimming.
 
+/// Which of a column's two canonical spellings to write. A file chdef
+/// creates uses one of these throughout; a file it reads keeps whatever
+/// spellings it had, mixed languages included
+/// (`docs/spec/format.md` §2).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum HeaderLanguage {
+    /// Lower-case ASCII: `number`, `bytes`, … — the default for a new file.
+    #[default]
+    En,
+    /// The original Japanese form: `番号`, `バイト数`, ….
+    Ja,
+}
+
 /// A column of a CH CSV.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChColumn {
@@ -24,8 +37,27 @@ pub enum ChColumn {
 }
 
 impl ChColumn {
-    /// The 16 columns in canonical order.
-    pub const CANONICAL: [ChColumn; 16] = [
+    /// The columns in canonical order — the header a new file gets unless
+    /// the caller names another set.
+    pub fn canonical() -> &'static [ChColumn] {
+        &Self::CANONICAL
+    }
+
+    /// The columns assumed, in order, for a file with no recognisable
+    /// header (`docs/spec/format.md` §2).
+    pub fn positional() -> &'static [ChColumn] {
+        &Self::POSITIONAL
+    }
+
+    /// The canonical spelling of this column in the given language.
+    pub fn name(self, lang: HeaderLanguage) -> &'static str {
+        match lang {
+            HeaderLanguage::En => self.spellings()[0],
+            HeaderLanguage::Ja => self.spellings()[1],
+        }
+    }
+
+    pub(crate) const CANONICAL: [ChColumn; 16] = [
         ChColumn::Number,
         ChColumn::Bytes,
         ChColumn::Bits,
@@ -44,8 +76,7 @@ impl ChColumn {
         ChColumn::Favorite,
     ];
 
-    /// The columns assumed, in order, when a file has no recognisable header.
-    pub const POSITIONAL: [ChColumn; 9] = [
+    pub(crate) const POSITIONAL: [ChColumn; 9] = [
         ChColumn::Number,
         ChColumn::Bytes,
         ChColumn::Bits,
@@ -79,12 +110,9 @@ impl ChColumn {
         }
     }
 
-    /// The English canonical spelling, written by newly created tables.
-    pub(crate) fn en(self) -> &'static str {
-        self.spellings()[0]
-    }
-
-    /// The column a header cell denotes, if any.
+    /// The column a header cell denotes, if any. Cells are trimmed and
+    /// matched case-insensitively against both canonical spellings and the
+    /// aliases (`docs/spec/format.md` §2).
     pub fn from_header(cell: &str) -> Option<ChColumn> {
         let cell = cell.trim().to_lowercase();
         ChColumn::CANONICAL
@@ -104,8 +132,21 @@ pub enum BfColumn {
 }
 
 impl BfColumn {
-    /// The 5 columns in canonical order.
-    pub const CANONICAL: [BfColumn; 5] = [
+    /// The columns in canonical order — the header a new file gets unless
+    /// the caller names another set.
+    pub fn canonical() -> &'static [BfColumn] {
+        &Self::CANONICAL
+    }
+
+    /// The canonical spelling of this column in the given language.
+    pub fn name(self, lang: HeaderLanguage) -> &'static str {
+        match lang {
+            HeaderLanguage::En => self.spellings()[0],
+            HeaderLanguage::Ja => self.spellings()[1],
+        }
+    }
+
+    pub(crate) const CANONICAL: [BfColumn; 5] = [
         BfColumn::Number,
         BfColumn::Bit,
         BfColumn::Name,
@@ -123,12 +164,9 @@ impl BfColumn {
         }
     }
 
-    /// The English canonical spelling, written by newly created tables.
-    pub(crate) fn en(self) -> &'static str {
-        self.spellings()[0]
-    }
-
-    /// The column a header cell denotes, if any.
+    /// The column a header cell denotes, if any. Cells are trimmed and
+    /// matched case-insensitively against both canonical spellings and the
+    /// aliases (`docs/spec/format.md` §2).
     pub fn from_header(cell: &str) -> Option<BfColumn> {
         let cell = cell.trim().to_lowercase();
         BfColumn::CANONICAL
@@ -147,6 +185,12 @@ pub struct ColumnMap<C> {
 }
 
 impl<C: Copy + PartialEq> ColumnMap<C> {
+    /// The map of a header a caller chose: each column at its own position,
+    /// in the order given.
+    pub(crate) fn in_order(columns: &[C]) -> Self {
+        Self::new(columns.iter().copied().zip(0..).collect(), false)
+    }
+
     fn new(positions: Vec<(C, usize)>, assumed: bool) -> Self {
         ColumnMap { positions, assumed }
     }
@@ -240,12 +284,12 @@ mod tests {
 
     #[test]
     fn canonical_names_round_trip_in_both_languages() {
-        for lang in [0, 1] {
+        for lang in [HeaderLanguage::En, HeaderLanguage::Ja] {
             for c in ChColumn::CANONICAL {
-                assert_eq!(ChColumn::from_header(c.spellings()[lang]), Some(c));
+                assert_eq!(ChColumn::from_header(c.name(lang)), Some(c));
             }
             for c in BfColumn::CANONICAL {
-                assert_eq!(BfColumn::from_header(c.spellings()[lang]), Some(c));
+                assert_eq!(BfColumn::from_header(c.name(lang)), Some(c));
             }
         }
     }

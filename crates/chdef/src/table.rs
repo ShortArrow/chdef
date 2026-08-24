@@ -6,7 +6,7 @@
 //! Rows and Layout are derived views: interpret again after editing.
 
 use crate::channel::{BitFieldDef, ChannelDef};
-use crate::columns::{BfColumn, ChColumn, ColumnMap};
+use crate::columns::{BfColumn, ChColumn, ColumnMap, HeaderLanguage};
 use crate::csv::{decode_utf8, interpret_bf, interpret_ch, is_blank, is_comment};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
@@ -352,14 +352,25 @@ impl ChTable {
         ChTable::parse(decode_utf8(bytes)?)
     }
 
-    /// An empty table with the English canonical 16-column header.
+    /// An empty table with the canonical columns, spelled in English —
+    /// `with_columns(ChColumn::canonical(), HeaderLanguage::En)`.
     pub fn new() -> ChTable {
-        let header: Vec<String> = ChColumn::CANONICAL.iter().map(|c| c.en().into()).collect();
-        let cells: Vec<&str> = header.iter().map(String::as_str).collect();
+        ChTable::with_columns(ChColumn::canonical(), HeaderLanguage::En)
+    }
+
+    /// An empty table whose header names `columns`, in that order, in that
+    /// language (ADR-0003). A column the header omits is one
+    /// [`insert_channel`](ChTable::insert_channel) drops and
+    /// [`channels`](ChTable::channels) reads as unspecified.
+    ///
+    /// A header that does not name `number` is not read back as a header at
+    /// all (`docs/spec/format.md` §2), so a file written from one is read
+    /// positionally.
+    pub fn with_columns(columns: &[ChColumn], language: HeaderLanguage) -> ChTable {
         ChTable {
             cells: Cells {
-                map: ColumnMap::ch_from_header(&cells).expect("canonical header names `number`"),
-                header: Some(header),
+                header: Some(columns.iter().map(|c| c.name(language).into()).collect()),
+                map: ColumnMap::in_order(columns),
                 rows: Vec::new(),
                 style: CsvStyle::default(),
             },
@@ -486,14 +497,19 @@ impl BfTable {
         BfTable::parse(decode_utf8(bytes)?)
     }
 
-    /// An empty table with the English canonical 5-column header.
+    /// An empty table with the canonical columns, spelled in English —
+    /// `with_columns(BfColumn::canonical(), HeaderLanguage::En)`.
     pub fn new() -> BfTable {
-        let header: Vec<String> = BfColumn::CANONICAL.iter().map(|c| c.en().into()).collect();
-        let cells: Vec<&str> = header.iter().map(String::as_str).collect();
+        BfTable::with_columns(BfColumn::canonical(), HeaderLanguage::En)
+    }
+
+    /// An empty table whose header names `columns`, in that order, in that
+    /// language (ADR-0003). See [`ChTable::with_columns`].
+    pub fn with_columns(columns: &[BfColumn], language: HeaderLanguage) -> BfTable {
         BfTable {
             cells: Cells {
-                map: ColumnMap::bf_from_header(&cells).expect("canonical header names `number`"),
-                header: Some(header),
+                header: Some(columns.iter().map(|c| c.name(language).into()).collect()),
+                map: ColumnMap::in_order(columns),
                 rows: Vec::new(),
                 style: CsvStyle::default(),
             },

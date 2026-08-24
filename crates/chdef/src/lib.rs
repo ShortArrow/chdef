@@ -21,6 +21,7 @@ pub use channel::{
     build_layout, BitFieldDef, ChannelDef, ChannelLayout, DataType, Decoded, Endian, Value,
     ValueDisplay,
 };
+pub use columns::{BfColumn, ChColumn, HeaderLanguage};
 pub use csv::{
     load_bf_csv, load_ch_csv, parse_bf_csv, parse_bf_csv_bytes, parse_ch_csv, parse_ch_csv_bytes,
 };

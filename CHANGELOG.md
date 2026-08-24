@@ -22,6 +22,12 @@ tag, published to crates.io.
   set, so a consumer displaying a bit field writes no shifts.
 - `ChTable` / `BfTable`: `header`, `rows` and `row(index)` hand over the
   grid an editor draws.
+- `ChColumn`, `BfColumn` and `HeaderLanguage` are public again, and
+  `ChTable::with_columns` / `BfTable::with_columns` create a table whose
+  header names the columns the caller asked for, in the language asked for
+  — the parameter ADR-0003 specified and no API had offered.
+  `ChColumn::canonical` / `positional` / `name` / `from_header` come with
+  them.
 - `Issue` carries `found`, `used`, `channel` and `bit` (ADR-0018), so a
   consumer writes its own sentence in its own language without parsing
   chdef's English. `found` keeps the notation of the cell it came from,

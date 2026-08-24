@@ -50,7 +50,15 @@ table below), for compatibility with the 9-column form, or the 5 of a BF
 CSV — and one Issue `header_assumed` is reported.
 
 Header names are written back exactly as they were read. A newly created
-file uses the English spellings.
+file names the columns the caller asked for, in the language the caller
+asked for (`ChTable::with_columns`); the default is every column in
+canonical order, spelled in English.
+
+A file whose columns are spelled some other way again is not a wider CH
+CSV — the spellings above are the format. A spelling that turns out to be
+real and common belongs in the alias column of the tables below, where
+every consumer and the golden vectors get it; one file's private wording
+is renamed before it is handed over.
 
 ## 3. CH CSV
 
