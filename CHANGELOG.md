@@ -105,6 +105,26 @@ tag, published to crates.io.
   emitted. `BitFieldDef::bit_of` extracts a bit from the parent's raw value.
 
 ### Fixed
+- An unterminated quote read the rest of the file into one cell, so the
+  later rows vanished with no Issue and no error — the exact loss
+  `format.md` §1 warns about, and the error `diagnostics.md` §1 promises.
+  `ChdefError::CsvParse` was unreachable; every entry point now refuses
+  such a file and names the line the quote opened on. Its `row` field
+  became `line`, saying which base it counts in.
+- `default` was capped at 32 bits, so a channel wider than 4 bytes could
+  not state one and got `default_invalid` — an Issue whose message denied
+  that a well-formed `0x` value was one. A default is now as wide as its
+  channel, and a value past that width is `raw_out_of_range` with the low
+  bits kept, in decimal as well as hexadecimal, matching the verdict the
+  same text already got in `min` / `max`.
+- A BF `bit` of 64 or more was reported as `bf_bit_invalid` ("not an
+  integer") instead of `bf_bit_out_of_range`.
+- `insert_channel` left `favorite` empty instead of writing `0`.
+- `encode` truncated a raw value past the channel width without reporting
+  it.
+- `remove_row` panicked on an index past the end; it returns `None`.
+- `Renumbered.moved` repeated a pair once per row rather than once per
+  channel, and renumbering a channel at `u32::MAX` overflowed.
 - Conversions used two different widths: `raw_to_value_endian` measured a
   channel by its `DataType` while everything else measured it by
   `byte_count`, so a 3-, 5-, 6-, 7- or 8-byte channel read only its first

@@ -12,8 +12,12 @@ pub enum ChdefError {
         source: std::io::Error,
     },
 
-    #[error("CSV parse error at row {row}: {message}")]
-    CsvParse { row: usize, message: String },
+    /// The file is not CSV that can be split into records — an unterminated
+    /// quote, say. `line` is the **1-based line of the file** where the
+    /// trouble starts, which is not the 0-based data row an
+    /// [`crate::Issue`] carries.
+    #[error("CSV parse error at line {line}: {message}")]
+    CsvParse { line: usize, message: String },
 
     /// The bytes handed to a `parse_*_csv_bytes` entry point are not UTF-8.
     /// `valid_up_to` is the offset in those bytes at which decoding stopped,

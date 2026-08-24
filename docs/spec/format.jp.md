@@ -52,7 +52,7 @@ number,bytes,bits,section,name,type,lsb,offset,unit,min,max,default,memo,var,for
 | `オフセット` / `offset` | `基準値` | 任意 | 実数。空欄 → `0`。非数 → `0`（Issue `offset_invalid`） |
 | `単位` / `unit` | — | 任意 | 文字列 |
 | `値(最小)` / `min`, `値(最大)` / `max` | `最小値` / `最大値` | 任意 | 空欄 → 未指定。数値 → **物理値**の境界（有限の f64）。`0x` / `0X` → **生値**の境界で、`値(デフォルト)` と同じく幅を検査（Issue `raw_out_of_range`、下位ビットを採用）。それ以外 → 未指定（Issue `min_invalid` / `max_invalid`）。解決後の `min` が `max` を上回る場合は両方保持（Issue `min_max_swapped`）。変換には自動適用せず、`range_contains` / `clamp_to_range` が明示の問い合わせ |
-| `値(デフォルト)` / `default` | `DefaultValue`, `デフォルト値` | 任意 | 空欄 → 未指定。`0x` / `0X` 接頭辞 → 16 進の生値。それ以外 → 10 進の**生値**（整数）。非整数 → 未指定（Issue `default_invalid`）。BF 型では BF CSV の既定値がビット単位で上書きする（[conversion.jp.md](./conversion.jp.md)） |
+| `値(デフォルト)` / `default` | `DefaultValue`, `デフォルト値` | 任意 | 空欄 → 未指定。`0x` / `0X` 接頭辞 → 16 進の生値。それ以外 → 10 進の**生値**（整数）。どちらの記法でもチャンネルの幅を持ち、幅を超えたら下位ビットを採用（Issue `raw_out_of_range`）。どちらの記法でもなければ未指定（Issue `default_invalid`）。BF 型では BF CSV の既定値がビット単位で上書きする（[conversion.jp.md](./conversion.jp.md)） |
 | `備考` / `memo` | `Description` | 任意 | 文字列 |
 | `変数名` / `var` | `variable` | 任意 | 文字列。保持のみ |
 | `表示形式` / `format` | `DisplayFormat` | 任意 | `DEC` / `HEX`（大文字小文字不問）。空欄・不明 → `DEC`。`HEX` で `LSB` が 1 以外なら Issue `hex_with_lsb`。表示のために利用側へ渡すだけで、変換には影響しない |

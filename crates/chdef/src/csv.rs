@@ -171,27 +171,27 @@ pub(crate) fn interpret_ch(
             },
         };
 
+        let bits = (byte_count.clamp(1, 8) * 8) as u32;
         let default_value = match cell(record, ChColumn::Default) {
             None => None,
             Some(s) if s.is_empty() => None,
-            Some(s) => match parse_raw(&s) {
-                Some((v, is_hex)) => {
-                    let bits = (byte_count * 8).min(32) as u32;
-                    if is_hex && bits < 32 && (v >> bits) != 0 {
-                        let masked = v & ((1u32 << bits) - 1);
-                        issue(
-                            IssueCode::RawOutOfRange,
-                            ChColumn::Default,
-                            format!(
-                                "`default` 0x{v:X} exceeds the {bits}-bit width; the low bits (0x{masked:X}) were used."
-                            ),
-                        );
-                        Some(masked)
-                    } else {
-                        Some(v)
-                    }
+            Some(s) => match parse_raw_cell(&s, bits) {
+                RawCell::Value(v) => Some(v),
+                RawCell::Overflow {
+                    masked,
+                    shown_value,
+                    shown_masked,
+                } => {
+                    issue(
+                        IssueCode::RawOutOfRange,
+                        ChColumn::Default,
+                        format!(
+                            "`default` {shown_value} exceeds the {bits}-bit width; the low bits ({shown_masked}) were used."
+                        ),
+                    );
+                    Some(masked)
                 }
-                None => {
+                RawCell::Invalid => {
                     issue(
                         IssueCode::DefaultInvalid,
                         ChColumn::Default,
@@ -205,7 +205,6 @@ pub(crate) fn interpret_ch(
             },
         };
 
-        let bits = (byte_count * 8) as u32;
         let min = match cell(record, ChColumn::Min) {
             None => None,
             Some(s) if s.is_empty() => None,
@@ -380,14 +379,24 @@ pub(crate) fn interpret_bf(
             }
         };
         let bit_cell = cell(record, BfColumn::Bit).unwrap_or_default();
-        let bit_number = match bit_cell.parse::<u8>() {
-            Ok(n) => n,
+        let bit_number = match bit_cell.parse::<u64>() {
+            Ok(n) if n < 64 => n as u8,
+            Ok(n) => {
+                issue(
+                    IssueCode::BfBitOutOfRange,
+                    BfColumn::Bit,
+                    format!(
+                        "`bit` is {n}, at or beyond the 64 bits of the widest channel; the row was skipped."
+                    ),
+                );
+                continue;
+            }
             Err(_) => {
                 issue(
                     IssueCode::BfBitInvalid,
                     BfColumn::Bit,
                     format!(
-                        "`bit` is {}, not an integer 0-255; the row was skipped.",
+                        "`bit` is {}, not an integer; the row was skipped.",
                         shown(&bit_cell)
                     ),
                 );
@@ -497,7 +506,7 @@ fn parse_type(s: &str) -> Option<(DataType, Option<usize>)> {
 }
 
 /// A `min` / `max` cell as one of its two notations, or the ways it fails:
-/// a `0x` value wider than the channel, or text that is neither notation.
+/// a raw value wider than the channel, or text that is neither notation.
 enum ValueCell {
     Value(Value),
     Overflow { value: u64, masked: u64 },
@@ -508,23 +517,60 @@ enum ValueCell {
 /// a raw bit pattern additionally checked against `bits`.
 fn parse_value_cell(s: &str, bits: u32) -> ValueCell {
     match Value::parse(s) {
-        Some(Value::Raw(v)) if bits < 64 && v >> bits != 0 => ValueCell::Overflow {
-            value: v,
-            masked: v & ((1u64 << bits) - 1),
+        Some(Value::Raw(v)) => match overflow_bits(v, bits) {
+            Some(masked) => ValueCell::Overflow { value: v, masked },
+            None => ValueCell::Value(Value::Raw(v)),
         },
         Some(v) => ValueCell::Value(v),
         None => ValueCell::Invalid,
     }
 }
 
-/// A raw-value cell: `0x` / `0X` prefixed hexadecimal or decimal. The flag
-/// says it was hexadecimal — only hex values are width-checked.
-fn parse_raw(s: &str) -> Option<(u32, bool)> {
-    if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
-        u32::from_str_radix(hex, 16).ok().map(|v| (v, true))
+/// A raw-value cell (`default`), or the ways it fails.
+enum RawCell {
+    Value(u64),
+    Overflow {
+        masked: u64,
+        shown_value: String,
+        shown_masked: String,
+    },
+    Invalid,
+}
+
+/// Read a `default` cell: `0x` / `0X` prefixed hexadecimal or decimal,
+/// either way a raw value of the channel's width
+/// (`docs/spec/conversion.md` §4), checked against `bits`.
+fn parse_raw_cell(s: &str, bits: u32) -> RawCell {
+    let hex = s.starts_with("0x") || s.starts_with("0X");
+    let parsed = if hex {
+        u64::from_str_radix(&s[2..], 16).ok()
     } else {
-        s.parse::<u32>().ok().map(|v| (v, false))
+        s.parse::<u64>().ok()
+    };
+    let render = |v: u64| {
+        if hex {
+            format!("0x{v:X}")
+        } else {
+            v.to_string()
+        }
+    };
+    match parsed {
+        None => RawCell::Invalid,
+        Some(v) => match overflow_bits(v, bits) {
+            Some(masked) => RawCell::Overflow {
+                masked,
+                shown_value: render(v),
+                shown_masked: render(masked),
+            },
+            None => RawCell::Value(v),
+        },
     }
+}
+
+/// The low bits of `v` that fit a `bits`-wide channel, when `v` does not
+/// fit it.
+fn overflow_bits(v: u64, bits: u32) -> Option<u64> {
+    (bits < 64 && v >> bits != 0).then(|| v & ((1u64 << bits) - 1))
 }
 
 /// Render a cell for an Issue message: quoted, or the word `empty`.

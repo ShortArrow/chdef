@@ -33,6 +33,7 @@ Table 段階（[layout.jp.md §1](./layout.jp.md)）は、見出し行と全デ�
 - `cell` / `set_cell(row, col, value)`: グリッド。0 始まり・見出し除外
   — Issue の行番号と同じ数え方。短い行の先に書けば空セルで埋まる。
 - `insert_row` / `append_row` / `remove_row`: 生の行。グリッドエディタ用。
+  3 つとも全域関数で、範囲外の位置は切り詰め・無視・`None` になり panic しない。
 - `insert_channel(row_index, &ChannelDef)`: 型付き定義を**このファイルに
   ある列**に描画する。列がないフィールドは落ちる。描画規則: `番号` /
   `バイト数` / `値(デフォルト)` は 10 進、`型` はカテゴリのみ（`UI` /
@@ -53,7 +54,9 @@ Table 段階（[layout.jp.md §1](./layout.jp.md)）は、見出し行と全デ�
 `insert_channel_renumbering(row_index, &def, Some(&mut bf_table))` は
 連番維持の挿入: `番号` ≥ `def.number` の全チャネルを +1 し（`番号` セルを
 書き換え）、BF 行は親に追従し、そのうえで新しい行を挿入する。戻り値
-`Renumbered { moved }` は動いた `(旧, 新)` の組を昇順で列挙する。
+`Renumbered { moved }` は動いた `(旧, 新)` の組を、同じ番号の行が何行
+あっても 1 度だけ、昇順で列挙する。`u32::MAX` のチャンネルは動く先が
+無いのでそのまま残る。
 
 2 ファイルの外にある参照 — TOML 設定・メモ・コード — を直すのは chdef の
 仕事ではない。`moved` は、利用側が自分の参照を直す・ずれを通知するのに

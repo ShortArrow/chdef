@@ -76,7 +76,7 @@ rules.
 | `offset` / `オフセット` | `基準値` | no | Real number. Empty → `0`. Not a number → `0` (Issue `offset_invalid`) |
 | `unit` / `単位` | — | no | String |
 | `min` / `値(最小)`, `max` / `値(最大)` | `最小値` / `最大値` | no | Empty → unspecified. A number → **physical** bound (finite f64). `0x` / `0X` → **raw** bound, width-checked like `default` (Issue `raw_out_of_range`, low bits kept). Anything else → unspecified (Issue `min_invalid` / `max_invalid`). A resolved `min` above `max` → both kept (Issue `min_max_swapped`). Never applied by a conversion — `range_contains` / `clamp_to_range` are the explicit queries |
-| `default` / `値(デフォルト)` | `DefaultValue`, `デフォルト値` | no | Empty → unspecified. `0x` / `0X` prefix → hexadecimal raw value. Anything else → decimal **raw value** (integer). Non-integer → unspecified (Issue `default_invalid`). For `BF` channels, the BF CSV overrides it bit by bit ([conversion.md](./conversion.md)) |
+| `default` / `値(デフォルト)` | `DefaultValue`, `デフォルト値` | no | Empty → unspecified. `0x` / `0X` prefix → hexadecimal raw value. Anything else → decimal **raw value** (integer). Either way it is as wide as the channel; past that width → the low bits are kept (Issue `raw_out_of_range`). Neither notation → unspecified (Issue `default_invalid`). For `BF` channels, the BF CSV overrides it bit by bit ([conversion.md](./conversion.md)) |
 | `memo` / `備考` | `Description` | no | String |
 | `var` / `変数名` | `variable` | no | String. Preserved only |
 | `format` / `表示形式` | `DisplayFormat` | no | `DEC` / `HEX` (case-insensitive). Empty / unknown → `DEC`. `HEX` with `lsb` ≠ 1 → Issue `hex_with_lsb`. Carried for the consumer to render with; it never affects a conversion |

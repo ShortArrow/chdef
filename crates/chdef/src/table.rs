@@ -36,6 +36,14 @@ impl<C: Copy + PartialEq> Cells<C> {
         positional: fn() -> ColumnMap<C>,
     ) -> Result<Self> {
         let content = content.trim_start_matches('\u{FEFF}');
+        if let Some(line) = unterminated_quote(content) {
+            return Err(ChdefError::CsvParse {
+                line,
+                message:
+                    "a quoted cell is never closed, so the rest of the file was read as part of it"
+                        .to_string(),
+            });
+        }
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
             .flexible(true)
@@ -44,7 +52,7 @@ impl<C: Copy + PartialEq> Cells<C> {
         let mut rows: Vec<Vec<String>> = Vec::new();
         for (index, record) in rdr.records().enumerate() {
             let record = record.map_err(|e| ChdefError::CsvParse {
-                row: index + 1,
+                line: e.position().map(|p| p.line() as usize).unwrap_or(index + 1),
                 message: e.to_string(),
             })?;
             rows.push(record.iter().map(str::to_string).collect());
@@ -96,6 +104,46 @@ impl<C: Copy + PartialEq> Cells<C> {
     fn new_row_width(&self) -> usize {
         self.header.as_ref().map(Vec::len).unwrap_or_default()
     }
+}
+
+/// The 1-based line on which a quoted cell opens and is never closed, if
+/// there is one. A quote only opens a cell at the start of one
+/// (`docs/spec/format.md` §1: a quote outside quotes is a literal
+/// character), and a doubled quote inside one is an escaped quote, not a
+/// closing one. The `csv` crate reads such a cell to the end of the file
+/// without complaint, which silently shortens the definition.
+fn unterminated_quote(content: &str) -> Option<usize> {
+    let mut line = 1usize;
+    let mut opened_on = None;
+    let mut at_field_start = true;
+    let mut chars = content.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        match opened_on {
+            None => match c {
+                '"' if at_field_start => opened_on = Some(line),
+                ',' => at_field_start = true,
+                '\n' => {
+                    line += 1;
+                    at_field_start = true;
+                }
+                '\r' => {}
+                _ => at_field_start = false,
+            },
+            Some(_) => match c {
+                '"' if chars.peek() == Some(&'"') => {
+                    chars.next();
+                }
+                '"' => {
+                    opened_on = None;
+                    at_field_start = false;
+                }
+                '\n' => line += 1,
+                _ => {}
+            },
+        }
+    }
+    opened_on
 }
 
 fn push_row(out: &mut String, row: &[String]) {
@@ -157,9 +205,10 @@ macro_rules! grid_api {
             self.cells.rows.push(cells);
         }
 
-        /// Remove and return the row at `index`.
-        pub fn remove_row(&mut self, index: usize) -> Vec<String> {
-            self.cells.rows.remove(index)
+        /// Remove and return the row at `index`; `None` when the grid has
+        /// no such row.
+        pub fn remove_row(&mut self, index: usize) -> Option<Vec<String>> {
+            (index < self.cells.rows.len()).then(|| self.cells.rows.remove(index))
         }
 
         /// The grid in the Table JSON shape of `docs/spec/interchange.md`
@@ -243,9 +292,13 @@ impl ChTable {
                     continue;
                 }
                 let number = row.get(col).and_then(|c| c.trim().parse::<u32>().ok());
-                if let Some(n) = number.filter(|n| *n >= def.number) {
+                // u32::MAX has nowhere to move to; `format.md` §3 puts no
+                // upper bound on `number`, so it is legal input.
+                if let Some(n) = number.filter(|n| *n >= def.number && *n < u32::MAX) {
                     row[col] = (n + 1).to_string();
-                    moved.push((n, n + 1));
+                    if !moved.contains(&(n, n + 1)) {
+                        moved.push((n, n + 1));
+                    }
                 }
             }
         }
@@ -286,9 +339,10 @@ impl ChTable {
                 DisplayFormat::Hex => "HEX".into(),
             },
         );
-        if def.favorite {
-            put(ChColumn::Favorite, "1".into());
-        }
+        put(
+            ChColumn::Favorite,
+            if def.favorite { "1".into() } else { "0".into() },
+        );
         if let Some(v) = def.default_value {
             put(ChColumn::Default, v.to_string());
         }
@@ -494,7 +548,7 @@ mod tests {
         assert_eq!(table.row_count(), 4);
 
         let removed = table.remove_row(0);
-        assert_eq!(removed, vec!["1".to_string(), "a".to_string()]);
+        assert_eq!(removed, Some(vec!["1".to_string(), "a".to_string()]));
         assert_eq!(table.channels().value.len(), 3);
     }
 

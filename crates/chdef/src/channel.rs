@@ -141,10 +141,10 @@ pub struct ChannelDef {
     pub lsb: f64,
     pub offset: f64,
     pub unit: String,
-    /// Optional protocol-spec default value parsed from the CSV. Used by
-    /// `ConstChannel::resolve` to fold CSV defaults into TOML-declared
-    /// constants when the TOML omits an explicit `value`.
-    pub default_value: Option<u32>,
+    /// Optional protocol-spec default of the channel, as a raw value of the
+    /// channel's own width (`docs/spec/conversion.md` §4). `None` when the
+    /// `default` column is empty.
+    pub default_value: Option<u64>,
     /// Optional lower / upper bound of the physical value (`min` / `max`
     /// columns). Carried, never applied automatically; see [`Value`].
     pub min: Option<Value>,
@@ -588,8 +588,22 @@ impl ChannelLayout {
                 .rev()
                 .find(|(n, _)| *n == ch.number)
                 .map(|(_, v)| v);
+            let bits = ch.bits();
             let raw = match given {
-                Some(Value::Raw(r)) => *r,
+                Some(Value::Raw(r)) => {
+                    if bits < 64 && r >> bits != 0 {
+                        issues.push(Issue {
+                            code: IssueCode::RawOutOfRange,
+                            row: None,
+                            col: None,
+                            message: format!(
+                                "the raw value 0x{r:X} for channel {} exceeds its {bits}-bit width; the low bits were used.",
+                                ch.number
+                            ),
+                        });
+                    }
+                    *r
+                }
                 Some(Value::Physical(p)) => match ch.value_to_raw(*p) {
                     Some(raw) => raw,
                     None => {
@@ -628,7 +642,7 @@ impl ChannelLayout {
     }
 
     fn default_raw(&self, ch: &ChannelDef) -> u64 {
-        let mut raw = u64::from(ch.default_value.unwrap_or(0));
+        let mut raw = ch.default_value.unwrap_or(0);
         if ch.data_type.is_bitfield() {
             for bf in self
                 .bitfields
@@ -1179,7 +1193,12 @@ mod tests {
         let out = layout.encode(&[(1, Value::Physical(5.0)), (2, Value::Raw(0x1FF))]);
 
         assert_eq!(out.value, vec![20, 0, 0xFF]);
-        assert!(out.issues.is_empty());
+        // The raw value did not fit channel 2; conversion.md §3 keeps the low
+        // bits and reports it rather than dropping the difference in silence.
+        assert_eq!(
+            out.issues.iter().map(|i| i.code).collect::<Vec<_>>(),
+            vec![IssueCode::RawOutOfRange]
+        );
     }
 
     #[test]

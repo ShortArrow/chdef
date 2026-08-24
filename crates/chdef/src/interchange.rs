@@ -97,7 +97,7 @@ pub struct ChannelJson<'l> {
     pub lsb: f64,
     pub offset: f64,
     pub unit: &'l str,
-    pub default: Option<u32>,
+    pub default: Option<u64>,
     pub format: &'static str,
     /// The bound in its own notation, or empty when unspecified.
     pub min: String,

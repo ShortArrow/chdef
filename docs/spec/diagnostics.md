@@ -63,10 +63,16 @@ column for editors.
 ## 3. Errors
 
 ```
-Error::Io { path, source }
-Error::Csv { row, message }      // structural (unterminated quote, …)
-Error::Encoding { valid_up_to }  // bytes that are not UTF-8
+ChdefError::Io { path, source }         // the file could not be read
+ChdefError::CsvParse { line, message }  // structural (an unterminated quote)
+ChdefError::Encoding { valid_up_to }    // bytes that are not UTF-8
 ```
+
+`line` is the **1-based line of the file**, not the 0-based data row an
+Issue carries: a structurally broken file has no rows to number yet.
+`Encoding` comes from the `parse_*_csv_bytes` entry points; a file read
+through `load_*_csv` that is not UTF-8 fails as `Io`, since the read
+itself is what refuses it.
 
 Unlike per-row Issues, an error returns no result. This makes "swap in the
 new definition only if it loaded completely" (otherwise keep the previous

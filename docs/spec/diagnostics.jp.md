@@ -51,9 +51,11 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 ## 3. エラー
 
 ```
-Error::Io { path, source }
-Error::Csv { row, message }      // 構造エラー（閉じない引用符など）
-Error::Encoding { valid_up_to }  // UTF-8 として解釈できないバイト列
+ChdefError::Io { path, source }         // ファイルが読めない
+ChdefError::CsvParse { line, message }  // 構造が壊れている（閉じない引用符）
+ChdefError::Encoding { valid_up_to }    // UTF-8 として解釈できないバイト列
 ```
+
+`line` は**ファイルの 1 始まりの行番号**であり、Issue が持つ 0 始まりのデータ行ではない。構造が壊れたファイルにはまだ数えるべき行が無い。`Encoding` は `parse_*_csv_bytes` の入口から出る。`load_*_csv` で読んだ UTF-8 でないファイルは、読み取り自体が拒否するので `Io` になる。
 
 行単位の Issue と違い、エラー時は結果を返さない。利用側は「読み切れたら差し替える」（失敗したら直前の定義を残す）を実装しやすい。

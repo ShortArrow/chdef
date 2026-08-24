@@ -37,6 +37,8 @@ Read → Table → write preserves **rows and cell contents**, not bytes:
   excluded — the same row numbering Issues use. Setting past the end of a
   short row pads it with empty cells.
 - `insert_row` / `append_row` / `remove_row`: raw rows, for grid editors.
+  All three are total: an index past the end clamps, is ignored, or comes
+  back as `None`, never a panic.
 - `insert_channel(row_index, &ChannelDef)`: renders a typed definition
   into the columns **this file has**; a field without a column is dropped.
   Rendering: `number` / `bytes` / `default` in decimal, `type` as its
@@ -59,7 +61,9 @@ whose `number` / `bit` do not parse are already reported, with rows, by
 consecutive-numbering insertion: every channel whose `number` ≥
 `def.number` moves up by one (its `number` cell is rewritten), BF rows
 follow their parents, then the new row is inserted. The returned
-`Renumbered { moved }` lists each `(old, new)` pair in ascending order.
+`Renumbered { moved }` lists each `(old, new)` pair once, in ascending
+order, however many rows carry that number. A channel numbered `u32::MAX`
+has nowhere to move to and stays where it is.
 
 References outside the two files — TOML configs, notes, code — are not
 chdef's to repair: `moved` is exactly the information a consumer needs to
