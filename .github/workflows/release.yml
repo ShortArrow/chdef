@@ -58,6 +58,8 @@ jobs:
           else
             cargo publish -p chdef --dry-run
             cargo publish -p chdef
+            cargo publish -p chdef-capi --dry-run
+            cargo publish -p chdef-capi
           fi
 
   release:

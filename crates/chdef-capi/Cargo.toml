@@ -1,0 +1,17 @@
+[package]
+name = "chdef-capi"
+description = "A C ABI over chdef: read CH / BF definitions, describe the frame layout, encode and decode frames"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["ffi", "csv", "telemetry", "bitfield", "codec"]
+categories = ["external-ffi-bindings", "parsing"]
+
+[lib]
+name = "chdef_capi"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+chdef = { path = "../chdef" }
