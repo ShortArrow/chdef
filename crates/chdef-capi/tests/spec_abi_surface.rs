@@ -451,25 +451,30 @@ fn a_cell_outside_the_grid_is_empty_rather_than_a_crash() {
 }
 
 #[test]
-fn a_freed_grid_handle_is_reported_rather_than_dereferenced() {
-    // abi.md §2: a stale handle is CHDEF_ERR_HANDLE.
-    let mut grid = ptr::null_mut();
+fn a_handle_of_another_kind_is_reported_rather_than_dereferenced() {
+    // abi.md §2: a null pointer, or a handle of one kind where another was
+    // expected, is CHDEF_ERR_HANDLE. Using a *freed* handle is undefined
+    // and is deliberately not asserted on.
+    let layout = Layout::parse();
+    let borrowed = layout.0 as *mut ChdefGrid;
+
+    assert_eq!(unsafe { chdef_grid_row_count(borrowed) }, 0);
     assert_eq!(
-        unsafe {
-            chdef_grid_parse(
-                GRID_CSV.as_ptr(),
-                GRID_CSV.len(),
-                &mut grid,
-                ptr::null_mut(),
-                0,
-            )
-        },
-        CHDEF_OK
+        unsafe { chdef_grid_remove_row(borrowed, 0) },
+        CHDEF_ERR_HANDLE,
+        "a layout is not a grid"
     );
-    unsafe { chdef_grid_free(grid) };
-    assert_eq!(unsafe { chdef_grid_row_count(grid) }, 0);
-    assert_eq!(unsafe { chdef_grid_remove_row(grid, 0) }, CHDEF_ERR_HANDLE);
-    unsafe { chdef_grid_free(grid) };
+    assert_eq!(
+        unsafe { chdef_grid_to_csv(borrowed, ptr::null_mut(), 0) },
+        0
+    );
+
+    assert_eq!(unsafe { chdef_grid_row_count(ptr::null()) }, 0);
+    assert_eq!(
+        unsafe { chdef_grid_remove_row(ptr::null_mut(), 0) },
+        CHDEF_ERR_HANDLE
+    );
+    unsafe { chdef_grid_free(ptr::null_mut()) };
 }
 
 // ---------------------------------------------------------------- version

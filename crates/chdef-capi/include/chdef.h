@@ -25,9 +25,14 @@
  *
  * Handles come from chdef_layout_parse / chdef_grid_parse /
  * chdef_vocabulary_new and are released exactly once with the matching
- * free. Passing NULL to a free is a
- * no-op; passing a freed or foreign pointer to anything else is reported
- * as CHDEF_ERR_HANDLE rather than read.
+ * free. Passing NULL to a free is a no-op, and passing a handle of one
+ * kind where another is expected is reported as CHDEF_ERR_HANDLE rather
+ * than read as the wrong type.
+ *
+ * Using a handle after freeing it is UNDEFINED, as for any C pointer. The
+ * tag is cleared before the memory is released, so a stale handle is often
+ * caught, but the memory belongs to the allocator by then and that is not
+ * a guarantee.
  */
 
 #ifndef CHDEF_H

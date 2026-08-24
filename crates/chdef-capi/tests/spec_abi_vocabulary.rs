@@ -167,15 +167,33 @@ fn teaching_survives_a_failed_teaching() {
 }
 
 #[test]
-fn a_freed_vocabulary_is_reported_rather_than_dereferenced() {
-    let mut handle = ptr::null_mut();
-    assert_eq!(unsafe { chdef_vocabulary_new(&mut handle) }, CHDEF_OK);
-    unsafe { chdef_vocabulary_free(handle) };
+fn a_handle_of_another_kind_is_reported_rather_than_dereferenced() {
+    // abi.md §2: a null pointer, or a handle of one kind where another was
+    // expected, is CHDEF_ERR_HANDLE. Using a *freed* handle is undefined
+    // and is deliberately not asserted on: the memory is the allocator's
+    // by then, so any answer would be a coincidence of the platform.
+    let grid_source = "number,bytes
+7,4
+";
+    let mut grid = ptr::null_mut();
+    assert_eq!(
+        unsafe {
+            chdef_grid_parse(
+                grid_source.as_ptr(),
+                grid_source.len(),
+                &mut grid,
+                ptr::null_mut(),
+                0,
+            )
+        },
+        CHDEF_OK
+    );
 
+    let borrowed = grid as *mut ChdefVocabulary;
     assert_eq!(
         unsafe {
             chdef_vocabulary_teach(
-                handle,
+                borrowed,
                 CHDEF_COLUMNS_CH,
                 "x".as_ptr(),
                 1,
@@ -183,10 +201,13 @@ fn a_freed_vocabulary_is_reported_rather_than_dereferenced() {
                 6,
             )
         },
-        CHDEF_ERR_HANDLE
+        CHDEF_ERR_HANDLE,
+        "a grid is not a vocabulary"
     );
 
-    let ch = "number,bytes\n7,4\n";
+    let ch = "number,bytes
+7,4
+";
     let mut layout = ptr::null_mut();
     let mut issues = ptr::null_mut();
     assert_eq!(
@@ -196,7 +217,7 @@ fn a_freed_vocabulary_is_reported_rather_than_dereferenced() {
                 ch.len(),
                 ptr::null(),
                 0,
-                handle,
+                borrowed,
                 &mut layout,
                 &mut issues,
                 ptr::null_mut(),
@@ -205,7 +226,28 @@ fn a_freed_vocabulary_is_reported_rather_than_dereferenced() {
         },
         CHDEF_ERR_HANDLE
     );
-    unsafe { chdef_vocabulary_free(handle) };
+
+    unsafe { chdef_grid_free(grid) };
+
+    // A null vocabulary is the empty one, not an error — that is the
+    // documented shorthand.
+    assert_eq!(first_number(ch, ptr::null()), Some(7));
+
+    // A null handle where one is required is an error.
+    assert_eq!(
+        unsafe {
+            chdef_vocabulary_teach(
+                ptr::null_mut(),
+                CHDEF_COLUMNS_CH,
+                "x".as_ptr(),
+                1,
+                "number".as_ptr(),
+                6,
+            )
+        },
+        CHDEF_ERR_HANDLE
+    );
+    unsafe { chdef_vocabulary_free(ptr::null_mut()) };
 }
 
 #[test]

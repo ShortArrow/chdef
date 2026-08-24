@@ -219,6 +219,7 @@ const GRID_TAG: u64 = 0x6368_6465_665f_6772; // "chdef_gr"
 const VOCABULARY_TAG: u64 = 0x6368_6465_665f_766f; // "chdef_vo"
 
 /// An opaque frame layout. Freed once with [`chdef_layout_free`].
+#[repr(C)]
 pub struct ChdefLayout {
     tag: u64,
     layout: ChannelLayout,
@@ -226,18 +227,21 @@ pub struct ChdefLayout {
 
 /// An opaque column vocabulary. Freed once with
 /// [`chdef_vocabulary_free`].
+#[repr(C)]
 pub struct ChdefVocabulary {
     tag: u64,
     vocabulary: ColumnVocabulary,
 }
 
 /// An opaque grid of cells. Freed once with [`chdef_grid_free`].
+#[repr(C)]
 pub struct ChdefGrid {
     tag: u64,
     grid: Grid,
 }
 
 /// An opaque list of diagnostics. Freed once with [`chdef_issues_free`].
+#[repr(C)]
 pub struct ChdefIssues {
     tag: u64,
     issues: Vec<Issue>,

@@ -46,6 +46,17 @@ tag, published to crates.io.
   the Japanese one as a table where it is visibly one vocabulary rather
   than half the mechanism.
 
+### Fixed
+- The ABI no longer claims to report a **freed** handle. Reading a tag out
+  of memory the allocator has taken back is undefined, and the claim held
+  only where the allocator happened to leave the bytes alone; a macOS
+  runner showed it does not. What is contracted now is what can be kept: a
+  null handle, and a handle of one kind passed where another was expected,
+  are `CHDEF_ERR_HANDLE`. Using a freed handle is undefined, as for any C
+  pointer.
+- The opaque handles are `#[repr(C)]`, so the tag that distinguishes them
+  is reliably their first field rather than wherever the compiler put it.
+
 ## [0.0.5] - 2026-08-24
 
 ### Added

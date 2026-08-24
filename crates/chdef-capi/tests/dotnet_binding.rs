@@ -49,7 +49,11 @@ fn exported_constants(source: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The `repr(C)` structs and their fields, in declaration order.
+/// The `repr(C)` structs whose fields cross, in declaration order.
+///
+/// An opaque handle is `repr(C)` only so that its tag is reliably its
+/// first field; its contents never cross, and C# holds it as an `nint`.
+/// Such a struct is recognised by that tag and skipped.
 fn exported_structs(source: &str) -> Vec<(String, Vec<(String, String)>)> {
     let mut structs = Vec::new();
     let mut lines = source.lines().peekable();
@@ -70,10 +74,14 @@ fn exported_structs(source: &str) -> Vec<(String, Vec<(String, String)>)> {
             continue;
         }
         let mut fields = Vec::new();
+        let mut opaque = false;
         for line in lines.by_ref() {
             let line = line.trim();
             if line == "}" {
                 break;
+            }
+            if line == "tag: u64," {
+                opaque = true;
             }
             if let Some(rest) = line.strip_prefix("pub ") {
                 if let Some((field, ty)) = rest.split_once(':') {
@@ -83,6 +91,9 @@ fn exported_structs(source: &str) -> Vec<(String, Vec<(String, String)>)> {
                     ));
                 }
             }
+        }
+        if opaque {
+            continue;
         }
         structs.push((name, fields));
     }
@@ -155,7 +166,9 @@ fn every_struct_field_crosses_in_order_and_at_the_same_width() {
     let (rust, csharp) = (rust(), csharp());
     let structs = exported_structs(&rust);
 
-    assert!(structs.len() >= 4, "found only {structs:?}");
+    // The floor also catches an extractor that skips everything: the
+    // opaque handles are excluded on purpose, the marshalled ones are not.
+    assert_eq!(structs.len(), 6, "found {structs:?}");
     for (name, fields) in structs {
         let start = csharp
             .find(&format!("internal struct {name}"))

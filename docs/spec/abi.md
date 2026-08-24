@@ -47,9 +47,14 @@ vocabulary to do it.
   display format — crosses as an ASCII string, so adding one is not an ABI
   break and a caller that does not know it still has something to show.
 - **Handles are opaque and tagged.** A handle carries a tag its creating
-  call sets and its freeing call clears, so a stale or foreign pointer is
-  reported as `CHDEF_ERR_HANDLE` instead of being dereferenced. Freeing
-  twice is safe; a null handle is ignored.
+  call sets, so a null pointer, or a handle of one kind passed where
+  another was expected, is reported as `CHDEF_ERR_HANDLE` rather than
+  dereferenced as the wrong type. A null handle is ignored by its `_free`.
+- **Using a handle after freeing it is undefined**, as it is for any C
+  pointer: the memory is the allocator's again, and no tag survives in it
+  reliably. Freeing clears the tag before releasing the memory, so a stale
+  handle is *often* caught — that is a courtesy on the way to a bug, not a
+  guarantee, and it is not contracted. The same applies to freeing twice.
 - **Text is written into the caller's buffer, never allocated for it.**
   Every text call writes UTF-8, always terminates, and returns the length
   the value needs — so a caller asks with a capacity of `0`, allocates,
