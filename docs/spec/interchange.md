@@ -95,6 +95,12 @@ P ch -
   source with no `P` line must produce no Issues.
 - Every vector set has at least one `E`, one `D` and one `L` line.
 
+The harness runs twice: once over the crate's Rust API, and once over the
+C ABI of `chdef-capi` (ADR-0021), so the boundary is verified to be the
+same implementation rather than a second one. `F` and `P` lines are
+contracted against the crate only — the ABI exposes neither bit readings
+nor an editing surface.
+
 The sets in this repository: `basic` (the example above), `widths` (all
 eight legal widths at both byte orders, at the boundaries
 [conversion.md §2](./conversion.md) clamps to), `scaling` (non-zero `lsb`

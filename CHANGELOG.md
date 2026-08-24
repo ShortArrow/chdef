@@ -12,6 +12,21 @@ tag, published to crates.io.
 ## [Unreleased]
 
 ### Added
+- `chdef-capi`, a C ABI over the crate (ADR-0021): read CH / BF
+  definitions into an opaque layout handle, describe the layout, encode and
+  decode frames, and read the diagnostics. It carries no enums — an Issue's
+  code and a channel's `type` cross as their stable ASCII strings — every
+  string it hands out goes into the caller's buffer, and every entry point
+  catches panics. `crates/chdef-capi/include/chdef.h` is the header, and a
+  test proves it declares every exported symbol. The golden vectors of
+  `interchange.md` §3 run through the ABI as well as through the crate, so
+  the boundary cannot become a second implementation.
+- `Grid` (ADR-0020): a CSV file as its cells, with no column vocabulary —
+  a consumer that displays or edits a definition without reading its
+  columns uses one and never picks between a CH and a BF table.
+  `ChTable` / `BfTable` hold a grid, forward its operations and expose it
+  through `grid()`; the `grid_api!` macro that had generated those
+  operations into both types is gone.
 - `ChannelDef::displayed_value` / `render`: which reading the `format`
   column selects, and a default text form of it a consumer may replace
   (ADR-0015). They take a raw integer, so no byte order is assumed.
@@ -43,6 +58,12 @@ tag, published to crates.io.
   file kept with LF endings no longer rewrites every line (ADR-0017). A
   file that already follows the write rules round-trips byte for byte; a
   table created in code still writes a BOM and CRLF.
+
+### Fixed
+- `parse_bytes` stripped the byte-order mark before the text was parsed, so
+  a file fed as bytes was written back without the mark it had. The mark is
+  valid UTF-8 and the reader already ignores it, so it is no longer
+  stripped and the shape is recorded as for any other file (ADR-0020).
 
 ### Changed
 - `Issue` is `#[non_exhaustive]`: it is chdef's to construct, and more
