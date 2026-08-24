@@ -23,3 +23,4 @@ specification and the README never point back at an ADR.
 | [0016](./0016-the-layout-carries-its-capacity.md) | 2026-08-24 | The layout carries the capacity it is measured against | Accepted |
 | [0017](./0017-the-file-shape-is-read-not-imposed.md) | 2026-08-24 | The shape of a file is read from it, not imposed on it | Accepted |
 | [0018](./0018-an-issue-is-readable-without-english.md) | 2026-08-24 | An Issue is readable without reading its English | Accepted |
+| [0019](./0019-aliases-extend-a-reader-not-the-format.md) | 2026-08-24 | A column alias extends one reader, not the format | Accepted |

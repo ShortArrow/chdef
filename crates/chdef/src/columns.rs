@@ -15,6 +15,69 @@ pub enum HeaderLanguage {
     Ja,
 }
 
+/// Spellings one reader accepts on top of the ones
+/// `docs/spec/format.md` §2 defines, for files whose headers word a column
+/// their own way.
+///
+/// An alias only ever **adds** a spelling. A canonical spelling and a
+/// documented alias always denote the column the specification says they
+/// do — teaching `number` to mean something else does nothing — and no
+/// alias reaches the writer: a file keeps the header it was read with, and
+/// a file chdef creates uses the canonical spellings. The golden vectors
+/// of `docs/spec/interchange.md` §3 never use one either, so what an
+/// implementation must do to conform is unchanged by anything a consumer
+/// teaches its own reader.
+#[derive(Debug, Clone, Default)]
+pub struct ColumnAliases {
+    ch: Vec<(String, ChColumn)>,
+    bf: Vec<(String, BfColumn)>,
+}
+
+impl ColumnAliases {
+    /// No aliases: the canonical vocabulary alone.
+    pub fn new() -> ColumnAliases {
+        ColumnAliases::default()
+    }
+
+    /// Accept `spelling` as a name for a CH column, matched trimmed and
+    /// case-insensitively like every other spelling. Teaching the same
+    /// spelling twice keeps the last.
+    pub fn ch(mut self, spelling: &str, column: ChColumn) -> ColumnAliases {
+        let key = spelling.trim().to_lowercase();
+        self.ch.retain(|(k, _)| *k != key);
+        self.ch.push((key, column));
+        self
+    }
+
+    /// Accept `spelling` as a name for a BF column. See [`ch`](Self::ch).
+    pub fn bf(mut self, spelling: &str, column: BfColumn) -> ColumnAliases {
+        let key = spelling.trim().to_lowercase();
+        self.bf.retain(|(k, _)| *k != key);
+        self.bf.push((key, column));
+        self
+    }
+
+    /// The CH column a header cell denotes: what the specification says,
+    /// and only if it says nothing, what this reader was taught.
+    pub(crate) fn ch_column(&self, cell: &str) -> Option<ChColumn> {
+        ChColumn::from_header(cell).or_else(|| Self::taught(&self.ch, cell))
+    }
+
+    /// The BF column a header cell denotes. See [`ch_column`](Self::ch_column).
+    pub(crate) fn bf_column(&self, cell: &str) -> Option<BfColumn> {
+        BfColumn::from_header(cell).or_else(|| Self::taught(&self.bf, cell))
+    }
+
+    fn taught<C: Copy>(table: &[(String, C)], cell: &str) -> Option<C> {
+        let cell = cell.trim().to_lowercase();
+        table
+            .iter()
+            .rev()
+            .find(|(spelling, _)| *spelling == cell)
+            .map(|(_, column)| *column)
+    }
+}
+
 /// A column of a CH CSV.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChColumn {
@@ -205,10 +268,11 @@ impl<C: Copy + PartialEq> ColumnMap<C> {
 }
 
 impl ColumnMap<ChColumn> {
-    /// Identify CH columns from a header row. `None` when the row holds no
-    /// `number` column, i.e. it is not a header.
-    pub fn ch_from_header(cells: &[&str]) -> Option<Self> {
-        let map = Self::from_cells(cells, ChColumn::from_header);
+    /// Identify CH columns from a header row, by the spellings the
+    /// specification defines and any the reader was taught. `None` when the
+    /// row holds no `number` column, i.e. it is not a header.
+    pub fn ch_from_header(cells: &[&str], aliases: &ColumnAliases) -> Option<Self> {
+        let map = Self::from_cells(cells, |cell| aliases.ch_column(cell));
         map.position(ChColumn::Number).map(|_| map)
     }
 
@@ -226,10 +290,10 @@ impl ColumnMap<ChColumn> {
 }
 
 impl ColumnMap<BfColumn> {
-    /// Identify BF columns from a header row. `None` when the row holds no
-    /// `number` column, i.e. it is not a header.
-    pub fn bf_from_header(cells: &[&str]) -> Option<Self> {
-        let map = Self::from_cells(cells, BfColumn::from_header);
+    /// Identify BF columns from a header row. See
+    /// [`ch_from_header`](ColumnMap::ch_from_header).
+    pub fn bf_from_header(cells: &[&str], aliases: &ColumnAliases) -> Option<Self> {
+        let map = Self::from_cells(cells, |cell| aliases.bf_column(cell));
         map.position(BfColumn::Number).map(|_| map)
     }
 
@@ -247,7 +311,7 @@ impl ColumnMap<BfColumn> {
 }
 
 impl<C: Copy + PartialEq> ColumnMap<C> {
-    fn from_cells(cells: &[&str], recognise: fn(&str) -> Option<C>) -> Self {
+    fn from_cells(cells: &[&str], recognise: impl Fn(&str) -> Option<C>) -> Self {
         let mut positions: Vec<(C, usize)> = Vec::new();
         for (i, cell) in cells.iter().enumerate() {
             if let Some(c) = recognise(cell) {
@@ -296,7 +360,11 @@ mod tests {
 
     #[test]
     fn header_map_locates_columns_wherever_they_are() {
-        let map = ColumnMap::ch_from_header(&["name", "number", "default", "extra"]).unwrap();
+        let map = ColumnMap::ch_from_header(
+            &["name", "number", "default", "extra"],
+            &ColumnAliases::new(),
+        )
+        .unwrap();
         assert_eq!(map.position(ChColumn::Number), Some(1));
         assert_eq!(map.position(ChColumn::Default), Some(2));
         assert_eq!(map.position(ChColumn::Bytes), None);
@@ -305,8 +373,12 @@ mod tests {
 
     #[test]
     fn a_row_without_number_column_is_not_a_header() {
-        assert!(ColumnMap::ch_from_header(&["1", "4", "", "General"]).is_none());
-        assert!(ColumnMap::bf_from_header(&["2", "0", "Reserved"]).is_none());
+        assert!(
+            ColumnMap::ch_from_header(&["1", "4", "", "General"], &ColumnAliases::new()).is_none()
+        );
+        assert!(
+            ColumnMap::bf_from_header(&["2", "0", "Reserved"], &ColumnAliases::new()).is_none()
+        );
         let positional = ColumnMap::ch_positional();
         assert!(positional.assumed);
         assert_eq!(positional.position(ChColumn::Unit), Some(8));
@@ -315,7 +387,8 @@ mod tests {
 
     #[test]
     fn duplicate_header_names_keep_the_first_position() {
-        let map = ColumnMap::ch_from_header(&["number", "name", "name"]).unwrap();
+        let map =
+            ColumnMap::ch_from_header(&["number", "name", "name"], &ColumnAliases::new()).unwrap();
         assert_eq!(map.position(ChColumn::Name), Some(1));
     }
 }

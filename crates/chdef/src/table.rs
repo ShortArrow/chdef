@@ -6,7 +6,7 @@
 //! Rows and Layout are derived views: interpret again after editing.
 
 use crate::channel::{BitFieldDef, ChannelDef};
-use crate::columns::{BfColumn, ChColumn, ColumnMap, HeaderLanguage};
+use crate::columns::{BfColumn, ChColumn, ColumnAliases, ColumnMap, HeaderLanguage};
 use crate::csv::{decode_utf8, interpret_bf, interpret_ch, is_blank, is_comment};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
@@ -76,7 +76,7 @@ struct Cells<C> {
 impl<C: Copy + PartialEq> Cells<C> {
     fn parse(
         content: &str,
-        from_header: fn(&[&str]) -> Option<ColumnMap<C>>,
+        from_header: impl Fn(&[&str]) -> Option<ColumnMap<C>>,
         positional: fn() -> ColumnMap<C>,
     ) -> Result<Self> {
         let bom = content.starts_with('\u{FEFF}');
@@ -339,17 +339,34 @@ pub struct ChTable {
 }
 
 impl ChTable {
-    /// Parse CSV text into the grid. Only a structurally broken file fails;
-    /// everything interpretable-or-not is kept as cells.
+    /// Parse CSV text into the grid, by the spellings
+    /// `docs/spec/format.md` §2 defines. Only a structurally broken file
+    /// fails; everything interpretable-or-not is kept as cells.
     pub fn parse(content: &str) -> Result<ChTable> {
+        ChTable::parse_with(content, &ColumnAliases::new())
+    }
+
+    /// [`parse`](ChTable::parse), also accepting the header spellings this
+    /// reader was taught ([`ColumnAliases`]).
+    pub fn parse_with(content: &str, aliases: &ColumnAliases) -> Result<ChTable> {
         Ok(ChTable {
-            cells: Cells::parse(content, ColumnMap::ch_from_header, ColumnMap::ch_positional)?,
+            cells: Cells::parse(
+                content,
+                |cells| ColumnMap::ch_from_header(cells, aliases),
+                ColumnMap::ch_positional,
+            )?,
         })
     }
 
     /// [`parse`](ChTable::parse) after stripping BOMs and decoding UTF-8.
     pub fn parse_bytes(bytes: &[u8]) -> Result<ChTable> {
-        ChTable::parse(decode_utf8(bytes)?)
+        ChTable::parse_bytes_with(bytes, &ColumnAliases::new())
+    }
+
+    /// [`parse_with`](ChTable::parse_with) after stripping BOMs and
+    /// decoding UTF-8.
+    pub fn parse_bytes_with(bytes: &[u8], aliases: &ColumnAliases) -> Result<ChTable> {
+        ChTable::parse_with(decode_utf8(bytes)?, aliases)
     }
 
     /// An empty table with the canonical columns, spelled in English —
@@ -487,14 +504,30 @@ pub struct BfTable {
 impl BfTable {
     /// Parse CSV text into the grid. Only a structurally broken file fails.
     pub fn parse(content: &str) -> Result<BfTable> {
+        BfTable::parse_with(content, &ColumnAliases::new())
+    }
+
+    /// [`parse`](BfTable::parse), also accepting the header spellings this
+    /// reader was taught ([`ColumnAliases`]).
+    pub fn parse_with(content: &str, aliases: &ColumnAliases) -> Result<BfTable> {
         Ok(BfTable {
-            cells: Cells::parse(content, ColumnMap::bf_from_header, ColumnMap::bf_positional)?,
+            cells: Cells::parse(
+                content,
+                |cells| ColumnMap::bf_from_header(cells, aliases),
+                ColumnMap::bf_positional,
+            )?,
         })
     }
 
     /// [`parse`](BfTable::parse) after stripping BOMs and decoding UTF-8.
     pub fn parse_bytes(bytes: &[u8]) -> Result<BfTable> {
-        BfTable::parse(decode_utf8(bytes)?)
+        BfTable::parse_bytes_with(bytes, &ColumnAliases::new())
+    }
+
+    /// [`parse_with`](BfTable::parse_with) after stripping BOMs and
+    /// decoding UTF-8.
+    pub fn parse_bytes_with(bytes: &[u8], aliases: &ColumnAliases) -> Result<BfTable> {
+        BfTable::parse_with(decode_utf8(bytes)?, aliases)
     }
 
     /// An empty table with the canonical columns, spelled in English —

@@ -54,11 +54,20 @@ file names the columns the caller asked for, in the language the caller
 asked for (`ChTable::with_columns`); the default is every column in
 canonical order, spelled in English.
 
-A file whose columns are spelled some other way again is not a wider CH
-CSV — the spellings above are the format. A spelling that turns out to be
-real and common belongs in the alias column of the tables below, where
-every consumer and the golden vectors get it; one file's private wording
-is renamed before it is handed over.
+A reader may be taught further spellings for files that word a column
+their own way (`ColumnAliases`, ADR-0019), under three rules that leave
+the format a format:
+
+- An alias only ever **adds** a spelling. Cells are matched against the
+  spellings above first; a taught one is consulted only for a cell none of
+  them claims, so a canonical spelling always means what this document
+  says.
+- **No alias reaches the writer.** A file keeps the header it was read
+  with, and a file chdef creates uses the canonical spellings.
+- **No alias appears in the golden vectors**
+  ([interchange.md §3](./interchange.md)). Conformance is defined on the
+  vocabulary above alone, so an implementation in another language is not
+  obliged to offer aliases at all.
 
 ## 3. CH CSV
 

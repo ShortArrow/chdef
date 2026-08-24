@@ -22,6 +22,11 @@ tag, published to crates.io.
   set, so a consumer displaying a bit field writes no shifts.
 - `ChTable` / `BfTable`: `header`, `rows` and `row(index)` hand over the
   grid an editor draws.
+- `ColumnAliases`, with `ChTable::parse_with` / `parse_bytes_with` and the
+  same on `BfTable`: a reader can be taught the header spellings one
+  consumer's files use (ADR-0019). An alias only ever adds a spelling,
+  never reaches the writer, and never appears in the golden vectors, so
+  the format and what conformance means are unchanged.
 - `ChColumn`, `BfColumn` and `HeaderLanguage` are public again, and
   `ChTable::with_columns` / `BfTable::with_columns` create a table whose
   header names the columns the caller asked for, in the language asked for
