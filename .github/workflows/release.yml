@@ -27,7 +27,7 @@ jobs:
           cargo test --workspace --locked --all-features
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          global-json-file: bindings/dotnet/global.json
       # The golden vectors of docs/spec/interchange.md §3 certify the path
       # the C# project actually takes, not one beside it (ADR-0022).
       - name: Test the .NET binding
@@ -41,7 +41,8 @@ jobs:
             macOS)   native="$target/release/libchdef_capi.dylib" ;;
             *)       native="$target/release/libchdef_capi.so" ;;
           esac
-          CHDEF_NATIVE="$native" dotnet test bindings/dotnet/Chdef.sln --configuration Release
+          dotnet restore bindings/dotnet/Chdef.slnx --locked-mode
+          CHDEF_NATIVE="$native" dotnet test bindings/dotnet/Chdef.slnx             --configuration Release --no-restore
 
   publish-crates:
     # Publish to crates.io via OIDC Trusted Publishing (no long-lived token).
@@ -80,51 +81,75 @@ jobs:
           fi
 
   publish-nuget:
-    # The package carries the native library for each platform, so a
+    # The package carries the native library for each runtime, so a
     # consumer writes `dotnet add package` and nothing else (ADR-0022).
-    name: Publish to NuGet
+    name: Pack & push to NuGet (OIDC)
     needs: test
     if: ${{ !contains(github.event.head_commit.message, '[skip publish]') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-dotnet@v4
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
-      - name: Install the cross targets
-        run: |
-          rustup target add x86_64-pc-windows-gnu x86_64-unknown-linux-gnu                             x86_64-apple-darwin aarch64-apple-darwin
+          global-json-file: bindings/dotnet/global.json
+
       - name: Build the native library for every runtime the package carries
         run: |
           set -euo pipefail
+          rustup target add x86_64-unknown-linux-gnu x86_64-pc-windows-gnu
           runtimes=bindings/dotnet/Chdef/runtimes
           build() {
-            rust_target="$1"; rid="$2"; file="$3"
-            cargo build -p chdef-capi --release --locked --target "$rust_target"
-            mkdir -p "$runtimes/$rid/native"
-            cp "target/$rust_target/release/$file" "$runtimes/$rid/native/"
+            cargo build -p chdef-capi --release --locked --target "$1"
+            mkdir -p "$runtimes/$2/native"
+            cp "target/$1/release/$3" "$runtimes/$2/native/"
           }
           build x86_64-unknown-linux-gnu linux-x64 libchdef_capi.so
           build x86_64-pc-windows-gnu    win-x64   chdef_capi.dll
-          # The Apple targets need a macOS host; they are added by the
-          # macOS leg of the matrix in a follow-up, and their absence is a
-          # missing runtime rather than a broken package.
           ls -R "$runtimes"
-      - name: Pack and push
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+
+      - name: Restore (locked)
+        run: dotnet restore bindings/dotnet/Chdef.slnx --locked-mode
+
+      - name: Pack
         run: |
           set -euo pipefail
+          # Strip the leading `v` so v0.1.0 -> 0.1.0 for the package
+          # version, matching the crate and the GitHub Release.
           version="${GITHUB_REF_NAME#v}"
-          dotnet pack bindings/dotnet/Chdef/Chdef.csproj             --configuration Release -p:Version="$version" -o artifacts
-          if [ -z "${NUGET_API_KEY:-}" ]; then
-            echo "no NUGET_API_KEY — packed but not pushed"
-          else
-            dotnet nuget push "artifacts/Chdef.$version.nupkg"               --source https://api.nuget.org/v3/index.json               --api-key "$NUGET_API_KEY" --skip-duplicate
-          fi
+          dotnet pack bindings/dotnet/Chdef/Chdef.csproj             -c Release --no-restore             -p:Version="$version"             -o ./artifacts/nupkg
+
+      # Exchange the GitHub OIDC token for a short-lived nuget.org API key
+      # via the trusted publisher policy registered under the ShortArrow
+      # nuget.org account — the same shape as the crates.io job above, and
+      # no long-lived secret in this repository. Requires
+      # `permissions.id-token: write` and a matching policy at
+      # https://www.nuget.org/account/trusted-publishing.
+      - name: NuGet login (OIDC)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ShortArrow
+
+      - name: Push to NuGet
+        run: |
+          dotnet nuget push './artifacts/nupkg/*.nupkg'             --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"             --source https://api.nuget.org/v3/index.json             --skip-duplicate
+
+      - name: Upload nupkg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chdef-nupkg
+          path: ./artifacts/nupkg
 
   release:
     name: Create GitHub Release

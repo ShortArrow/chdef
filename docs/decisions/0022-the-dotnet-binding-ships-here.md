@@ -50,10 +50,16 @@ a consumer must vendor by hand is most of the same problem.
   `docs/spec/interchange.md` §3 over the managed API, so the vectors
   certify the path the C# project actually takes rather than a path
   beside it. This is the decision that makes the whole exercise land.
-- **A NuGet package carries the native binaries** for the platforms the
-  test matrix already builds (`win-x64`, `linux-x64`, `osx-x64`,
-  `osx-arm64`), under `runtimes/<rid>/native/`, so a consumer writes
-  `dotnet add package` and nothing else.
+- **A NuGet package carries the native binaries** under
+  `runtimes/<rid>/native/`, so a consumer writes `dotnet add package` and
+  nothing else.
+- **It is published the way the crate is: OIDC trusted publishing**, no
+  long-lived secret in this repository. The .NET side follows the layout
+  ivi-cli settled on — `global.json` pinning the SDK, a repository-level
+  `Directory.Build.props` and central package management, committed lock
+  files restored with `--locked-mode`, `ContinuousIntegrationBuild` under
+  CI so the package is reproducible, and SourceLink so its symbols point
+  back here.
 
 ## Alternatives rejected
 

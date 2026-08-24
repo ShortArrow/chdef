@@ -1,0 +1,46 @@
+<Project>
+  <PropertyGroup>
+    <!-- The binding targets net8.0 so a consumer on the current LTS, or on
+         anything newer, can reference it. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <!--
+    NuGet Package Explorer's health check reads the PDBs: without
+    ContinuousIntegrationBuild the compiler records the runner's absolute
+    source paths, the build is not reproducible bit-for-bit, and the
+    package shows "Non deterministic". The flag maps every source path via
+    SourceLink. CI-only on purpose — locally it would break stepping into
+    sources under a debugger.
+  -->
+  <PropertyGroup Label="Reproducible CI builds" Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <PropertyGroup Label="SourceLink">
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Assembly metadata">
+    <Authors>ShortArrow</Authors>
+    <Product>chdef</Product>
+    <Copyright>Copyright (c) chdef contributors</Copyright>
+    <NeutralLanguage>en</NeutralLanguage>
+    <PackageLicenseExpression>MIT OR Apache-2.0</PackageLicenseExpression>
+    <!--
+      Default for local builds. release.yml overrides this with
+      `-p:Version=<X.Y.Z>` derived from the pushed `v*` tag, so the
+      published nupkg matches the crate and the GitHub Release.
+    -->
+    <Version>0.0.2</Version>
+  </PropertyGroup>
+</Project>

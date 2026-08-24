@@ -1,27 +1,42 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <LangVersion>12</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <RootNamespace>Chdef</RootNamespace>
+    <AssemblyName>Chdef</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
 
+  <!-- The nuget.org distribution channel for the binding. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <PackageId>Chdef</PackageId>
-    <Description>Channel / bit-field definitions (CH設定 / BF設定): CSV parsing, frame layout, raw↔physical conversion. A binding over the chdef Rust crate.</Description>
-    <PackageLicenseExpression>MIT OR Apache-2.0</PackageLicenseExpression>
+    <Title>Chdef</Title>
+    <Description>Channel / bit-field definitions (CH設定 / BF設定): read CH / BF CSVs, compute the frame layout, encode and decode frames. A binding over the chdef Rust crate, carrying its native library for every supported runtime.</Description>
+    <PackageProjectUrl>https://github.com/ShortArrow/chdef</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ShortArrow/chdef</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>csv;telemetry;bitfield;channel;codec;ffi</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
-  <!-- The native library for each platform the Rust test matrix builds,
-       placed where the .NET runtime looks for it. CI fills `runtimes/`
-       before packing; a source build finds the library on the load path. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../../README.md" Pack="true" PackagePath="\" />
+    <None Include="../../../LICENSE-MIT" Pack="true" PackagePath="\" />
+    <None Include="../../../LICENSE-APACHE" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!--
+    The native library for each runtime, placed where the .NET runtime
+    looks for it. `dotnet pack` in release.yml runs after the cargo builds
+    have filled `runtimes/`; a source build has nothing here and finds the
+    library through CHDEF_NATIVE instead.
+  -->
   <ItemGroup>
     <None Include="runtimes/**/*" Pack="true" PackagePath="runtimes/" />
   </ItemGroup>
-
 </Project>

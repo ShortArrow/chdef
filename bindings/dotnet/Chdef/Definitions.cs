@@ -9,7 +9,10 @@ namespace Chdef;
 /// <summary>Byte order of every multi-byte channel of the frame.</summary>
 public enum Endian
 {
+    /// <summary>Least significant byte first.</summary>
     Little = Native.CHDEF_LITTLE,
+
+    /// <summary>Most significant byte first.</summary>
     Big = Native.CHDEF_BIG,
 }
 
