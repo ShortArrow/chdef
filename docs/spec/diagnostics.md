@@ -2,10 +2,11 @@
 
 🌐 **English** | [日本語](./diagnostics.jp.md)
 
-Implemented (0.0.2): the `Issue` type, `Parsed { value, issues }` as the
-return shape of every loader (`build_layout` included), and every code
-below. The cross-file codes come from `build_layout`, and
-`layout_exceeds_capacity` from `ChannelLayout::check_capacity`.
+Implemented (0.0.3): the `Issue` type with the fields of §2,
+`Parsed { value, issues }` as the return shape of every loader
+(`build_layout` included), and every code below. The cross-file codes come
+from `build_layout`, and `layout_exceeds_capacity` from
+`ChannelLayout::check_capacity`.
 
 ## 1. Principles
 

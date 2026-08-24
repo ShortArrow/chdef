@@ -6,6 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "../../README.md"
 keywords = ["ffi", "csv", "telemetry", "bitfield", "codec"]
 categories = ["external-ffi-bindings", "parsing"]
 

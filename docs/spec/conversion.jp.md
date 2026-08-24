@@ -2,7 +2,7 @@
 
 🌐 [English](./conversion.md) | **日本語**
 
-実装済み（0.0.2）: 生値 → 物理値（`raw_to_value_endian`、UI/SI 8〜32 bit と BF、LSB 0 → 1、オフセット、endian）と物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`、1〜8 バイト、0 から遠い方へ丸め、clamp、2 の補数）、生値 ↔ バイト列の対（`raw_to_bytes_endian` / `raw_from_bytes_endian`。幅の下位ビットのみ、丸めも clamp もしない）、フレーム全体の decode（§6、`ChannelLayout::decode`）、§8 の範囲問い合わせ、BF 既定値の合成（§4、`ChannelLayout::channel_default`）、フレーム全体の encode（§5、`ChannelLayout::encode`）。1〜8 バイトの全ての幅、`UI` / `SI` / `BF`、両方のバイト順で成立する。残る制限は §1 の f64 の精度だけ。
+実装済み（0.0.3）: 以下の全部を、`バイト数` が許す全ての幅（1〜8）、`UI` / `SI` / `BF`、両方のバイト順で — 生値 → 物理値（`raw_to_value_endian` / `raw_to_value_u64`）、物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`）、生値 ↔ バイト列のプリミティブ対（`raw_to_bytes_endian` / `raw_from_bytes_endian`）、フレーム全体の encode / decode（§5 / §6）、BF 既定値の合成（§4）、§7 の読みの選択（`displayed_value` / `render`）、§8 の範囲問い合わせ。残る制限は §1 の f64 の精度だけ。
 
 ## 1. 生値 → 物理値
 

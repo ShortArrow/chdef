@@ -41,6 +41,6 @@
       `-p:Version=<X.Y.Z>` derived from the pushed `v*` tag, so the
       published nupkg matches the crate and the GitHub Release.
     -->
-    <Version>0.0.2</Version>
+    <Version>0.0.3</Version>
   </PropertyGroup>
 </Project>

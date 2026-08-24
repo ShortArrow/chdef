@@ -2,11 +2,11 @@
 
 🌐 **English** | [日本語](./editing.jp.md)
 
-Implemented (0.0.2): everything below (`ChTable` / `BfTable`: parse /
-`to_csv` / cell and row edits / `insert_channel` /
-`insert_channel_renumbering`). Editing **UI**, undo history and save
-orchestration stay out of scope — the Table is a value, so a consumer
-snapshots it by cloning.
+Implemented (0.0.3): everything below. `Grid` is the file as its cells;
+`ChTable` and `BfTable` add the column vocabulary and the operations that
+need one (`insert_channel`, `insert_channel_renumbering`, `cross_issues`,
+`with_columns`). Editing **UI**, undo history and save orchestration stay
+out of scope — a grid is a value, so a consumer snapshots it by cloning.
 
 ## 1. The Table is what is edited
 

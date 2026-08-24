@@ -9,7 +9,11 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
-## [Unreleased]
+## [0.0.3] - 2026-08-24
+
+The first release published to crates.io and nuget.org. `0.0.1` and
+`0.0.2` below were development versions; neither was ever published, so
+everything under both is in `0.0.3` too.
 
 ### Added
 - A .NET binding (`bindings/dotnet/`, `net8.0`, ADR-0022): the P/Invoke

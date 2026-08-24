@@ -2,13 +2,14 @@
 
 🌐 **English** | [日本語](./format.jp.md)
 
-Implemented (0.0.2): BOM stripping; column identification by header name
-in English or Japanese with the 9-column positional fallback; blank rows
-and `#` rows; every column interpretation below with its Issues;
-`parse_*_csv_bytes` for byte input; `load_*_csv` over any `AsRef<Path>`.
-Writing is `ChTable::to_csv` /
-`BfTable::to_csv` with the cell-level round trip of
-[editing.md §2](./editing.md#2-round-trip).
+Implemented (0.0.3): BOM stripping; column identification by header name
+in English or Japanese, with the 9-column positional fallback and any
+spellings a reader is taught (`ColumnAliases`); blank rows and `#` rows;
+every column interpretation below with its Issues; `parse_*_csv_bytes` for
+byte input; `load_*_csv` over any `AsRef<Path>`. Writing is `to_csv`, with
+the round trip of [editing.md §2](./editing.md#2-round-trip); a file chdef
+creates names the columns and the language the caller asked for
+(`with_columns`).
 
 ## 1. File
 

@@ -2,10 +2,7 @@
 
 🌐 [English](./editing.md) | **日本語**
 
-実装済み（0.0.2）: 下記の全部（`ChTable` / `BfTable`: parse / `to_csv` /
-セル・行の編集 / `insert_channel` / `insert_channel_renumbering`）。編集
-**UI**・undo履歴・保存のオーケストレーションは対象外 — Table は値なので、
-利用側は clone でスナップショットを取れる。
+実装済み（0.0.3）: 下記の全部。`Grid` がセルとしてのファイルで、`ChTable` / `BfTable` が列の語彙と、それを必要とする操作（`insert_channel`、`insert_channel_renumbering`、`cross_issues`、`with_columns`）を足す。編集 **UI**・undo 履歴・保存のオーケストレーションは対象外 — Grid は値なので、利用側は clone でスナップショットを取れる。
 
 ## 1. 編集するのは Table
 

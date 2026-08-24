@@ -2,13 +2,14 @@
 
 🌐 **English** | [日本語](./conversion.jp.md)
 
-Implemented (0.0.2): all of the below, at every width the `bytes` column
+Implemented (0.0.3): all of the below, at every width the `bytes` column
 allows (1–8), for `UI` / `SI` / `BF` and both byte orders — raw → physical
 (`raw_to_value_endian` / `raw_to_value_u64`), physical → raw
 (`value_to_raw` / `value_to_bytes_endian`), the raw ↔ bytes primitive pair
 (`raw_to_bytes_endian` / `raw_from_bytes_endian`), whole-frame encode and
-decode (§5 / §6), BF default merging (§4) and the range queries of §8. The
-f64 precision limit of §1 is the only remaining one.
+decode (§5 / §6), BF default merging (§4), the reading selection of §7
+(`displayed_value` / `render`) and the range queries of §8. The f64
+precision limit of §1 is the only remaining one.
 
 ## 1. Raw → physical
 

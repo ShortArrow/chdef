@@ -2,11 +2,12 @@
 
 🌐 **English** | [日本語](./interchange.jp.md)
 
-Implemented (0.0.2): the JSON shapes of §1 and §2 behind the `serde`
-feature (`interchange::Definitions` / `Readings` / `ChTable::to_json`;
-chdef builds the value, the consumer serialises it), and the golden
-vectors of §3 with the harness that runs them. TypeScript type generation
-is not implemented.
+Implemented (0.0.3): the JSON shapes of §1 and §2 behind the `serde`
+feature (`interchange::Definitions` / `Readings` / `Grid::to_json`; chdef
+builds the value, the consumer serialises it), and the golden vectors of
+§3 with the harness that runs them through the crate, through the C ABI of
+`chdef-capi`, and through the .NET binding. TypeScript type generation is
+not implemented.
 
 ## 1. JSON
 

@@ -2,16 +2,15 @@
 
 🌐 **English** | [日本語](./layout.jp.md)
 
-Implemented (0.0.2): cumulative positions and total byte count
-(`ChannelLayout::channel_offset` / `total_bytes()`, both computed on
-demand so edited widths are never stale); the Rows / Layout split
-(`parse_*` keeps duplicates, `build_layout` drops them first-wins); the
-whole-layout `endian` field of §2 (consumed by encode and decode); the BF
-cross-checks and first-wins duplicate dropping in `build_layout`, which
-returns the layout with those Issues; `capacity` as the opt-in
-`check_capacity` query (§5). The Table stage is `ChTable` / `BfTable`
-([editing.md](./editing.md)); whole-frame encode and decode are
-[conversion.md](./conversion.md) §5 / §6.
+Implemented (0.0.3): cumulative positions and total byte count
+(`ChannelLayout::channel_offset` / `total_bytes()` / `positions()`, all
+computed on demand so an edited width is never stale); the Rows / Layout
+split (`parse_*` keeps duplicates, `build_layout` drops them first-wins);
+the whole-layout `endian` of §2; the BF cross-checks in `build_layout`,
+which returns the layout with those Issues; the `capacity` of §5, carried
+on the layout and reported by `check_capacity()`. The Table stage is
+`Grid`, `ChTable` and `BfTable` ([editing.md](./editing.md)); whole-frame
+encode and decode are [conversion.md](./conversion.md) §5 / §6.
 
 ## 1. Three stages
 
