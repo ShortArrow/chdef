@@ -21,7 +21,7 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 
 | code | 行 | 意味 / 挙動 |
 |---|---|---|
-| `header_assumed` | — | 見出しが無いか `番号` 列が無く、先頭 9 列を正順とみなした |
+| `header_assumed` | — | 見出しが無いか `番号` 列が無く、ある列を正順とみなした（CH CSV は先頭 9 列、BF CSV は 5 列）|
 | `channel_number_invalid` | あり | `番号` が整数でない / 0 以下。行を読み飛ばした |
 | `channel_duplicate` | あり | 同じ `番号` が既にある。Layout では最初の行だけを使う |
 | `bytes_assumed` | あり | `バイト数` が空欄 / 非整数。`型` の幅か 2 とみなした |
@@ -32,13 +32,13 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 | `offset_invalid` | あり | `オフセット` が非数。0 とみなした |
 | `default_invalid` | あり | `値(デフォルト)` が整数でも `0x` 表記でもない。未指定とみなした |
 | `hex_with_lsb` | あり | `表示形式` が `HEX` なのに `LSB` が 1 でない |
-| `raw_out_of_range` | あり | `0x` 指定の生値が幅を超える。下位ビットだけ使った |
+| `raw_out_of_range` | あり² | 生値（`値(デフォルト)`、`値(最小)` / `値(最大)`、`encode` に渡された値）がチャンネルの幅を超える。下位ビットだけ使った |
 | `min_invalid` | あり | `値(最小)` が数値でも `0x` でもない。未指定として扱う |
 | `max_invalid` | あり | `値(最大)` が数値でも `0x` でもない。未指定として扱う |
 | `min_max_swapped` | あり | 解決後の `min` が `max` を上回る。両方保持し、範囲は何にも一致しない |
 | `bf_parent_invalid` | あり | BF の `番号` が整数でない。行を読み飛ばした |
 | `bf_bit_invalid` | あり | `BIT番号` が整数でない。行を読み飛ばした |
-| `bf_bit_out_of_range` | —¹ | `BIT番号` が親の幅以上。行を読み飛ばした |
+| `bf_bit_out_of_range` | あり / —¹ | `BIT番号` が親の幅以上。行を読み飛ばした |
 | `bf_parent_not_bitfield` | —¹ | 親チャンネルが無い、または `型` が `BF` でない。行を読み飛ばした |
 | `bf_default_invalid` | あり | BF の `値(デフォルト)` が `0` / `1` でない。未指定とみなした |
 | `bf_duplicate` | あり | 同じ `(番号, BIT番号)` が既にある。最初の行だけを使う |
@@ -47,6 +47,8 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 | `encode_value_invalid` | — | encode の値が NaN / 無限大。チャンネルの既定値を使った |
 
 ¹ `build_layout` からは行なし（型付き行はファイル座標を持たない）。同じ指摘を `BfTable::cross_issues` がグリッドの行・列つきで報告し、エディタはセルに落とせる。
+
+² `encode` から出る場合は行なし。encode が受け取るのは行ではなく値だから。
 
 ## 3. エラー
 

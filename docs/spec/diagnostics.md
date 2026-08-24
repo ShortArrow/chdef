@@ -31,7 +31,7 @@ found and what chdef did about it.
 
 | code | row | Meaning / behaviour |
 |---|---|---|
-| `header_assumed` | — | No header, or no `number` column; the first 9 columns were taken in canonical order |
+| `header_assumed` | — | No header, or no `number` column; the canonical order was assumed for the columns present (the first 9 of a CH CSV, the 5 of a BF CSV) |
 | `channel_number_invalid` | yes | `number` is not an integer / ≤ 0. Row skipped |
 | `channel_duplicate` | yes | The same `number` already exists. Layout uses the first row only |
 | `bytes_assumed` | yes | `bytes` empty / non-integer. Took the type width, or 2 |
@@ -42,13 +42,13 @@ found and what chdef did about it.
 | `offset_invalid` | yes | `offset` is not a number. Took 0 |
 | `default_invalid` | yes | `default` is neither an integer nor `0x`. Treated as unspecified |
 | `hex_with_lsb` | yes | `format` is `HEX` but `lsb` is not 1 |
-| `raw_out_of_range` | yes | A `0x` raw value exceeds the width. Used the low bits only |
+| `raw_out_of_range` | yes² | A raw value — a `default`, a `min` / `max`, or one handed to `encode` — exceeds the channel's width. Used the low bits only |
 | `min_invalid` | yes | `min` is neither a number nor `0x`. Treated as unspecified |
 | `max_invalid` | yes | `max` is neither a number nor `0x`. Treated as unspecified |
 | `min_max_swapped` | yes | The resolved `min` exceeds the resolved `max`. Both kept; the range matches nothing |
 | `bf_parent_invalid` | yes | BF `number` is not an integer. Row skipped |
 | `bf_bit_invalid` | yes | `bit` is not an integer. Row skipped |
-| `bf_bit_out_of_range` | —¹ | `bit` ≥ parent width. Row skipped by the layout; the message names `(number, bit)` |
+| `bf_bit_out_of_range` | yes / —¹ | `bit` ≥ 64, the widest a channel can be, from the reader with its row; or `bit` ≥ the parent's own width, from the layout without one |
 | `bf_parent_not_bitfield` | —¹ | Parent channel missing, or its `type` is not `BF`. Row skipped by the layout; the message names `(number, bit)` |
 | `bf_default_invalid` | yes | BF `default` is not `0` / `1`. Treated as unspecified |
 | `bf_duplicate` | yes | The same `(number, bit)` already exists. First row only |
@@ -59,6 +59,8 @@ found and what chdef did about it.
 ¹ Rowless from `build_layout` (typed rows carry no file coordinates);
 `BfTable::cross_issues` reports the same finding with the grid row and
 column for editors.
+
+² Rowless when it comes from `encode`, which is handed values, not rows.
 
 ## 3. Errors
 

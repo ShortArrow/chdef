@@ -15,7 +15,7 @@ header row and every data row as verbatim cell strings — comment rows,
 blank rows and unknown columns included. It is the source of truth during
 an editing session. Rows and Layout are derived views: interpret again
 after an edit (`channels()` / `bitfields()`, then `build_layout`), the
-same way positions and `total_bytes` are always recomputed. Nothing is
+same way positions and `total_bytes()` are always recomputed. Nothing is
 cached, so nothing goes stale.
 
 ## 2. Round trip
@@ -41,10 +41,12 @@ Read → Table → write preserves **rows and cell contents**, not bytes:
   back as `None`, never a panic.
 - `insert_channel(row_index, &ChannelDef)`: renders a typed definition
   into the columns **this file has**; a field without a column is dropped.
-  Rendering: `number` / `bytes` / `default` in decimal, `type` as its
-  category only (`UI` / `SI` / `BF` — the width lives in `bytes`),
+  Rendering: `number` / `bytes` / `default` in decimal, `type` as the
+  interpretation alone (`UI` / `SI` / `BF` — the width lives in `bytes`),
   `lsb` / `offset` in shortest decimal form, `min` / `max` in their own
-  notation (physical as a number, raw as `0x`).
+  notation (physical as a number, raw as `0x`), `format` as `DEC` / `HEX`,
+  `favorite` as `1` / `0`, and `section` / `name` / `unit` / `memo` / `var`
+  as they are.
 
 ## 4. Cross-file checks on the grid
 

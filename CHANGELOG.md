@@ -9,7 +9,7 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
-## [Unreleased]
+## [0.0.2] - 2026-08-24
 
 ### Added
 - `chdef` crate: `parse_ch_csv` / `parse_bf_csv` / `load_ch_csv` /

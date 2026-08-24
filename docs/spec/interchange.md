@@ -10,9 +10,11 @@ is not implemented.
 
 ## 1. JSON
 
-Consumers outside Rust only display and edit chdef's JSON; they never
-interpret the CSV themselves. The shape is fixed as follows (keys are
-stable; additions are backward compatible).
+A consumer that receives definitions over the wire — a browser UI, a GUI
+across a socket — reads this JSON rather than the CSV. The shape is fixed
+as follows (keys are stable; additions are backward compatible). A
+consumer that reads the CSV itself instead conforms to the golden vectors
+of §3.
 
 ```json
 {
@@ -38,9 +40,8 @@ stable; additions are backward compatible).
 - `default` is `null` when unspecified; the same for a BF `default`.
 - `capacity` is present only when one was passed.
 - Value JSON (decode result): an array of `{"n": 4, "raw": 65413, "value": -12.3}`.
-  NaN is `null`.
-
-TypeScript types are generated from the Rust types and shipped.
+  A physical value that is not a finite number — NaN or ±∞ — is `null`,
+  which is all JSON can say about it.
 
 ## 2. Table (cells) JSON
 
@@ -88,7 +89,9 @@ P ch -
 - Every vector set has at least one `E`, one `D` and one `L` line.
 
 The sets in this repository: `basic` (the example above), `widths` (all
-eight legal widths at both byte orders, at the boundaries §2 clamps to),
-`scaling` (non-zero `lsb` and `offset` on every channel), `bitfields` (the
-default merging of §4 and the named bits of §6) and `diagnostics` (a
-definition set that is wrong on purpose, contracted by its `P` lines).
+eight legal widths at both byte orders, at the boundaries
+[conversion.md §2](./conversion.md) clamps to), `scaling` (non-zero `lsb`
+and `offset` on every channel, so the terms of the core formula are
+exercised), `bitfields` (the default merging of conversion.md §4 and the
+named bits of §6) and `diagnostics` (a definition set that is wrong on
+purpose, contracted by its `P` lines).

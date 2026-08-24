@@ -6,7 +6,7 @@ Implemented (0.0.2): cumulative positions and total byte count
 (`ChannelLayout::channel_offset` / `total_bytes()`, both computed on
 demand so edited widths are never stale); the Rows / Layout split
 (`parse_*` keeps duplicates, `build_layout` drops them first-wins); the
-whole-layout `endian` field of §2 (consumed by `decode`); the BF
+whole-layout `endian` field of §2 (consumed by encode and decode); the BF
 cross-checks and first-wins duplicate dropping in `build_layout`, which
 returns the layout with those Issues; `capacity` as the opt-in
 `check_capacity` query (§5). The Table stage is `ChTable` / `BfTable`
@@ -28,8 +28,8 @@ chdef handles a definition in three stages, and every stage is retrievable.
 - Positions are not written in the CSV. The position `at` of a channel is
   the cumulative `bytes` from the start in **Rows order** (not ascending
   `number`).
-- The total byte count `total_bytes` is the sum of `bytes`. It is the data
-  length of the frame (the consumer adds any header separately).
+- The total byte count `total_bytes()` is the sum of the widths. It is the
+  data length of the frame (the consumer adds any header separately).
 - Multi-byte raw values are little-endian by default; a layout can be
   switched to big-endian as a whole via `endian`. This is not written in the
   CSV.
@@ -50,9 +50,11 @@ chdef handles a definition in three stages, and every stage is retrievable.
 
 ## 5. Capacity
 
-- A consumer may pass `capacity` (the maximum byte count of the data part)
-  to the layout. If `total_bytes > capacity`, Issue `layout_exceeds_capacity`
-  is reported. Without `capacity` there is no check.
+- A consumer that has a `capacity` (the maximum byte count of the data
+  part) asks the layout about it: `check_capacity(capacity)` reports Issue
+  `layout_exceeds_capacity` when the frame does not fit, and nothing when
+  it does. The layout does not hold a capacity of its own, and nothing
+  checks one unless asked.
 
 ## 6. Type and width
 

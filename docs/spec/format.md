@@ -44,13 +44,13 @@ trimmed and matched case-insensitively, and the two languages may be mixed
 in one header. A column absent from the header is "unspecified" and is not
 an error. **Unknown columns are preserved and written back as they were.**
 
-If there is no header row, or no `number` column can be found, the first
-9 columns are **assumed** to be the canonical CH CSV order (the table below)
-for compatibility with the 9-column form, and one Issue `header_assumed`
-is reported.
+If there is no header row, or no `number` column can be found, the columns
+are **assumed** to be in canonical order — the first 9 of a CH CSV (the
+table below), for compatibility with the 9-column form, or the 5 of a BF
+CSV — and one Issue `header_assumed` is reported.
 
 Header names are written back exactly as they were read. A newly created
-file uses the English spellings unless the writer is told otherwise.
+file uses the English spellings.
 
 ## 3. CH CSV
 
