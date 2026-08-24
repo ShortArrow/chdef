@@ -2,7 +2,11 @@
 
 🌐 **English** | [日本語](./interchange.jp.md)
 
-Implemented (0.0.1): none.
+Implemented (0.0.2): the JSON shapes of §1 and §2 behind the `serde`
+feature (`interchange::Definitions` / `Readings` / `ChTable::to_json`;
+chdef builds the value, the consumer serialises it), and the golden
+vectors of §3 with the harness that runs them. TypeScript type generation
+is not implemented.
 
 ## 1. JSON
 
@@ -48,9 +52,11 @@ For editing UIs. Verbatim, including unknown columns.
 
 ## 3. Golden vectors
 
-The cross-language contract. Each set lives in `vectors/<name>/` as
-`ch.csv` / `bf.csv` / `vectors.txt`, and the tests of every language read the
-same files. No real-device definitions (all synthetic).
+The cross-language contract. Each set lives in
+`crates/chdef/vectors/<name>/` as `ch.csv` / `bf.csv` / `vectors.txt` — inside
+the package, so the published crate carries them — and the tests of every
+language read the same files. No real-device definitions (all synthetic).
+A set's own definitions must load without Issues.
 
 Format of `vectors.txt` (`#` is a comment, blank lines are ignored):
 
@@ -65,6 +71,8 @@ D 0100000005000285ff 1=1/1.0;2=5/5.0;3=2/2.0;4=65413/-12.3
 L 13 1:0:4;2:4:2;3:6:1;4:7:2;5:9:4
 ```
 
-- Values in `E` are physical values; with the `0x` prefix they are raw.
+- Values in `E` are physical values; with the `0x` prefix they are raw —
+  the notation of [format.md §3](./format.md#3-ch-csv), read by
+  `Value::parse`.
 - Physical values compare with a tolerance of 1e-9.
 - Every vector set has at least one `E`, one `D` and one `L` line.

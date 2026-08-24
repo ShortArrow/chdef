@@ -12,6 +12,8 @@ mod channel;
 mod columns;
 mod csv;
 mod error;
+#[cfg(feature = "serde")]
+pub mod interchange;
 mod issue;
 mod table;
 

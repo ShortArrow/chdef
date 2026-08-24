@@ -52,6 +52,18 @@ pub enum Value {
     Raw(u64),
 }
 
+impl std::fmt::Display for Value {
+    /// The notation [`Value::parse`] reads back: a physical value as the
+    /// shortest decimal that round-trips, a raw one as `0x` and upper-case
+    /// hexadecimal.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Physical(v) => write!(f, "{v}"),
+            Value::Raw(r) => write!(f, "0x{r:X}"),
+        }
+    }
+}
+
 impl Value {
     /// Read consumer input (a form field, a cell) by the notation rule:
     /// `0x` / `0X` prefix → raw, any other finite number → physical,

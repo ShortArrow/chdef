@@ -2,7 +2,7 @@
 
 🌐 [English](./interchange.md) | **日本語**
 
-実装済み（0.0.1）: なし。
+実装済み（0.0.2）: §1・§2 の JSON の形（`serde` feature。`interchange::Definitions` / `Readings` / `ChTable::to_json`。chdef は値を組み立て、直列化は利用側が行う）と、§3 のゴールデンベクタおよびそれを走らせるハーネス。TypeScript 型の生成は未実装。
 
 ## 1. JSON
 
@@ -44,7 +44,7 @@ TypeScript 型は Rust の型から生成して配布する。
 
 ## 3. ゴールデンベクタ
 
-言語横断の契約。`vectors/<name>/` に `ch.csv` / `bf.csv` / `vectors.txt` を置き、各言語のテストが同じファイルを読む。実機の定義は置かない（全て合成）。
+言語横断の契約。`crates/chdef/vectors/<name>/` に `ch.csv` / `bf.csv` / `vectors.txt` を置き（パッケージの内側なので公開クレートにも同梱される）、各言語のテストが同じファイルを読む。実機の定義は置かない（全て合成）。ベクタ集自身の定義は Issue なしで読めなければならない。
 
 `vectors.txt` の書式（`#` はコメント、空行は無視）:
 

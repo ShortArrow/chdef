@@ -1,0 +1,6 @@
+number,bytes,type,section,name,lsb,offset,unit,default,format,memo
+1,4,UI,General,Frame counter,1,,,,DEC,
+2,2,BF,General,Status,1,,,0x0001,HEX,bit meanings in bf.csv
+3,1,UI,General,Mode,1,,,,DEC,
+4,2,SI,Sensor,Temperature,0.1,0,degC,,DEC,
+5,4,UI,Sensor,Timestamp,0.001,0,s,,DEC,

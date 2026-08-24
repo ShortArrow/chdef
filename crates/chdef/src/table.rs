@@ -5,7 +5,7 @@
 //! and record separators are normalised to `docs/spec/format.md` §1).
 //! Rows and Layout are derived views: interpret again after editing.
 
-use crate::channel::{BitFieldDef, ChannelDef, DisplayFormat, Value};
+use crate::channel::{BitFieldDef, ChannelDef, DisplayFormat};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::csv::{decode_utf8, interpret_bf, interpret_ch, is_blank, is_comment};
 use crate::error::{ChdefError, Result};
@@ -118,13 +118,6 @@ fn shortest(v: f64) -> String {
     format!("{v}")
 }
 
-fn value_cell(value: Value) -> String {
-    match value {
-        Value::Physical(v) => shortest(v),
-        Value::Raw(r) => format!("0x{r:X}"),
-    }
-}
-
 macro_rules! grid_api {
     () => {
         /// Serialise the table back to CSV text: UTF-8 BOM first, `\r\n`
@@ -167,6 +160,17 @@ macro_rules! grid_api {
         /// Remove and return the row at `index`.
         pub fn remove_row(&mut self, index: usize) -> Vec<String> {
             self.cells.rows.remove(index)
+        }
+
+        /// The grid in the Table JSON shape of `docs/spec/interchange.md`
+        /// §2: the header (absent for a positional file) and every row,
+        /// verbatim, unknown columns included.
+        #[cfg(feature = "serde")]
+        pub fn to_json(&self) -> crate::interchange::TableJson<'_> {
+            crate::interchange::TableJson {
+                header: self.cells.header.as_deref(),
+                rows: &self.cells.rows,
+            }
         }
     };
 }
@@ -289,10 +293,10 @@ impl ChTable {
             put(ChColumn::Default, v.to_string());
         }
         if let Some(b) = def.min {
-            put(ChColumn::Min, value_cell(b));
+            put(ChColumn::Min, b.to_string());
         }
         if let Some(b) = def.max {
-            put(ChColumn::Max, value_cell(b));
+            put(ChColumn::Max, b.to_string());
         }
         row
     }

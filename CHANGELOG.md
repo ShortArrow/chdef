@@ -55,6 +55,17 @@ tag, published to crates.io.
 - `ChannelLayout::decode` / `channel_bytes` (`conversion.md` §6): slice a
   frame into per-channel bytes with raw and physical readings under the
   layout's `endian`; a channel that overruns a short frame is omitted.
+- Golden vectors (`crates/chdef/vectors/`, `interchange.md` §3, ADR-0013):
+  the cross-language contract as `ch.csv` / `bf.csv` / `vectors.txt` per set,
+  shipped inside the package, with a harness that runs every set and names
+  the vector file and line on a mismatch.
+- `interchange` module behind the `serde` feature (`interchange.md` §1 / §2,
+  ADR-0013): `Definitions::of(&layout, &issues)` (with `with_capacity`),
+  `Readings::of(&decoded)` and `ChTable::to_json` / `BfTable::to_json` build
+  the documented JSON shapes as their own types, separate from the domain
+  types so the wire format and the definitions can grow independently. The
+  consumer picks the serializer; chdef depends on none.
+- `Value` implements `Display`, writing exactly what `Value::parse` reads.
 - `ChannelDef` carries `section` / `memo` / `var` / `format` / `favorite`
   and `BitFieldDef` carries `memo`, so a consumer no longer re-scans the
   cells to recover columns chdef already read. `DisplayFormat` (`DEC` /

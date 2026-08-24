@@ -1,0 +1,4 @@
+number,bit,name,default,memo
+2,0,Reserved,,
+2,1,Link up,0,cleared by the BF row
+2,2,Fault,,
