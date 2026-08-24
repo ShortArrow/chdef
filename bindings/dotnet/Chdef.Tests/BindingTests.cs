@@ -17,9 +17,11 @@ public class BindingTests
     private const string Bf = "number,bit,name,default\n2,0,alive,\n2,2,fault,0\n";
 
     [Fact]
-    public void TheNativeLibraryImplementsTheAbiThisAssemblyWasBuiltFor()
+    public void TheNativeLibraryImplementsAtLeastTheAbiThisAssemblyNeeds()
     {
-        Assert.Equal(1u, Definitions.AbiVersion);
+        // docs/spec/abi.md §4: symbols are added and never withdrawn, so
+        // the check a caller makes is one-sided.
+        Assert.True(Definitions.AbiVersion >= 2u, $"ABI version {Definitions.AbiVersion}");
     }
 
     [Fact]
@@ -49,7 +51,7 @@ public class BindingTests
         Assert.Null(temp.Default);
         Assert.Equal("DEC", temp.Format);
         Assert.False(temp.Favorite);
-        Assert.Equal(0ul, temp.BitCount);
+        Assert.Empty(temp.Bits);
 
         var status = defs.Channels[1];
         Assert.Equal("BF", status.Type);
@@ -57,7 +59,7 @@ public class BindingTests
         Assert.Equal(1ul, status.Default);
         Assert.Equal("HEX", status.Format);
         Assert.True(status.Favorite);
-        Assert.Equal(2ul, status.BitCount);
+        Assert.Equal(2, status.Bits.Count);
     }
 
     [Fact]

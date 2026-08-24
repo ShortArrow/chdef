@@ -2,7 +2,7 @@
 
 🌐 [English](./layout.md) | **日本語**
 
-実装済み（0.0.4）: 位置の累積計算と合計バイト数（`ChannelLayout::channel_offset` / `total_bytes()` / `positions()`。いずれも都度計算なので幅を編集しても陳腐化しない）、Rows / Layout の分離（`parse_*` は重複を保持し、`build_layout` が先勝ちで落とす）、§2 のレイアウト全体の `endian`、`build_layout` での BF 横断検査（Issue つきでレイアウトを返す）、§5 の `capacity`（レイアウトが持ち、`check_capacity()` が報告する）。Table 段階は `Grid` / `ChTable` / `BfTable`（[editing.jp.md](./editing.jp.md)）。フレーム全体の encode / decode は [conversion.jp.md](./conversion.jp.md) §5 / §6。
+実装済み（0.0.5）: 位置の累積計算と合計バイト数（`ChannelLayout::channel_offset` / `total_bytes()` / `positions()`。いずれも都度計算なので幅を編集しても陳腐化しない）、Rows / Layout の分離（`parse_*` は重複を保持し、`build_layout` が先勝ちで落とす）、§2 のレイアウト全体の `endian`、`build_layout` での BF 横断検査（Issue つきでレイアウトを返す）、§5 の `capacity`（レイアウトが持ち、`check_capacity()` が報告する）。Table 段階は `Grid` / `ChTable` / `BfTable`（[editing.jp.md](./editing.jp.md)）。フレーム全体の encode / decode は [conversion.jp.md](./conversion.jp.md) §5 / §6。
 
 ## 1. 三つの段階
 

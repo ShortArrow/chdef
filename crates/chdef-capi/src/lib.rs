@@ -24,11 +24,15 @@
 use std::ffi::c_char;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use chdef::{build_layout, ChannelLayout, ChdefError, Endian, Issue, IssueCode, Value};
+use chdef::{
+    build_layout, BitFieldDef, ChannelLayout, ChdefError, Endian, Grid, Issue, IssueCode, Value,
+};
 
-/// The revision of this ABI. A caller checks it against the value its
-/// declarations were written for before calling anything else.
-pub const CHDEF_ABI_VERSION: u32 = 1;
+/// The revision of this ABI. It rises whenever a symbol is added or
+/// changed; a caller checks it is **at least** the value its declarations
+/// were written for before calling anything else. Symbols are added and
+/// never withdrawn, so a newer library serves an older caller.
+pub const CHDEF_ABI_VERSION: u32 = 2;
 
 // ---------------------------------------------------------------- statuses
 
@@ -49,6 +53,10 @@ pub const CHDEF_ERR_UTF8: i32 = -5;
 pub const CHDEF_ERR_CSV: i32 = -6;
 /// The file could not be read.
 pub const CHDEF_ERR_IO: i32 = -7;
+
+/// The text denotes no value in the notation of
+/// `docs/spec/format.md` §3.
+pub const CHDEF_ERR_VALUE: i32 = -8;
 /// A panic was caught at the boundary. A bug in chdef; the handles the
 /// call touched are left as they were.
 pub const CHDEF_PANIC: i32 = -99;
@@ -87,6 +95,12 @@ pub const CHDEF_ISSUE_FOUND: i32 = 1;
 pub const CHDEF_ISSUE_USED: i32 = 2;
 /// The English sentence. Its wording is not part of the contract.
 pub const CHDEF_ISSUE_MESSAGE: i32 = 3;
+
+/// The bit name, for [`chdef_layout_bit_text`].
+pub const CHDEF_BIT_NAME: i32 = 0;
+
+/// The bit memo, for [`chdef_layout_bit_text`].
+pub const CHDEF_BIT_MEMO: i32 = 1;
 
 // ----------------------------------------------------------- plain records
 
@@ -158,6 +172,25 @@ impl ChdefValue {
     }
 }
 
+/// One named bit of a channel. `default_value` is `0` or `1`, or `-1`
+/// when the BF row names none and the bit keeps the parent channel one.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ChdefBit {
+    pub channel: u32,
+    pub bit: u32,
+    pub default_value: i32,
+}
+
+/// One named bit of a decoded frame, and whether it is set.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ChdefBitReading {
+    pub channel: u32,
+    pub bit: u32,
+    pub value: i32,
+}
+
 /// One channel's readings from a decoded frame.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -171,11 +204,18 @@ pub struct ChdefReading {
 
 const LAYOUT_TAG: u64 = 0x6368_6465_665f_6c79; // "chdef_ly"
 const ISSUES_TAG: u64 = 0x6368_6465_665f_6973; // "chdef_is"
+const GRID_TAG: u64 = 0x6368_6465_665f_6772; // "chdef_gr"
 
 /// An opaque frame layout. Freed once with [`chdef_layout_free`].
 pub struct ChdefLayout {
     tag: u64,
     layout: ChannelLayout,
+}
+
+/// An opaque grid of cells. Freed once with [`chdef_grid_free`].
+pub struct ChdefGrid {
+    tag: u64,
+    grid: Grid,
 }
 
 /// An opaque list of diagnostics. Freed once with [`chdef_issues_free`].
@@ -193,6 +233,16 @@ unsafe fn layout_of(handle: *const ChdefLayout) -> Option<&'static ChannelLayout
 unsafe fn layout_mut(handle: *mut ChdefLayout) -> Option<&'static mut ChannelLayout> {
     let handle = handle.as_mut()?;
     (handle.tag == LAYOUT_TAG).then_some(&mut handle.layout)
+}
+
+unsafe fn grid_of(handle: *const ChdefGrid) -> Option<&'static Grid> {
+    let handle = handle.as_ref()?;
+    (handle.tag == GRID_TAG).then_some(&handle.grid)
+}
+
+unsafe fn grid_mut(handle: *mut ChdefGrid) -> Option<&'static mut Grid> {
+    let handle = handle.as_mut()?;
+    (handle.tag == GRID_TAG).then_some(&mut handle.grid)
 }
 
 unsafe fn issues_of(handle: *const ChdefIssues) -> Option<&'static [Issue]> {
@@ -727,4 +777,523 @@ pub unsafe extern "C" fn chdef_issue_text(
 #[allow(dead_code)]
 fn code_crosses_as_a_string(code: IssueCode) -> &'static str {
     code.as_str()
+}
+
+// -------------------------------------------------------------------- bits
+
+/// Locate one bit of one channel: the `bit_index`th bit the BF definitions
+/// name for the channel at `channel_index`, which is how far
+/// [`ChdefChannel::bit_count`] counts.
+fn bit_of(layout: &ChannelLayout, channel_index: usize, bit_index: usize) -> Option<&BitFieldDef> {
+    let channel = layout.channels.get(channel_index)?;
+    layout
+        .bitfields
+        .iter()
+        .filter(|bit| bit.parent_channel == channel.number)
+        .nth(bit_index)
+}
+
+/// Describe one named bit of one channel in numbers.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `out` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_bit_at(
+    handle: *const ChdefLayout,
+    channel_index: usize,
+    bit_index: usize,
+    out: *mut ChdefBit,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        let Some(bit) = bit_of(layout, channel_index, bit_index) else {
+            return CHDEF_ERR_INDEX;
+        };
+        *out = ChdefBit {
+            channel: bit.parent_channel,
+            bit: u32::from(bit.bit_number),
+            default_value: bit.default_value.map(i32::from).unwrap_or(-1),
+        };
+        CHDEF_OK
+    })
+}
+
+/// Write one of a bit text fields into `buf`; see [`CHDEF_BIT_NAME`] and
+/// the constant beside it. Returns the length the value needs, or `0` for
+/// an unusable handle, index or field.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `buf` writable for `cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_bit_text(
+    handle: *const ChdefLayout,
+    channel_index: usize,
+    bit_index: usize,
+    field: i32,
+    buf: *mut c_char,
+    cap: usize,
+) -> usize {
+    guard_len(|| {
+        let Some(layout) = layout_of(handle) else {
+            return 0;
+        };
+        let Some(bit) = bit_of(layout, channel_index, bit_index) else {
+            return 0;
+        };
+        let text: &str = match field {
+            CHDEF_BIT_NAME => &bit.name,
+            CHDEF_BIT_MEMO => &bit.memo,
+            _ => return 0,
+        };
+        write_text(text, buf, cap)
+    })
+}
+
+/// How many bit readings a whole frame yields — the size to give
+/// [`chdef_decode_bits`]. Bits whose parent channel the layout does not
+/// hold are not among them; they are reported as diagnostics instead.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_bit_total(handle: *const ChdefLayout) -> u64 {
+    guard_len(|| {
+        layout_of(handle)
+            .map(|layout| {
+                layout
+                    .channels
+                    .iter()
+                    .map(|ch| {
+                        layout
+                            .bitfields
+                            .iter()
+                            .filter(|bit| bit.parent_channel == ch.number)
+                            .count()
+                    })
+                    .sum()
+            })
+            .unwrap_or(0)
+    }) as u64
+}
+
+/// Read every named bit of a frame in one pass
+/// (`docs/spec/conversion.md` §6), channel by channel and, within a
+/// channel, in definition order. A channel that overruns a short frame
+/// contributes no bits, and neither does anything after it.
+///
+/// `out_count` receives how many the frame yields, so a caller given
+/// [`CHDEF_ERR_BUFFER`] learns the size to provide.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours; `frame` must be valid for
+/// `frame_len`, `out` writable for `out_cap`, and `out_count` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_decode_bits(
+    handle: *const ChdefLayout,
+    frame: *const u8,
+    frame_len: usize,
+    out: *mut ChdefBitReading,
+    out_cap: usize,
+    out_count: *mut usize,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_count.is_null() || (frame.is_null() && frame_len > 0) {
+            return CHDEF_ERR_NULL;
+        }
+        let bytes = if frame.is_null() {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(frame, frame_len)
+        };
+
+        let decoded = layout.decode(bytes);
+        let readings: Vec<ChdefBitReading> = decoded
+            .iter()
+            .flat_map(|reading| {
+                reading.bits().map(|(bit, set)| ChdefBitReading {
+                    channel: bit.parent_channel,
+                    bit: u32::from(bit.bit_number),
+                    value: i32::from(set),
+                })
+            })
+            .collect();
+
+        *out_count = readings.len();
+        if readings.len() > out_cap || out.is_null() {
+            return CHDEF_ERR_BUFFER;
+        }
+        for (index, reading) in readings.iter().enumerate() {
+            *out.add(index) = *reading;
+        }
+        CHDEF_OK
+    })
+}
+
+// ---------------------------------------------------------------- a reading
+
+/// Which of the two readings the channel `format` column selects
+/// (`docs/spec/conversion.md` §7), as a value carrying its own notation.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `out` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_channel_displayed(
+    handle: *const ChdefLayout,
+    index: usize,
+    raw: u64,
+    out: *mut ChdefValue,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        let Some(ch) = layout.channels.get(index) else {
+            return CHDEF_ERR_INDEX;
+        };
+        *out = match ch.displayed_value(raw) {
+            Value::Physical(v) => ChdefValue::physical(ch.number, v),
+            Value::Raw(v) => ChdefValue::raw(ch.number, v),
+        };
+        CHDEF_OK
+    })
+}
+
+/// The default text form of a reading (`docs/spec/conversion.md` §7),
+/// which a consumer with its own digit counts or separators replaces.
+/// Returns the length the text needs, or `0` for an unusable handle or
+/// index.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `buf` writable for `cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_channel_render(
+    handle: *const ChdefLayout,
+    index: usize,
+    raw: u64,
+    buf: *mut c_char,
+    cap: usize,
+) -> usize {
+    guard_len(|| {
+        let Some(layout) = layout_of(handle) else {
+            return 0;
+        };
+        let Some(ch) = layout.channels.get(index) else {
+            return 0;
+        };
+        write_text(&ch.render(raw), buf, cap)
+    })
+}
+
+// ----------------------------------------------------------- the notation
+
+/// Read the text form of a value (`docs/spec/format.md` §3): a leading
+/// `0x` or `0X` is a raw bit pattern, anything else a physical value.
+/// `channel` is stamped onto the result so it can be handed straight to
+/// [`chdef_encode`]. Text that denotes no value is [`CHDEF_ERR_VALUE`].
+///
+/// # Safety
+///
+/// `text` must be valid for `len`, and `out` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_value_parse(
+    text: *const u8,
+    len: usize,
+    channel: u32,
+    out: *mut ChdefValue,
+) -> i32 {
+    guard(|| {
+        if out.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        let source = match borrow_str(text, len) {
+            None => return CHDEF_ERR_NULL,
+            Some(Err(())) => return CHDEF_ERR_UTF8,
+            Some(Ok(source)) => source,
+        };
+        let Some(value) = Value::parse(source) else {
+            return CHDEF_ERR_VALUE;
+        };
+        *out = match value {
+            Value::Physical(v) => ChdefValue::physical(channel, v),
+            Value::Raw(v) => ChdefValue::raw(channel, v),
+        };
+        CHDEF_OK
+    })
+}
+
+// -------------------------------------------------------------------- grid
+
+/// Read definition bytes as cells (`docs/spec/editing.md`), whatever
+/// columns they name. On success `out_grid` receives a handle the caller
+/// frees with [`chdef_grid_free`]; on failure it is left null and, when
+/// `err_buf` is not null, the error message is written into it.
+///
+/// # Safety
+///
+/// `bytes` must be valid for `len`, `out_grid` writable, and `err_buf`
+/// writable for `err_cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_parse(
+    bytes: *const u8,
+    len: usize,
+    out_grid: *mut *mut ChdefGrid,
+    err_buf: *mut c_char,
+    err_cap: usize,
+) -> i32 {
+    guard(|| {
+        if out_grid.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        *out_grid = std::ptr::null_mut();
+        if bytes.is_null() && len > 0 {
+            return CHDEF_ERR_NULL;
+        }
+        let source = if bytes.is_null() {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(bytes, len)
+        };
+        match Grid::parse_bytes(source) {
+            Ok(grid) => {
+                *out_grid = Box::into_raw(Box::new(ChdefGrid {
+                    tag: GRID_TAG,
+                    grid,
+                }));
+                CHDEF_OK
+            }
+            Err(e) => {
+                write_text(&e.to_string(), err_buf, err_cap);
+                status_of(&e)
+            }
+        }
+    })
+}
+
+/// Release a grid. A null handle is ignored.
+///
+/// # Safety
+///
+/// The handle must come from [`chdef_grid_parse`] and must not have been
+/// freed already.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_free(handle: *mut ChdefGrid) {
+    guard(|| {
+        if let Some(h) = handle.as_mut() {
+            if h.tag == GRID_TAG {
+                h.tag = 0;
+                drop(Box::from_raw(handle));
+            }
+        }
+        CHDEF_OK
+    });
+}
+
+/// How many data rows the grid has, comment and blank rows included, or
+/// `0` for an unusable handle.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_row_count(handle: *const ChdefGrid) -> u64 {
+    guard_len(|| grid_of(handle).map(Grid::row_count).unwrap_or(0)) as u64
+}
+
+/// How many cells the header row has, or `0` when the file was read
+/// without one. A record always holds at least one cell, so `0` is not a
+/// header of no columns.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_header_count(handle: *const ChdefGrid) -> u64 {
+    guard_len(|| {
+        grid_of(handle)
+            .and_then(Grid::header)
+            .map(<[String]>::len)
+            .unwrap_or(0)
+    }) as u64
+}
+
+/// How many cells the data row at `row` has, or `0` outside the grid.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_col_count(handle: *const ChdefGrid, row: usize) -> u64 {
+    guard_len(|| {
+        grid_of(handle)
+            .and_then(|grid| grid.row(row))
+            .map(<[String]>::len)
+            .unwrap_or(0)
+    }) as u64
+}
+
+/// Write one header cell into `buf`. Returns the length it needs, or `0`
+/// for an unusable handle or index.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `buf` writable for `cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_header_at(
+    handle: *const ChdefGrid,
+    col: usize,
+    buf: *mut c_char,
+    cap: usize,
+) -> usize {
+    guard_len(|| {
+        let text = grid_of(handle)
+            .and_then(Grid::header)
+            .and_then(|header| header.get(col))
+            .map(String::as_str)
+            .unwrap_or("");
+        write_text(text, buf, cap)
+    })
+}
+
+/// Write one data cell into `buf`, 0-based with the header excluded — the
+/// row numbering Issues use. Returns the length it needs, or `0` outside
+/// the grid.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `buf` writable for `cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_cell(
+    handle: *const ChdefGrid,
+    row: usize,
+    col: usize,
+    buf: *mut c_char,
+    cap: usize,
+) -> usize {
+    guard_len(|| {
+        let text = grid_of(handle)
+            .and_then(|grid| grid.cell(row, col))
+            .unwrap_or("");
+        write_text(text, buf, cap)
+    })
+}
+
+/// Overwrite one data cell; a row shorter than `col` is padded with empty
+/// cells. A row outside the grid is [`CHDEF_ERR_INDEX`].
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `value` valid for `len`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_set_cell(
+    handle: *mut ChdefGrid,
+    row: usize,
+    col: usize,
+    value: *const u8,
+    len: usize,
+) -> i32 {
+    guard(|| {
+        let Some(grid) = grid_mut(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        let text = match borrow_str(value, len) {
+            None => return CHDEF_ERR_NULL,
+            Some(Err(())) => return CHDEF_ERR_UTF8,
+            Some(Ok(text)) => text,
+        };
+        if grid.row(row).is_none() {
+            return CHDEF_ERR_INDEX;
+        }
+        grid.set_cell(row, col, text);
+        CHDEF_OK
+    })
+}
+
+/// Insert an empty data row at `at`, clamped to the end. Cells are written
+/// with [`chdef_grid_set_cell`], which pads a short row.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_insert_row(handle: *mut ChdefGrid, at: usize) -> i32 {
+    guard(|| {
+        let Some(grid) = grid_mut(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        grid.insert_row(at, Vec::new());
+        CHDEF_OK
+    })
+}
+
+/// Append an empty data row after the last.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_append_row(handle: *mut ChdefGrid) -> i32 {
+    guard(|| {
+        let Some(grid) = grid_mut(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        grid.append_row(Vec::new());
+        CHDEF_OK
+    })
+}
+
+/// Remove the data row at `at`. A row outside the grid removes nothing and
+/// is [`CHDEF_ERR_INDEX`].
+///
+/// # Safety
+///
+/// The handle must be null or one of ours.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_remove_row(handle: *mut ChdefGrid, at: usize) -> i32 {
+    guard(|| {
+        let Some(grid) = grid_mut(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        match grid.remove_row(at) {
+            Some(_) => CHDEF_OK,
+            None => CHDEF_ERR_INDEX,
+        }
+    })
+}
+
+/// Write the file back into `buf`, in the shape it was read in — its
+/// byte-order mark and record separator (`docs/spec/editing.md` §2).
+/// Returns the length it needs, or `0` for an unusable handle.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `buf` writable for `cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_to_csv(
+    handle: *const ChdefGrid,
+    buf: *mut c_char,
+    cap: usize,
+) -> usize {
+    guard_len(|| {
+        let Some(grid) = grid_of(handle) else {
+            return 0;
+        };
+        write_text(&grid.to_csv(), buf, cap)
+    })
 }

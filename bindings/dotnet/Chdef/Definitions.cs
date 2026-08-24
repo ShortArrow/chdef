@@ -51,7 +51,21 @@ public sealed record Channel(
     string Min,
     string Max,
     bool Favorite,
-    ulong BitCount);
+    IReadOnlyList<Bit> Bits);
+
+/// <summary>
+/// One named bit of a channel. <see cref="Default"/> is null when the BF
+/// row names none and the bit keeps the parent channel's.
+/// </summary>
+public sealed record Bit(
+    uint Channel,
+    uint Number,
+    string Name,
+    string Memo,
+    int? Default);
+
+/// <summary>One named bit of a decoded frame, and whether it is set.</summary>
+public sealed record BitReading(uint Channel, uint Number, bool Value);
 
 /// <summary>
 /// A per-row problem found while reading. Every field a consumer needs to
@@ -68,8 +82,15 @@ public sealed record Issue(
     string? Used,
     string Message);
 
-/// <summary>One channel's readings from a decoded frame.</summary>
-public sealed record Reading(uint Channel, ulong Raw, double Value);
+/// <summary>
+/// One channel's readings from a decoded frame. <see cref="Bits"/> is
+/// empty for a channel with no bits named, whatever its type.
+/// </summary>
+public sealed record Reading(
+    uint Channel,
+    ulong Raw,
+    double Value,
+    IReadOnlyList<BitReading> Bits);
 
 /// <summary>
 /// A value for one channel: a physical value, or a raw bit pattern.
@@ -88,7 +109,54 @@ public readonly struct Value
     public static Value Raw(uint channel, ulong raw) =>
         new(new ChdefValue { Channel = channel, Kind = 1, Raw = raw });
 
+    /// <summary>
+    /// Read the text form of a value (docs/spec/format.md §3): a leading
+    /// <c>0x</c> or <c>0X</c> is a raw bit pattern, anything else a
+    /// physical value. Throws <see cref="ChdefException"/> for text that
+    /// denotes no value.
+    /// </summary>
+    public static unsafe Value Parse(string text, uint channel)
+    {
+        if (!TryParse(text, channel, out var value))
+        {
+            throw new ChdefException(
+                Native.CHDEF_ERR_VALUE, $"\"{text}\" denotes no value");
+        }
+        return value;
+    }
+
+    /// <summary>
+    /// <see cref="Parse"/> without the exception, for a text box the user
+    /// is still typing into.
+    /// </summary>
+    public static unsafe bool TryParse(string text, uint channel, out Value value)
+    {
+        var utf8 = Encoding.UTF8.GetBytes(text);
+        ChdefValue read;
+        int status;
+        fixed (byte* ptr = utf8)
+        {
+            status = Native.chdef_value_parse(ptr, (nuint)utf8.Length, channel, &read);
+        }
+        value = new Value(read);
+        return status == Native.CHDEF_OK;
+    }
+
+    /// <summary>The channel this value is for.</summary>
+    public uint Channel => _inner.Channel;
+
+    /// <summary>Whether this is a raw bit pattern rather than a physical value.</summary>
+    public bool IsRaw => _inner.Kind == 1;
+
+    /// <summary>The physical value; meaningful when <see cref="IsRaw"/> is false.</summary>
+    public double PhysicalValue => _inner.Physical;
+
+    /// <summary>The raw bit pattern; meaningful when <see cref="IsRaw"/> is true.</summary>
+    public ulong RawValue => _inner.Raw;
+
     internal ChdefValue Inner => _inner;
+
+    internal static Value From(ChdefValue inner) => new(inner);
 }
 
 /// <summary>
@@ -123,12 +191,12 @@ public sealed unsafe class Definitions : IDisposable
     /// </summary>
     public static Definitions Parse(string chCsv, string? bfCsv = null)
     {
-        if (AbiVersion != Native.CHDEF_ABI_VERSION)
+        if (AbiVersion < Native.CHDEF_ABI_VERSION)
         {
             throw new ChdefException(
                 Native.CHDEF_ERR_HANDLE,
                 $"the native library implements ABI version {AbiVersion}, "
-                    + $"this assembly was built for {Native.CHDEF_ABI_VERSION}");
+                    + $"this assembly needs at least {Native.CHDEF_ABI_VERSION}");
         }
 
         var ch = Encoding.UTF8.GetBytes(chCsv);
@@ -238,11 +306,76 @@ public sealed unsafe class Definitions : IDisposable
         }
 
         Check(status);
+        var bits = DecodeBits(frame);
         return readings
             .Take((int)count)
-            .Select(r => new Reading(r.Channel, r.Raw, r.Value))
+            .Select(r => new Reading(
+                r.Channel,
+                r.Raw,
+                r.Value,
+                bits.TryGetValue(r.Channel, out var of) ? of : Array.Empty<BitReading>()))
             .ToList();
     }
+
+    /// <summary>
+    /// Every named bit of a frame in one pass, grouped by channel — what
+    /// <see cref="Decode(ReadOnlySpan{byte})"/> hands to each <see cref="Reading"/>.
+    /// </summary>
+    private Dictionary<uint, IReadOnlyList<BitReading>> DecodeBits(ReadOnlySpan<byte> frame)
+    {
+        var total = (int)Native.chdef_layout_bit_total(Handle);
+        var grouped = new Dictionary<uint, IReadOnlyList<BitReading>>();
+        if (total == 0)
+        {
+            return grouped;
+        }
+
+        var bits = new ChdefBitReading[total];
+        nuint count = 0;
+        int status;
+        fixed (byte* framePtr = frame)
+        fixed (ChdefBitReading* outPtr = bits)
+        {
+            status = Native.chdef_decode_bits(
+                Handle, framePtr, (nuint)frame.Length, outPtr, (nuint)bits.Length, &count);
+        }
+        Check(status);
+
+        foreach (var bit in bits.Take((int)count))
+        {
+            if (!grouped.TryGetValue(bit.Channel, out var of))
+            {
+                of = new List<BitReading>();
+                grouped[bit.Channel] = of;
+            }
+            ((List<BitReading>)of).Add(
+                new BitReading(bit.Channel, bit.Bit, bit.Value != 0));
+        }
+        return grouped;
+    }
+
+    /// <summary>
+    /// Which of the two readings the channel's <c>format</c> column
+    /// selects (docs/spec/conversion.md §7): the physical value for
+    /// <c>DEC</c>, the raw one for <c>HEX</c>. It affects no conversion.
+    /// </summary>
+    public Value Displayed(int channelIndex, ulong raw)
+    {
+        ChdefValue value;
+        Check(Native.chdef_layout_channel_displayed(
+            Handle, (nuint)channelIndex, raw, &value));
+        return Value.From(value);
+    }
+
+    /// <summary>
+    /// The default text form of a reading — the physical value with the
+    /// channel's unit, or the raw one in hexadecimal padded to the
+    /// channel's width. A consumer with its own digit counts, separators
+    /// or colours writes its own instead.
+    /// </summary>
+    public string Render(int channelIndex, ulong raw) =>
+        TextBuffer.Read((buf, cap) =>
+            Native.chdef_layout_channel_render(Handle, (nuint)channelIndex, raw, buf, cap));
 
     /// <inheritdoc />
     public void Dispose()
@@ -293,9 +426,27 @@ public sealed unsafe class Definitions : IDisposable
                 Text(layout, index, Native.CHDEF_CHANNEL_MIN),
                 Text(layout, index, Native.CHDEF_CHANNEL_MAX),
                 raw.Favorite != 0,
-                raw.BitCount));
+                ReadBits(layout, index, (int)raw.BitCount)));
         }
         return channels;
+    }
+
+    private static List<Bit> ReadBits(nint layout, nuint channelIndex, int count)
+    {
+        var bits = new List<Bit>(count);
+        for (var i = 0; i < count; i++)
+        {
+            ChdefBit raw;
+            var bitIndex = (nuint)i;
+            Check(Native.chdef_layout_bit_at(layout, channelIndex, bitIndex, &raw));
+            bits.Add(new Bit(
+                raw.Channel,
+                raw.Bit,
+                BitText(layout, channelIndex, bitIndex, Native.CHDEF_BIT_NAME),
+                BitText(layout, channelIndex, bitIndex, Native.CHDEF_BIT_MEMO),
+                raw.DefaultValue < 0 ? null : raw.DefaultValue));
+        }
+        return bits;
     }
 
     private static List<Issue> ReadIssues(nint handle)
@@ -322,38 +473,16 @@ public sealed unsafe class Definitions : IDisposable
         static string? Empty(string s) => s.Length == 0 ? null : s;
     }
 
-    /// <summary>
-    /// The buffer dance the ABI asks for: query the length, then fill.
-    /// </summary>
-    private static string Text(nint layout, nuint index, int field)
-    {
-        var needed = (int)Native.chdef_layout_channel_text(layout, index, field, null, 0);
-        if (needed == 0)
-        {
-            return string.Empty;
-        }
-        var buf = new byte[needed + 1];
-        fixed (byte* ptr = buf)
-        {
-            Native.chdef_layout_channel_text(layout, index, field, ptr, (nuint)buf.Length);
-        }
-        return Encoding.UTF8.GetString(buf, 0, needed);
-    }
+    private static string Text(nint layout, nuint index, int field) =>
+        TextBuffer.Read((buf, cap) =>
+            Native.chdef_layout_channel_text(layout, index, field, buf, cap));
 
-    private static string IssueText(nint handle, nuint index, int field)
-    {
-        var needed = (int)Native.chdef_issue_text(handle, index, field, null, 0);
-        if (needed == 0)
-        {
-            return string.Empty;
-        }
-        var buf = new byte[needed + 1];
-        fixed (byte* ptr = buf)
-        {
-            Native.chdef_issue_text(handle, index, field, ptr, (nuint)buf.Length);
-        }
-        return Encoding.UTF8.GetString(buf, 0, needed);
-    }
+    private static string BitText(nint layout, nuint channelIndex, nuint bitIndex, int field) =>
+        TextBuffer.Read((buf, cap) =>
+            Native.chdef_layout_bit_text(layout, channelIndex, bitIndex, field, buf, cap));
+
+    private static string IssueText(nint handle, nuint index, int field) =>
+        TextBuffer.Read((buf, cap) => Native.chdef_issue_text(handle, index, field, buf, cap));
 
     private static string Decode(byte[] nulTerminated)
     {

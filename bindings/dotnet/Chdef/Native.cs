@@ -54,11 +54,30 @@ internal struct ChdefReading
     public double Value;
 }
 
+/// <summary>One named bit of a channel. DefaultValue is 0 or 1, or -1 when
+/// the BF row names none and the bit keeps the parent channel's.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ChdefBit
+{
+    public uint Channel;
+    public uint Bit;
+    public int DefaultValue;
+}
+
+/// <summary>One named bit of a decoded frame, and whether it is set.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ChdefBitReading
+{
+    public uint Channel;
+    public uint Bit;
+    public int Value;
+}
+
 internal static unsafe partial class Native
 {
     internal const string Library = "chdef_capi";
 
-    internal const uint CHDEF_ABI_VERSION = 1u;
+    internal const uint CHDEF_ABI_VERSION = 2u;
 
     internal const int CHDEF_OK = 0;
     internal const int CHDEF_ERR_HANDLE = -1;
@@ -68,6 +87,7 @@ internal static unsafe partial class Native
     internal const int CHDEF_ERR_UTF8 = -5;
     internal const int CHDEF_ERR_CSV = -6;
     internal const int CHDEF_ERR_IO = -7;
+    internal const int CHDEF_ERR_VALUE = -8;
     internal const int CHDEF_PANIC = -99;
 
     internal const int CHDEF_LITTLE = 0;
@@ -87,6 +107,9 @@ internal static unsafe partial class Native
     internal const int CHDEF_ISSUE_FOUND = 1;
     internal const int CHDEF_ISSUE_USED = 2;
     internal const int CHDEF_ISSUE_MESSAGE = 3;
+
+    internal const int CHDEF_BIT_NAME = 0;
+    internal const int CHDEF_BIT_MEMO = 1;
 
     [LibraryImport(Library)]
     internal static partial uint chdef_abi_version();
@@ -138,6 +161,76 @@ internal static unsafe partial class Native
     internal static partial int chdef_decode(
         nint handle, byte* frame, nuint frameLen,
         ChdefReading* outReadings, nuint outCap, nuint* outCount);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_layout_bit_at(
+        nint handle, nuint channelIndex, nuint bitIndex, ChdefBit* outBit);
+
+    [LibraryImport(Library)]
+    internal static partial nuint chdef_layout_bit_text(
+        nint handle, nuint channelIndex, nuint bitIndex, int field,
+        byte* buf, nuint cap);
+
+    [LibraryImport(Library)]
+    internal static partial ulong chdef_layout_bit_total(nint handle);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_decode_bits(
+        nint handle, byte* frame, nuint frameLen,
+        ChdefBitReading* outBits, nuint outCap, nuint* outCount);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_layout_channel_displayed(
+        nint handle, nuint index, ulong raw, ChdefValue* outValue);
+
+    [LibraryImport(Library)]
+    internal static partial nuint chdef_layout_channel_render(
+        nint handle, nuint index, ulong raw, byte* buf, nuint cap);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_value_parse(
+        byte* text, nuint len, uint channel, ChdefValue* outValue);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_grid_parse(
+        byte* bytes, nuint len, nint* outGrid, byte* errBuf, nuint errCap);
+
+    [LibraryImport(Library)]
+    internal static partial void chdef_grid_free(nint handle);
+
+    [LibraryImport(Library)]
+    internal static partial ulong chdef_grid_row_count(nint handle);
+
+    [LibraryImport(Library)]
+    internal static partial ulong chdef_grid_header_count(nint handle);
+
+    [LibraryImport(Library)]
+    internal static partial ulong chdef_grid_col_count(nint handle, nuint row);
+
+    [LibraryImport(Library)]
+    internal static partial nuint chdef_grid_header_at(
+        nint handle, nuint col, byte* buf, nuint cap);
+
+    [LibraryImport(Library)]
+    internal static partial nuint chdef_grid_cell(
+        nint handle, nuint row, nuint col, byte* buf, nuint cap);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_grid_set_cell(
+        nint handle, nuint row, nuint col, byte* value, nuint len);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_grid_insert_row(nint handle, nuint at);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_grid_append_row(nint handle);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_grid_remove_row(nint handle, nuint at);
+
+    [LibraryImport(Library)]
+    internal static partial nuint chdef_grid_to_csv(
+        nint handle, byte* buf, nuint cap);
 
     [LibraryImport(Library)]
     internal static partial ulong chdef_issue_count(nint handle);

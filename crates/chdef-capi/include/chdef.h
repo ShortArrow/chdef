@@ -1,7 +1,12 @@
 /* chdef — a C ABI over the chdef crate: read CH / BF definitions, describe
- * the frame layout, encode and decode frames.
+ * the frame layout, encode and decode frames, read the named bits of a
+ * channel, and edit a definition file as cells.
  *
  * SPDX-License-Identifier: MIT OR Apache-2.0
+ *
+ * What crosses is every rule docs/spec states, so that a consumer never
+ * reimplements one (ADR-0023). What does not cross is what a consumer
+ * writes anyway: editing UI, undo history, save orchestration.
  *
  * Three rules shape every signature (ADR-0021):
  *
@@ -18,8 +23,9 @@
  *
  * Every entry point catches Rust panics and reports CHDEF_PANIC.
  *
- * Handles come from chdef_layout_parse and are released exactly once with
- * chdef_layout_free / chdef_issues_free. Passing NULL to a free is a
+ * Handles come from chdef_layout_parse / chdef_grid_parse and are released
+ * exactly once with chdef_layout_free / chdef_issues_free /
+ * chdef_grid_free. Passing NULL to a free is a
  * no-op; passing a freed or foreign pointer to anything else is reported
  * as CHDEF_ERR_HANDLE rather than read.
  */
@@ -34,9 +40,11 @@
 extern "C" {
 #endif
 
-/* The revision of this ABI. Check chdef_abi_version() against it before
- * calling anything else. */
-#define CHDEF_ABI_VERSION 1u
+/* The revision of this ABI. It rises whenever a symbol is added or
+ * changed; check that chdef_abi_version() is at least this value before
+ * calling anything else. Symbols are added and never withdrawn, so a newer
+ * library serves an older caller. */
+#define CHDEF_ABI_VERSION 2u
 
 /* Statuses. */
 #define CHDEF_OK 0
@@ -47,6 +55,7 @@ extern "C" {
 #define CHDEF_ERR_UTF8 (-5)
 #define CHDEF_ERR_CSV (-6)
 #define CHDEF_ERR_IO (-7)
+#define CHDEF_ERR_VALUE (-8) /* the text denotes no value */
 #define CHDEF_PANIC (-99)
 
 /* Byte order, for chdef_layout_set_endian. */
@@ -70,10 +79,16 @@ extern "C" {
 #define CHDEF_ISSUE_USED 2      /* the value it used instead */
 #define CHDEF_ISSUE_MESSAGE 3   /* English prose; wording is not contracted */
 
+/* Text fields of a named bit, for chdef_layout_bit_text. */
+#define CHDEF_BIT_NAME 0
+#define CHDEF_BIT_MEMO 1
+
 /* An opaque frame layout. */
 typedef struct ChdefLayout ChdefLayout;
 /* An opaque list of diagnostics. */
 typedef struct ChdefIssues ChdefIssues;
+/* An opaque grid of cells. */
+typedef struct ChdefGrid ChdefGrid;
 
 /* One channel of the layout. `default_value` is -1 when the channel states
  * none; `bit_count` is how many named bits it has. */
@@ -111,6 +126,21 @@ typedef struct ChdefReading {
   uint64_t raw;
   double value;
 } ChdefReading;
+
+/* One named bit of a channel. `default_value` is 0 or 1, or -1 when the BF
+ * row names none and the bit keeps the parent channel's. */
+typedef struct ChdefBit {
+  uint32_t channel;
+  uint32_t bit;
+  int32_t default_value;
+} ChdefBit;
+
+/* One named bit of a decoded frame, and whether it is set. */
+typedef struct ChdefBitReading {
+  uint32_t channel;
+  uint32_t bit;
+  int32_t value;
+} ChdefBitReading;
 
 uint32_t chdef_abi_version(void);
 
@@ -156,6 +186,75 @@ int32_t chdef_encode(const ChdefLayout *handle, const ChdefValue *values,
 int32_t chdef_decode(const ChdefLayout *handle, const uint8_t *frame,
                      size_t frame_len, ChdefReading *out, size_t out_cap,
                      size_t *out_count);
+
+/* The named bits of one channel: bit_index runs to that channel's
+ * bit_count. Out of range is CHDEF_ERR_INDEX. */
+int32_t chdef_layout_bit_at(const ChdefLayout *handle, size_t channel_index,
+                            size_t bit_index, ChdefBit *out);
+size_t chdef_layout_bit_text(const ChdefLayout *handle, size_t channel_index,
+                             size_t bit_index, int32_t field, char *buf,
+                             size_t cap);
+
+/* How many bit readings a whole frame yields — the size to give
+ * chdef_decode_bits. */
+uint64_t chdef_layout_bit_total(const ChdefLayout *handle);
+
+/* Read every named bit of a frame in one pass, channel by channel and, in
+ * a channel, in definition order. out_count always receives how many the
+ * frame yields. */
+int32_t chdef_decode_bits(const ChdefLayout *handle, const uint8_t *frame,
+                          size_t frame_len, ChdefBitReading *out,
+                          size_t out_cap, size_t *out_count);
+
+/* Which of the two readings the channel's `format` column selects, and the
+ * default text form of it. */
+int32_t chdef_layout_channel_displayed(const ChdefLayout *handle,
+                                       size_t index, uint64_t raw,
+                                       ChdefValue *out);
+size_t chdef_layout_channel_render(const ChdefLayout *handle, size_t index,
+                                   uint64_t raw, char *buf, size_t cap);
+
+/* Read the text form of a value: a leading "0x" / "0X" is a raw bit
+ * pattern, anything else a physical value. `channel` is stamped onto the
+ * result so it can be handed straight to chdef_encode. Text that denotes
+ * no value is CHDEF_ERR_VALUE. */
+int32_t chdef_value_parse(const uint8_t *text, size_t len, uint32_t channel,
+                          ChdefValue *out);
+
+/* Read definition bytes as cells, whatever columns they name. On CHDEF_OK
+ * out_grid receives a handle the caller frees; on any other status it is
+ * left NULL and the error's message is written into err_buf. */
+int32_t chdef_grid_parse(const uint8_t *bytes, size_t len,
+                         ChdefGrid **out_grid, char *err_buf,
+                         size_t err_cap);
+void chdef_grid_free(ChdefGrid *handle);
+
+/* Row and column counts. header_count is 0 when the file was read without
+ * a header; a record always holds at least one cell, so 0 is never a
+ * header of no columns. */
+uint64_t chdef_grid_row_count(const ChdefGrid *handle);
+uint64_t chdef_grid_header_count(const ChdefGrid *handle);
+uint64_t chdef_grid_col_count(const ChdefGrid *handle, size_t row);
+
+/* Cells. Data rows are 0-based with the header excluded — the row
+ * numbering diagnostics use. */
+size_t chdef_grid_header_at(const ChdefGrid *handle, size_t col, char *buf,
+                            size_t cap);
+size_t chdef_grid_cell(const ChdefGrid *handle, size_t row, size_t col,
+                       char *buf, size_t cap);
+int32_t chdef_grid_set_cell(ChdefGrid *handle, size_t row, size_t col,
+                            const uint8_t *value, size_t len);
+
+/* Rows are inserted empty and filled with chdef_grid_set_cell, which pads
+ * a short row. insert clamps to the end; removing a row outside the grid
+ * removes nothing and is CHDEF_ERR_INDEX. */
+int32_t chdef_grid_insert_row(ChdefGrid *handle, size_t at);
+int32_t chdef_grid_append_row(ChdefGrid *handle);
+int32_t chdef_grid_remove_row(ChdefGrid *handle, size_t at);
+
+/* Write the file back in the shape it was read in — its byte-order mark
+ * and record separator. */
+size_t chdef_grid_to_csv(const ChdefGrid *handle, char *buf, size_t cap);
 
 uint64_t chdef_issue_count(const ChdefIssues *handle);
 int32_t chdef_issue_at(const ChdefIssues *handle, size_t index,

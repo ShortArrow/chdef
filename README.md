@@ -43,6 +43,37 @@ let bytes = layout.channels[0].value_to_bytes(value);
 The specification lives in [docs/spec/](./docs/spec/README.md); design
 decisions in [docs/decisions/](./docs/decisions/README.md).
 
+## From C# and C
+
+The same implementation, reached through a C ABI. What crosses it is every
+rule the specification states, so a consumer in another language never
+writes one of them a second time
+([docs/spec/abi.md](./docs/spec/abi.md)).
+
+```sh
+dotnet add package Chdef
+```
+
+The NuGet package carries the native library for `linux-x64`, `win-x64`,
+`osx-arm64` and `osx-x64`, so nothing else is needed.
+
+```csharp
+using var defs = Definitions.Parse(chCsv, bfCsv);
+var frame = defs.Encode([Value.Parse("0x0004", 1)], out var issues);
+foreach (var reading in defs.Decode(frame))
+{
+    foreach (var bit in reading.Bits) { /* name and value of each bit */ }
+}
+
+using var grid = Grid.Parse(File.ReadAllBytes(path));
+grid.SetCell(0, 1, "4");
+File.WriteAllBytes(path, grid.ToCsvBytes());
+```
+
+For C, the header is
+[crates/chdef-capi/include/chdef.h](./crates/chdef-capi/include/chdef.h)
+and the library is the `chdef-capi` crate built as a `cdylib`.
+
 ## Origin
 
 The CH / BF concept was extracted from `chbridge-core` of chbridge, an

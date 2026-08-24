@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./interchange.jp.md)
 
-Implemented (0.0.4): the JSON shapes of §1 and §2 behind the `serde`
+Implemented (0.0.5): the JSON shapes of §1 and §2 behind the `serde`
 feature (`interchange::Definitions` / `Readings` / `Grid::to_json`; chdef
 builds the value, the consumer serialises it), and the golden vectors of
 §3 with the harness that runs them through the crate, through the C ABI of
@@ -99,9 +99,7 @@ P ch -
 The harness runs three times: over the crate's Rust API, over the C ABI of
 `chdef-capi` (ADR-0021), and over the .NET binding (ADR-0022), so every
 path a consumer can take is verified to be the same implementation rather
-than a second one. `F` and `P` lines are
-contracted against the crate only — the ABI exposes neither bit readings
-nor an editing surface.
+than a second one. Every line of a set is checked on every path.
 
 The sets in this repository: `basic` (the example above), `widths` (all
 eight legal widths at both byte orders, at the boundaries

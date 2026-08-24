@@ -35,6 +35,35 @@ let bytes = layout.channels[0].value_to_bytes(value);
 
 仕様は [docs/spec/](./spec/README.jp.md)、設計判断は [docs/decisions/](./decisions/README.md)（英語）。
 
+## C# / C から
+
+同じ実装に C ABI 経由で届く。越境するのは仕様が定める規則の全部で、他言語の
+利用側がそれを 2 度書くことはない（[docs/spec/abi.jp.md](./spec/abi.jp.md)）。
+
+```sh
+dotnet add package Chdef
+```
+
+NuGet パッケージは `linux-x64` / `win-x64` / `osx-arm64` / `osx-x64` の
+ネイティブライブラリを同梱するので、他に用意するものはない。
+
+```csharp
+using var defs = Definitions.Parse(chCsv, bfCsv);
+var frame = defs.Encode([Value.Parse("0x0004", 1)], out var issues);
+foreach (var reading in defs.Decode(frame))
+{
+    foreach (var bit in reading.Bits) { /* 各ビットの名称と値 */ }
+}
+
+using var grid = Grid.Parse(File.ReadAllBytes(path));
+grid.SetCell(0, 1, "4");
+File.WriteAllBytes(path, grid.ToCsvBytes());
+```
+
+C から使う場合、ヘッダは
+[crates/chdef-capi/include/chdef.h](../crates/chdef-capi/include/chdef.h)、
+ライブラリは `chdef-capi` クレートを `cdylib` としてビルドしたもの。
+
 ## 由来
 
 社内テレメトリブリッジ chbridge の `chbridge-core` にあった CH / BF の概念を独立させたもの。

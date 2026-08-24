@@ -9,6 +9,41 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.5] - 2026-08-24
+
+### Added
+- The C ABI and the .NET binding carry the named bits of a channel and of
+  a decoded frame (`chdef_layout_bit_at` / `chdef_layout_bit_text` /
+  `chdef_layout_bit_total` / `chdef_decode_bits`; `Channel.Bits` and
+  `Reading.Bits`). A frame decodes its bits in one pass, not one call per
+  bit.
+- They carry the grid: a definition file as its cells, read, edited and
+  written back in the shape it was read in (`chdef_grid_*`; the `Grid`
+  class).
+- They carry the notation of a value — `0x` is raw, anything else physical
+  (`chdef_value_parse`; `Value.Parse` / `Value.TryParse`, and the
+  accessors that make a parsed value readable).
+- They carry which reading the `format` column selects and its default
+  text form (`chdef_layout_channel_displayed` / `_render`;
+  `Definitions.Displayed` / `Definitions.Render`).
+- `docs/spec/abi.md` states what crosses the boundary and why, so the next
+  request is answered by reading it.
+
+### Changed
+- `CHDEF_ABI_VERSION` is `2`, and the check a caller makes is that the
+  library is **at least** what its declarations need. Symbols are added
+  and never withdrawn, so the previous equality reading would have broken
+  a correct caller on every addition.
+- The golden vectors' bit-reading and diagnostics lines run through all
+  three paths. Every line of every set is now checked everywhere.
+
+### Breaking
+- `Channel.BitCount` in the .NET binding is gone; the bits themselves are
+  `Channel.Bits` and the count is `Bits.Count`, rather than a second
+  number saying the same thing.
+- `Reading` gained a `Bits` member, so positional deconstruction of the
+  record takes four elements.
+
 ## [0.0.4] - 2026-08-24
 
 ### Changed

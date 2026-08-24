@@ -32,6 +32,8 @@ public class GoldenVectorTests
             File.ReadAllText(Path.Combine(dir, "bf.csv")));
 
         var checkedLines = 0;
+        var expectedIssues = new List<string>();
+        var issueSources = 0;
         var lines = File.ReadAllLines(Path.Combine(dir, "vectors.txt"));
         for (var i = 0; i < lines.Length; i++)
         {
@@ -60,10 +62,16 @@ public class GoldenVectorTests
                     CheckLayout(defs, fields[1], fields[2], at);
                     checkedLines++;
                     break;
-                // `F` bit readings and `P` expected Issues are contracted
-                // against the crate; the ABI exposes neither yet.
                 case "F":
+                    CheckBits(defs, fields[1], fields[2], at);
+                    checkedLines++;
+                    break;
                 case "P":
+                    // The `P` lines name Issues per source file; the
+                    // binding sees the one merged list its parse returns,
+                    // so what is contracted here is their union.
+                    expectedIssues.AddRange(Declared(fields[2]));
+                    issueSources++;
                     break;
                 default:
                     Assert.Fail($"{at}: unreadable vector line {line}");
@@ -71,8 +79,51 @@ public class GoldenVectorTests
             }
         }
 
+        if (issueSources > 0)
+        {
+            expectedIssues.Sort(StringComparer.Ordinal);
+            var actual = defs.Issues
+                .Select(issue => $"{issue.Code}:{(issue.Row is { } row ? row.ToString(CultureInfo.InvariantCulture) : "-")}")
+                .OrderBy(x => x, StringComparer.Ordinal)
+                .ToList();
+            Assert.Equal(expectedIssues, actual);
+        }
+
         Assert.True(checkedLines > 0, $"{set}: nothing was checked through the binding");
     }
+
+    /// <summary>
+    /// An `F` line: the frame, then `channel:bit=value` for each bit it
+    /// names.
+    /// </summary>
+    private static void CheckBits(Definitions defs, string frameHex, string expected, string at)
+    {
+        var readings = defs.Decode(Convert.FromHexString(frameHex));
+        foreach (var want in expected.Split(';'))
+        {
+            var (position, value) = Split(want, '=');
+            var (number, bit) = Split(position, ':');
+            var channel = uint.Parse(number, CultureInfo.InvariantCulture);
+            var index = uint.Parse(bit, CultureInfo.InvariantCulture);
+
+            var reading = readings.FirstOrDefault(r => r.Channel == channel);
+            Assert.True(reading is not null, $"{at}: channel {channel} is not in the frame");
+
+            var read = reading!.Bits.FirstOrDefault(b => b.Number == index);
+            Assert.True(read is not null, $"{at}: bit {index} of channel {channel} is not defined");
+            Assert.Equal(value == "1", read!.Value);
+        }
+    }
+
+    private static (string, string) Split(string text, char at)
+    {
+        var parts = text.Split(at, 2);
+        Assert.Equal(2, parts.Length);
+        return (parts[0], parts[1]);
+    }
+
+    private static List<string> Declared(string field) =>
+        field == "-" ? [] : [.. field.Split(';')];
 
     private static void CheckEncode(Definitions defs, string values, string expectedHex, string at)
     {

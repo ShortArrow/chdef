@@ -28,7 +28,7 @@ fn vector_sets() -> Vec<PathBuf> {
     sets
 }
 
-struct Layout(*mut ChdefLayout);
+struct Layout(*mut ChdefLayout, *mut ChdefIssues);
 
 impl Layout {
     fn of(dir: &Path) -> Layout {
@@ -50,8 +50,31 @@ impl Layout {
             )
         };
         assert_eq!(status, CHDEF_OK, "{}: parse failed", dir.display());
-        unsafe { chdef_issues_free(issues) };
-        Layout(layout)
+        Layout(layout, issues)
+    }
+
+    /// Every diagnostic the parse produced, as `code:row` — the shape the
+    /// `P` lines are written in.
+    fn issues(&self) -> Vec<String> {
+        let count = unsafe { chdef_issue_count(self.1) } as usize;
+        let mut listed: Vec<String> = (0..count)
+            .map(|index| {
+                let mut issue = ChdefIssue::default();
+                assert_eq!(
+                    unsafe { chdef_issue_at(self.1, index, &mut issue) },
+                    CHDEF_OK
+                );
+                let code = text(|buf, cap| unsafe {
+                    chdef_issue_text(self.1, index, CHDEF_ISSUE_CODE, buf, cap)
+                });
+                match issue.row {
+                    -1 => format!("{code}:-"),
+                    row => format!("{code}:{row}"),
+                }
+            })
+            .collect();
+        listed.sort();
+        listed
     }
 
     fn set_endian(&self, endian: i32) {
@@ -61,15 +84,74 @@ impl Layout {
 
 impl Drop for Layout {
     fn drop(&mut self) {
-        unsafe { chdef_layout_free(self.0) };
+        unsafe {
+            chdef_issues_free(self.1);
+            chdef_layout_free(self.0);
+        }
     }
 }
 
+/// Ask a text call for its length, then for its value.
+fn text(mut call: impl FnMut(*mut c_char, usize) -> usize) -> String {
+    let needed = call(ptr::null_mut(), 0);
+    let mut buf = vec![0u8; needed + 1];
+    call(buf.as_mut_ptr() as *mut c_char, buf.len());
+    buf.truncate(needed);
+    String::from_utf8(buf).unwrap()
+}
+
 fn hex_to_bytes(hex: &str) -> Vec<u8> {
+    assert!(hex.len() % 2 == 0, "odd hex string {hex}");
     (0..hex.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
         .collect()
+}
+
+/// The bits a frame yields, keyed `channel:bit`.
+fn check_bits(layout: &Layout, frame_hex: &str, expected: &str, at: &str) {
+    let frame = hex_to_bytes(frame_hex);
+    let total = unsafe { chdef_layout_bit_total(layout.0) } as usize;
+    let mut out = vec![ChdefBitReading::default(); total];
+    let mut count = 0usize;
+    assert_eq!(
+        unsafe {
+            chdef_decode_bits(
+                layout.0,
+                frame.as_ptr(),
+                frame.len(),
+                out.as_mut_ptr(),
+                out.len(),
+                &mut count,
+            )
+        },
+        CHDEF_OK,
+        "{at}"
+    );
+
+    for want in expected.split(';') {
+        let (position, value) = want.split_once('=').expect("n:bit=value");
+        let (number, bit) = position.split_once(':').expect("n:bit");
+        let number: u32 = number.parse().expect("channel number");
+        let bit: u32 = bit.parse().expect("bit number");
+        let value: i32 = value.parse().expect("0 or 1");
+
+        let read = out[..count]
+            .iter()
+            .find(|b| b.channel == number && b.bit == bit)
+            .unwrap_or_else(|| panic!("{at}: bit {bit} of channel {number} is not in the frame"));
+        assert_eq!(read.value, value, "{at}: bit {bit} of channel {number}");
+    }
+}
+
+/// The `P` lines name Issues per source file; the ABI merges the three
+/// lists into the one its parse returns, so what is contracted here is
+/// their union.
+fn declared(field: &str) -> Vec<String> {
+    if field == "-" {
+        return Vec::new();
+    }
+    field.split(';').map(str::to_string).collect()
 }
 
 fn bytes_to_hex(bytes: &[u8]) -> String {
@@ -186,6 +268,8 @@ fn every_golden_vector_holds_through_the_abi() {
         let text = std::fs::read_to_string(dir.join("vectors.txt")).unwrap();
         let layout = Layout::of(&dir);
         let mut checked = 0;
+        let mut expected: Vec<String> = Vec::new();
+        let mut sources = 0;
 
         for (index, line) in text.lines().enumerate() {
             let line = line.trim();
@@ -208,11 +292,25 @@ fn every_golden_vector_holds_through_the_abi() {
                     check_layout(&layout, total, positions, &at);
                     checked += 1;
                 }
-                // `F` bit readings and `P` expected Issues are contracted
-                // against the crate; the ABI does not expose bits yet.
-                ["F", ..] | ["P", ..] => {}
+                ["F", hex, bits] => {
+                    check_bits(&layout, hex, bits, &at);
+                    checked += 1;
+                }
+                ["P", _source, issues] => {
+                    expected.extend(declared(issues));
+                    sources += 1;
+                }
                 _ => panic!("{at}: unreadable vector line {line:?}"),
             }
+        }
+
+        if sources > 0 {
+            expected.sort();
+            assert_eq!(
+                layout.issues(),
+                expected,
+                "{name}: the Issues of the definitions, through the ABI"
+            );
         }
 
         assert!(checked > 0, "{name}: nothing was checked through the ABI");
