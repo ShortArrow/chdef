@@ -1,5 +1,41 @@
 name: Release
 
+# Triggered by pushing a `vX.Y.Z` tag to `main`. The tag IS the release
+# signal — there is no Actions-tab dispatch, no version input, and no
+# CI-side `cargo set-version`. The human-side bump happens in a normal PR
+# before the tag is pushed; the workflow only builds, publishes and
+# verifies.
+#
+# Job sequence:
+#
+#   guard ┬→ test (matrix) ┬→ publish-crates ┬→ release
+#         │                └→ publish-nuget ─┘
+#         └→ publish-gate ─┘
+#
+# 1. guard:          asserts that the workspace `Cargo.toml` at the tagged
+#                    commit reads `version = "${tag#v}"`. Catches a tag
+#                    pushed against the wrong commit before any expensive
+#                    job runs.
+# 2. test:           the Rust workspace and the .NET binding, on every
+#                    shipped platform. The golden vectors of
+#                    docs/spec/interchange.md §3 run through the crate,
+#                    the C ABI and the binding.
+# 3. publish-gate:   parses the head commit's message line by line and
+#                    outputs `publish=true|false`. Only a STANDALONE
+#                    `[skip publish]` line counts as a skip; a mention of
+#                    the token inside a sentence does not. Runs beside the
+#                    test matrix so it does not lengthen the path.
+# 4. publish-crates: OIDC via rust-lang/crates-io-auth-action, then
+#                    `cargo publish` for chdef and chdef-capi in
+#                    dependency order.
+# 5. publish-nuget:  builds the native library for each runtime the
+#                    package carries, packs, and pushes over OIDC via
+#                    NuGet/login.
+#
+# No long-lived secrets. GITHUB_TOKEN is auto-provided; crates.io and
+# nuget.org trust is established via OIDC. Both need Trusted Publishing
+# configured once for this repository and this workflow filename.
+
 on:
   push:
     tags: ["v*"]
@@ -7,10 +43,75 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
+  guard:
+    name: guard (Cargo.toml version matches tag)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.derive.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Derive version from tag and check Cargo.toml
+        id: derive
+        # The most common footgun under the human-tag flow is "tagged the
+        # wrong commit". Catching it here avoids burning the build matrix
+        # on a tag that will never publish.
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if ! echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::tag $tag is not in vX.Y.Z form" >&2
+            exit 1
+          fi
+          version="${tag#v}"
+          manifest_version=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+          if [ "$manifest_version" != "$version" ]; then
+            echo "::error::tag $tag implies version $version, but Cargo.toml reads $manifest_version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "guard ok: tag=$tag version=$version Cargo.toml=$manifest_version"
+
+  publish-gate:
+    name: decide whether to publish
+    # `contains(..., '[skip publish]')` is a substring match: it fires when
+    # the release commit merely *mentions* the token, even inside an
+    # explanatory paragraph. This job parses the message line by line and
+    # only flags a skip when the literal string is a STANDALONE LINE.
+    needs: guard
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+    steps:
+      - name: Inspect head commit message
+        id: gate
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          # `grep -Fxq` matches the whole line literally; the awk trim
+          # collapses surrounding whitespace so `  [skip publish]  ` still
+          # counts. A mention inside a sentence never appears as its own
+          # line, so it does not match.
+          if printf '%s' "$COMMIT_MSG" | awk '{$1=$1;print}' | grep -Fxq '[skip publish]'; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Found '[skip publish]' as a standalone line — publishing will be skipped."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "No standalone '[skip publish]' line — will publish."
+          fi
+
   test:
-    # A tag is published only from a commit whose tests pass on every shipped platform.
+    # A tag is published only from a commit whose tests pass on every
+    # shipped platform.
     name: Test (${{ matrix.os }})
+    needs: guard
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
@@ -20,12 +121,13 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Test
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Test the workspace
         run: |
           cargo test --workspace --locked
           cargo test --workspace --locked --all-features
-      - uses: actions/setup-dotnet@v4
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: bindings/dotnet/global.json
       # The golden vectors of docs/spec/interchange.md §3 certify the path
@@ -42,15 +144,17 @@ jobs:
             *)       native="$target/release/libchdef_capi.so" ;;
           esac
           dotnet restore bindings/dotnet/Chdef.slnx --locked-mode
-          CHDEF_NATIVE="$native" dotnet test bindings/dotnet/Chdef.slnx             --configuration Release --no-restore
+          CHDEF_NATIVE="$native" dotnet test bindings/dotnet/Chdef.slnx \
+            --configuration Release --no-restore
 
   publish-crates:
-    # Publish to crates.io via OIDC Trusted Publishing (no long-lived token).
-    # A version already on crates.io is a no-op, so re-running a tag stays green.
-    # `[skip publish]` in the tagged commit message skips publishing.
+    # Opt out with `[skip publish]` on its own line in the head commit's
+    # message. The default for a tagged release is "publish everywhere" —
+    # cutting a release means shipping it; skipping is the exception that
+    # must be spelled out.
     name: Publish to crates.io (OIDC)
-    needs: test
-    if: ${{ !contains(github.event.head_commit.message, '[skip publish]') }}
+    needs: [guard, test, publish-gate]
+    if: ${{ needs.publish-gate.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -59,33 +163,44 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
       - name: Exchange OIDC token for crates.io token
         id: auth
-        uses: rust-lang/crates-io-auth-action@v1
-      - name: Publish chdef
+        # Pinned to v1.0.4: the first release on Node 24, which silences
+        # the "Node.js 20 actions are deprecated" warning.
+        uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
+
+      - name: Publish chdef, then chdef-capi
+        # A version already on crates.io is skipped, so re-running a
+        # partially-failed job stays green. chdef-capi depends on chdef by
+        # version, so the order matters and `cargo publish` waits for the
+        # index between the two.
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          VERSION: ${{ needs.guard.outputs.version }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          status=$(curl -fsS -A "chdef-release (github.com/ShortArrow/chdef)" -o /dev/null -w '%{http_code}' \
-            "https://crates.io/api/v1/crates/chdef/$version" || echo "000")
-          if [ "$status" = "200" ]; then
-            echo "chdef $version already on crates.io — skipping"
-          else
-            cargo publish -p chdef --dry-run
-            cargo publish -p chdef
-            cargo publish -p chdef-capi --dry-run
-            cargo publish -p chdef-capi
-          fi
+          publish() {
+            crate="$1"
+            status=$(curl -fsS -A "chdef-release (github.com/ShortArrow/chdef)" \
+              -o /dev/null -w '%{http_code}' \
+              "https://crates.io/api/v1/crates/$crate/$VERSION" || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "$crate $VERSION already on crates.io — skipping"
+            else
+              cargo publish -p "$crate"
+            fi
+          }
+          publish chdef
+          publish chdef-capi
 
   publish-nuget:
     # The package carries the native library for each runtime, so a
     # consumer writes `dotnet add package` and nothing else (ADR-0022).
     name: Pack & push to NuGet (OIDC)
-    needs: test
-    if: ${{ !contains(github.event.head_commit.message, '[skip publish]') }}
+    needs: [guard, test, publish-gate]
+    if: ${{ needs.publish-gate.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -98,9 +213,9 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: bindings/dotnet/global.json
 
@@ -122,31 +237,36 @@ jobs:
         run: dotnet restore bindings/dotnet/Chdef.slnx --locked-mode
 
       - name: Pack
+        env:
+          VERSION: ${{ needs.guard.outputs.version }}
         run: |
           set -euo pipefail
-          # Strip the leading `v` so v0.1.0 -> 0.1.0 for the package
-          # version, matching the crate and the GitHub Release.
-          version="${GITHUB_REF_NAME#v}"
-          dotnet pack bindings/dotnet/Chdef/Chdef.csproj             -c Release --no-restore             -p:Version="$version"             -o ./artifacts/nupkg
+          dotnet pack bindings/dotnet/Chdef/Chdef.csproj \
+            -c Release --no-restore \
+            -p:Version="$VERSION" \
+            -o ./artifacts/nupkg
 
       # Exchange the GitHub OIDC token for a short-lived nuget.org API key
       # via the trusted publisher policy registered under the ShortArrow
-      # nuget.org account — the same shape as the crates.io job above, and
-      # no long-lived secret in this repository. Requires
-      # `permissions.id-token: write` and a matching policy at
-      # https://www.nuget.org/account/trusted-publishing.
+      # account — the same shape as the crates.io job above.
       - name: NuGet login (OIDC)
         id: nuget-login
+        # Not pinned to a SHA: the action is published by the NuGet team
+        # and its v1 tag is what their trusted-publishing documentation
+        # names. Revisit if they publish immutable release SHAs.
         uses: NuGet/login@v1
         with:
           user: ShortArrow
 
       - name: Push to NuGet
         run: |
-          dotnet nuget push './artifacts/nupkg/*.nupkg'             --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"             --source https://api.nuget.org/v3/index.json             --skip-duplicate
+          dotnet nuget push './artifacts/nupkg/*.nupkg' \
+            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
 
       - name: Upload nupkg artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: chdef-nupkg
           path: ./artifacts/nupkg
@@ -164,4 +284,8 @@ jobs:
       - name: Create release with generated notes
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes --verify-tag

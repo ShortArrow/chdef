@@ -14,4 +14,4 @@ name = "chdef_capi"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
-chdef = { path = "../chdef" }
+chdef = { workspace = true }

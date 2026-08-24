@@ -10,6 +10,9 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/ShortArrow/chdef"
 
 [workspace.dependencies]
+# The ABI crate is released beside the crate it wraps, so it depends on
+# exactly that version. `cargo publish` refuses a bare path dependency.
+chdef = { path = "crates/chdef", version = "0.0.2" }
 serde = { version = "1", features = ["derive"] }
 csv = "1.3"
 thiserror = "2"
