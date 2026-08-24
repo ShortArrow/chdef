@@ -1,2 +1,9 @@
 /target
 **/*.rs.bk
+
+# .NET build output
+bin/
+obj/
+artifacts/
+# The native library CI drops in before packing
+bindings/dotnet/Chdef/runtimes/
