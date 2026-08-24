@@ -24,3 +24,5 @@ specification and the README never point back at an ADR.
 | [0017](./0017-the-file-shape-is-read-not-imposed.md) | 2026-08-24 | The shape of a file is read from it, not imposed on it | Accepted |
 | [0018](./0018-an-issue-is-readable-without-english.md) | 2026-08-24 | An Issue is readable without reading its English | Accepted |
 | [0019](./0019-aliases-extend-a-reader-not-the-format.md) | 2026-08-24 | A column alias extends one reader, not the format | Accepted |
+| [0020](./0020-a-grid-is-the-uninterpreted-file.md) | 2026-08-24 | A grid is the uninterpreted file, and the typed tables hold one | Accepted |
+| [0021](./0021-the-c-abi-is-a-codec-not-the-crate.md) | 2026-08-24 | The C ABI is a codec, and it carries no enums | Accepted |
