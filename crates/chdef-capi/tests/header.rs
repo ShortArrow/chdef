@@ -78,7 +78,7 @@ fn the_header_declares_every_exported_function() {
     let (source, header) = (source(), header());
     let functions = exported_functions(&source);
 
-    assert!(functions.len() >= 35, "found only {functions:?}");
+    assert!(functions.len() >= 42, "found only {functions:?}");
     for name in functions {
         // The name must appear as a declaration, not merely as a
         // substring of a longer one.
@@ -94,7 +94,7 @@ fn the_header_declares_every_exported_constant() {
     let (source, header) = (source(), header());
     let constants = exported_constants(&source);
 
-    assert!(constants.len() >= 28, "found only {constants:?}");
+    assert!(constants.len() >= 31, "found only {constants:?}");
     for name in constants {
         assert!(
             header.contains(&format!("#define {name} ")),
@@ -122,7 +122,7 @@ fn the_header_declares_every_opaque_handle() {
     let (source, header) = (source(), header());
     let handles = opaque_handles(&source);
 
-    assert!(handles.len() >= 3, "found only {handles:?}");
+    assert!(handles.len() >= 4, "found only {handles:?}");
     for name in handles {
         assert!(
             header.contains(&format!("typedef struct {name} {name};")),

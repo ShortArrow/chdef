@@ -1,6 +1,6 @@
 # ADR-0019: A column alias extends one reader, not the format
 
-- Status: Accepted
+- Status: Superseded by [ADR-0024](./0024-a-vocabulary-is-data-not-a-language.md)
 - Date: 2026-08-24
 - Release: 0.0.3
 

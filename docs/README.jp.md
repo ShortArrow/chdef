@@ -19,19 +19,32 @@
 **BF 設定**（ビットフィールド定義 CSV）は `BF` 型チャンネルの各ビットに名前を与えます。
 `chdef` はその Rust 実装を 1 つに集め、どの利用側も同じファイルを同じように読めるようにします。
 
-- CH CSV / BF CSV のパース — 列は見出し名で特定し、英語（`number,bytes,…`）でも日本語（`番号,バイト数,…`）でも読める。先頭 BOM は無視、`番号` が整数でない行は読み飛ばし
+- CH CSV / BF CSV のパース — 列は 1 つの正準名（`number,bytes,…`）を持ち、見出しがそれ以外に何と書いていようと、それは**利用側が渡す語彙**。どの言語の見出しも、その綴りを教えれば読める。先頭 BOM は無視、`number` が整数でない行は読み飛ばし
 - フレームレイアウトの計算（各チャンネルの位置は `バイト数` の累積、合計バイト数）
 - 生値 ↔ 物理値の相互変換 `value = raw × LSB + オフセット` とその逆（`LSB` が 0 / 空欄なら 1、`SI` は符号付き、endian 指定可、0 から遠い方へ丸めて幅に clamp）
 
-両 CSV の列・別名・各セルの読み方は [docs/spec/format.jp.md](./spec/format.jp.md) に定めている。
-
 ```rust
+// 語彙なし、正準名だけで読む。
 let channels = chdef::parse_ch_csv(ch_csv_text)?;
 let bitfields = chdef::parse_bf_csv(bf_csv_text)?;
 let layout = chdef::build_layout(channels, bitfields);
 let value = layout.channels[0].raw_to_value(&frame[..4]);
 let bytes = layout.channels[0].value_to_bytes(value);
 ```
+
+別の語彙の見出しも同じように読む。chdef が同梱するものでも、自分で組むものでも:
+
+```rust
+let japanese = chdef::ColumnVocabulary::japanese();
+let german = chdef::ColumnVocabulary::new()
+    .ch("Nummer", chdef::ChColumn::Number)
+    .ch("Bytes", chdef::ChColumn::Bytes);
+
+let channels = chdef::parse_ch_csv_with(ch_csv_text, &japanese)?;
+```
+
+両 CSV の列・正準名・各セルの読み方は
+[docs/spec/format.jp.md](./spec/format.jp.md) に定めている。
 
 仕様は [docs/spec/](./spec/README.jp.md)、設計判断は [docs/decisions/](./decisions/README.md)（英語）。
 

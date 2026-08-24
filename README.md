@@ -20,25 +20,40 @@ frame a meaning; a **BF definition** (bit-field definition CSV) gives every
 bit of a `BF`-typed channel a name. `chdef` is the one Rust implementation
 of both, so that every consumer reads the same file the same way.
 
-- Parse a CH CSV / BF CSV — columns are found by header name, spelled in
-  English (`number,bytes,…`) or Japanese (`番号,バイト数,…`); a leading BOM is
-  ignored and rows without an integer `number` are skipped
+- Parse a CH CSV / BF CSV — a column has one canonical name
+  (`number,bytes,…`) and every other spelling a header may use is a
+  **vocabulary you supply**, so a header in any language is read by
+  teaching its spellings; a leading BOM is ignored and rows without an
+  integer `number` are skipped
 - Compute the frame layout (each channel sits at the cumulative `bytes`,
   plus the total byte count)
 - Convert raw ↔ physical: `value = raw × lsb + offset` and back
   (`lsb` 0 / empty is 1, `SI` is signed, endianness selectable, rounding half
   away from zero, clamped to the channel width)
 
-The columns of both CSVs, with their aliases and how each cell is read, are
-specified in [docs/spec/format.md](./docs/spec/format.md).
-
 ```rust
+// The canonical names, with no vocabulary at all.
 let channels = chdef::parse_ch_csv(ch_csv_text)?;
 let bitfields = chdef::parse_bf_csv(bf_csv_text)?;
 let layout = chdef::build_layout(channels, bitfields);
 let value = layout.channels[0].raw_to_value(&frame[..4]);
 let bytes = layout.channels[0].value_to_bytes(value);
 ```
+
+A header in another vocabulary — one chdef ships, or one you build — is
+read the same way:
+
+```rust
+let japanese = chdef::ColumnVocabulary::japanese();
+let german = chdef::ColumnVocabulary::new()
+    .ch("Nummer", chdef::ChColumn::Number)
+    .ch("Bytes", chdef::ChColumn::Bytes);
+
+let channels = chdef::parse_ch_csv_with(ch_csv_text, &japanese)?;
+```
+
+The columns of both CSVs, their canonical names, and how each cell is read
+are specified in [docs/spec/format.md](./docs/spec/format.md).
 
 The specification lives in [docs/spec/](./docs/spec/README.md); design
 decisions in [docs/decisions/](./docs/decisions/README.md).

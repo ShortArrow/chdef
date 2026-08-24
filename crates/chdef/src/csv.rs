@@ -2,7 +2,7 @@ use std::io::Read;
 use std::path::Path;
 
 use crate::channel::{BitFieldDef, ChannelDef, DataType, Value, ValueDisplay};
-use crate::columns::{BfColumn, ChColumn, ColumnMap};
+use crate::columns::{BfColumn, ChColumn, ColumnMap, ColumnVocabulary};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
 
@@ -10,19 +10,36 @@ use crate::issue::{Issue, IssueCode, Parsed};
 /// crate that reads the filesystem; a consumer holding bytes calls
 /// [`parse_ch_csv_bytes`] instead.
 pub fn load_ch_csv(path: impl AsRef<Path>) -> Result<Parsed<Vec<ChannelDef>>> {
-    parse_ch_csv(&read_to_string(path.as_ref())?)
+    load_ch_csv_with(path, &ColumnVocabulary::new())
+}
+
+/// [`load_ch_csv`], reading the header with `vocabulary`.
+pub fn load_ch_csv_with(
+    path: impl AsRef<Path>,
+    vocabulary: &ColumnVocabulary,
+) -> Result<Parsed<Vec<ChannelDef>>> {
+    parse_ch_csv_with(&read_to_string(path.as_ref())?, vocabulary)
 }
 
 /// Parse CH CSV bytes: strip any leading BOMs, decode as UTF-8, then
 /// [`parse_ch_csv`]. Bytes in another encoding are the caller's to decode.
 pub fn parse_ch_csv_bytes(bytes: &[u8]) -> Result<Parsed<Vec<ChannelDef>>> {
-    parse_ch_csv(decode_utf8(bytes)?)
+    parse_ch_csv_bytes_with(bytes, &ColumnVocabulary::new())
+}
+
+/// [`parse_ch_csv_bytes`], reading the header with `vocabulary`.
+pub fn parse_ch_csv_bytes_with(
+    bytes: &[u8],
+    vocabulary: &ColumnVocabulary,
+) -> Result<Parsed<Vec<ChannelDef>>> {
+    parse_ch_csv_with(decode_utf8(bytes)?, vocabulary)
 }
 
 /// Parse CH CSV text into Rows: every readable row, duplicates included,
 /// plus the [`Issue`]s found on the way ([`build_layout`] drops the
-/// duplicates). Columns are identified by header name in English or Japanese
-/// (`docs/spec/format.md` §2); a first row without a `number` column is data, and the
+/// duplicates). Columns are identified by their canonical
+/// names and variants (`docs/spec/format.md` §2) — another vocabulary is
+/// read by the `_with` form; a first row without a `number` column is data, and the
 /// first 9 columns are taken in canonical order. Blank rows and rows whose
 /// first cell starts with `#` are skipped without an Issue. A column absent
 /// from the header is unspecified and raises no Issue; a broken cell in a
@@ -30,7 +47,16 @@ pub fn parse_ch_csv_bytes(bytes: &[u8]) -> Result<Parsed<Vec<ChannelDef>>> {
 ///
 /// [`build_layout`]: crate::build_layout
 pub fn parse_ch_csv(content: &str) -> Result<Parsed<Vec<ChannelDef>>> {
-    Ok(crate::table::ChTable::parse(content)?.channels())
+    parse_ch_csv_with(content, &ColumnVocabulary::new())
+}
+
+/// [`parse_ch_csv`], reading the header with `vocabulary` on top of the
+/// canonical names (`docs/spec/format.md` §2).
+pub fn parse_ch_csv_with(
+    content: &str,
+    vocabulary: &ColumnVocabulary,
+) -> Result<Parsed<Vec<ChannelDef>>> {
+    Ok(crate::table::ChTable::parse_with(content, vocabulary)?.channels())
 }
 
 /// Interpret the data rows of a CH table: the Rows stage behind
@@ -377,26 +403,52 @@ pub(crate) fn interpret_ch(
 /// crate that reads the filesystem; a consumer holding bytes calls
 /// [`parse_bf_csv_bytes`] instead.
 pub fn load_bf_csv(path: impl AsRef<Path>) -> Result<Parsed<Vec<BitFieldDef>>> {
-    parse_bf_csv(&read_to_string(path.as_ref())?)
+    load_bf_csv_with(path, &ColumnVocabulary::new())
+}
+
+/// [`load_bf_csv`], reading the header with `vocabulary`.
+pub fn load_bf_csv_with(
+    path: impl AsRef<Path>,
+    vocabulary: &ColumnVocabulary,
+) -> Result<Parsed<Vec<BitFieldDef>>> {
+    parse_bf_csv_with(&read_to_string(path.as_ref())?, vocabulary)
 }
 
 /// Parse BF CSV bytes: strip any leading BOMs, decode as UTF-8, then
 /// [`parse_bf_csv`]. Bytes in another encoding are the caller's to decode.
 pub fn parse_bf_csv_bytes(bytes: &[u8]) -> Result<Parsed<Vec<BitFieldDef>>> {
-    parse_bf_csv(decode_utf8(bytes)?)
+    parse_bf_csv_bytes_with(bytes, &ColumnVocabulary::new())
+}
+
+/// [`parse_bf_csv_bytes`], reading the header with `vocabulary`.
+pub fn parse_bf_csv_bytes_with(
+    bytes: &[u8],
+    vocabulary: &ColumnVocabulary,
+) -> Result<Parsed<Vec<BitFieldDef>>> {
+    parse_bf_csv_with(decode_utf8(bytes)?, vocabulary)
 }
 
 /// Parse BF CSV text into Rows: every readable row, duplicates included,
 /// plus the [`Issue`]s found on the way ([`build_layout`] drops the
-/// duplicates). Columns are identified by header name in English or Japanese
-/// (`docs/spec/format.md` §2); a first row without a `number` column is data in canonical
+/// duplicates). Columns are identified by their canonical
+/// names and variants (`docs/spec/format.md` §2) — another vocabulary is
+/// read by the `_with` form; a first row without a `number` column is data in canonical
 /// order. Blank rows and rows whose first cell starts with `#` are skipped
 /// without an Issue. Whether a bit fits its parent channel is not checked
 /// here — the parent lives in the CH CSV.
 ///
 /// [`build_layout`]: crate::build_layout
 pub fn parse_bf_csv(content: &str) -> Result<Parsed<Vec<BitFieldDef>>> {
-    Ok(crate::table::BfTable::parse(content)?.bitfields())
+    parse_bf_csv_with(content, &ColumnVocabulary::new())
+}
+
+/// [`parse_bf_csv`], reading the header with `vocabulary` on top of the
+/// canonical names (`docs/spec/format.md` §2).
+pub fn parse_bf_csv_with(
+    content: &str,
+    vocabulary: &ColumnVocabulary,
+) -> Result<Parsed<Vec<BitFieldDef>>> {
+    Ok(crate::table::BfTable::parse_with(content, vocabulary)?.bitfields())
 }
 
 /// Interpret the data rows of a BF table: the Rows stage behind
@@ -704,7 +756,7 @@ mod tests {
                          2,2,,全般,ステータス,UI16,1,,\n\
                          3,,,全般,予備,SI8,1,,\n";
 
-        let parsed = parse_ch_csv(csv_data).unwrap();
+        let parsed = parse_ch_csv_with(csv_data, &ColumnVocabulary::japanese()).unwrap();
         let channels = &parsed.value;
 
         assert_eq!(channels.len(), 3);
@@ -742,7 +794,7 @@ mod tests {
                          1,1,,全般,SYNC,UI8,1,,,0x7E\n\
                          2,2,,全般,ステータス,BF,1,,,\n";
 
-        let parsed = parse_ch_csv(csv_data).unwrap();
+        let parsed = parse_ch_csv_with(csv_data, &ColumnVocabulary::japanese()).unwrap();
 
         assert_eq!(parsed.value[0].default_value, Some(0x7E));
         assert_eq!(parsed.value[1].default_value, None);
@@ -756,7 +808,7 @@ mod tests {
                          ,,,,(注記行),,,,\n\
                          1,2,,全般,ステータス,UI16,1,,\n";
 
-        let parsed = parse_ch_csv(csv_data).unwrap();
+        let parsed = parse_ch_csv_with(csv_data, &ColumnVocabulary::japanese()).unwrap();
 
         assert_eq!(parsed.value.len(), 1);
         assert_eq!(parsed.issues[0].code, IssueCode::ChannelNumberInvalid);
@@ -1007,7 +1059,7 @@ mod tests {
                          2,0,予備,0,\n\
                          2,1,有効,1,固定値\n";
 
-        let parsed = parse_bf_csv(csv_data).unwrap();
+        let parsed = parse_bf_csv_with(csv_data, &ColumnVocabulary::japanese()).unwrap();
         let bitfields = &parsed.value;
 
         assert_eq!(bitfields.len(), 2);

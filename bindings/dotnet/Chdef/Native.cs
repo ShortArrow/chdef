@@ -77,7 +77,7 @@ internal static unsafe partial class Native
 {
     internal const string Library = "chdef_capi";
 
-    internal const uint CHDEF_ABI_VERSION = 2u;
+    internal const uint CHDEF_ABI_VERSION = 3u;
 
     internal const int CHDEF_OK = 0;
     internal const int CHDEF_ERR_HANDLE = -1;
@@ -88,6 +88,7 @@ internal static unsafe partial class Native
     internal const int CHDEF_ERR_CSV = -6;
     internal const int CHDEF_ERR_IO = -7;
     internal const int CHDEF_ERR_VALUE = -8;
+    internal const int CHDEF_ERR_COLUMN = -9;
     internal const int CHDEF_PANIC = -99;
 
     internal const int CHDEF_LITTLE = 0;
@@ -110,6 +111,9 @@ internal static unsafe partial class Native
 
     internal const int CHDEF_BIT_NAME = 0;
     internal const int CHDEF_BIT_MEMO = 1;
+
+    internal const int CHDEF_COLUMNS_CH = 0;
+    internal const int CHDEF_COLUMNS_BF = 1;
 
     [LibraryImport(Library)]
     internal static partial uint chdef_abi_version();
@@ -161,6 +165,37 @@ internal static unsafe partial class Native
     internal static partial int chdef_decode(
         nint handle, byte* frame, nuint frameLen,
         ChdefReading* outReadings, nuint outCap, nuint* outCount);
+
+    [LibraryImport(Library)]
+    internal static partial ulong chdef_column_count(int kind);
+
+    [LibraryImport(Library)]
+    internal static partial nuint chdef_column_name(
+        int kind, nuint index, byte* buf, nuint cap);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_vocabulary_new(nint* outVocabulary);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_vocabulary_japanese(nint* outVocabulary);
+
+    [LibraryImport(Library)]
+    internal static partial void chdef_vocabulary_free(nint handle);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_vocabulary_teach(
+        nint handle, int kind,
+        byte* spelling, nuint spellingLen,
+        byte* column, nuint columnLen);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_layout_parse_with(
+        byte* ch, nuint chLen,
+        byte* bf, nuint bfLen,
+        nint vocabulary,
+        nint* outLayout,
+        nint* outIssues,
+        byte* errBuf, nuint errCap);
 
     [LibraryImport(Library)]
     internal static partial int chdef_layout_bit_at(

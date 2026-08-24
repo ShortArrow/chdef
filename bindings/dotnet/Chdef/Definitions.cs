@@ -189,7 +189,18 @@ public sealed unsafe class Definitions : IDisposable
     /// is structurally broken; a merely wrong file loads, with
     /// <see cref="Issues"/>.
     /// </summary>
-    public static Definitions Parse(string chCsv, string? bfCsv = null)
+    public static Definitions Parse(string chCsv, string? bfCsv = null) =>
+        Parse(chCsv, bfCsv, null);
+
+    /// <summary>
+    /// <see cref="Parse(string, string?)"/>, reading both headers with
+    /// <paramref name="vocabulary"/> on top of the canonical column names
+    /// (docs/spec/format.md §2). A null vocabulary is the empty one.
+    /// </summary>
+    public static Definitions Parse(
+        string chCsv,
+        string? bfCsv,
+        ColumnVocabulary? vocabulary)
     {
         if (AbiVersion < Native.CHDEF_ABI_VERSION)
         {
@@ -210,9 +221,10 @@ public sealed unsafe class Definitions : IDisposable
         fixed (byte* bfPtr = bf)
         fixed (byte* errPtr = error)
         {
-            status = Native.chdef_layout_parse(
+            status = Native.chdef_layout_parse_with(
                 chPtr, (nuint)ch.Length,
                 bfPtr, (nuint)bf.Length,
+                vocabulary?.Handle ?? 0,
                 &layout, &issues,
                 errPtr, (nuint)error.Length);
         }

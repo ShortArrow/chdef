@@ -65,7 +65,8 @@ public class BindingTests
     [Fact]
     public void NonAsciiTextCrossesAsUtf8()
     {
-        using var defs = Definitions.Parse("番号,メッセージ名称,単位\n1,圧力,kPa\n");
+        using var japanese = ColumnVocabulary.Japanese();
+        using var defs = Definitions.Parse("番号,メッセージ名称,単位\n1,圧力,kPa\n", null, japanese);
 
         Assert.Equal("圧力", defs.Channels[0].Name);
         Assert.Equal("kPa", defs.Channels[0].Unit);

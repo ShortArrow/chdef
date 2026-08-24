@@ -23,9 +23,9 @@
  *
  * Every entry point catches Rust panics and reports CHDEF_PANIC.
  *
- * Handles come from chdef_layout_parse / chdef_grid_parse and are released
- * exactly once with chdef_layout_free / chdef_issues_free /
- * chdef_grid_free. Passing NULL to a free is a
+ * Handles come from chdef_layout_parse / chdef_grid_parse /
+ * chdef_vocabulary_new and are released exactly once with the matching
+ * free. Passing NULL to a free is a
  * no-op; passing a freed or foreign pointer to anything else is reported
  * as CHDEF_ERR_HANDLE rather than read.
  */
@@ -44,7 +44,7 @@ extern "C" {
  * changed; check that chdef_abi_version() is at least this value before
  * calling anything else. Symbols are added and never withdrawn, so a newer
  * library serves an older caller. */
-#define CHDEF_ABI_VERSION 2u
+#define CHDEF_ABI_VERSION 3u
 
 /* Statuses. */
 #define CHDEF_OK 0
@@ -56,6 +56,7 @@ extern "C" {
 #define CHDEF_ERR_CSV (-6)
 #define CHDEF_ERR_IO (-7)
 #define CHDEF_ERR_VALUE (-8) /* the text denotes no value */
+#define CHDEF_ERR_COLUMN (-9) /* no column answers to that name */
 #define CHDEF_PANIC (-99)
 
 /* Byte order, for chdef_layout_set_endian. */
@@ -83,12 +84,19 @@ extern "C" {
 #define CHDEF_BIT_NAME 0
 #define CHDEF_BIT_MEMO 1
 
+/* Which CSV a column belongs to, for chdef_column_name and
+ * chdef_vocabulary_teach. */
+#define CHDEF_COLUMNS_CH 0
+#define CHDEF_COLUMNS_BF 1
+
 /* An opaque frame layout. */
 typedef struct ChdefLayout ChdefLayout;
 /* An opaque list of diagnostics. */
 typedef struct ChdefIssues ChdefIssues;
 /* An opaque grid of cells. */
 typedef struct ChdefGrid ChdefGrid;
+/* An opaque column vocabulary. */
+typedef struct ChdefVocabulary ChdefVocabulary;
 
 /* One channel of the layout. `default_value` is -1 when the channel states
  * none; `bit_count` is how many named bits it has. */
@@ -156,6 +164,38 @@ int32_t chdef_layout_parse(const uint8_t *ch, size_t ch_len,
 
 void chdef_layout_free(ChdefLayout *handle);
 void chdef_issues_free(ChdefIssues *handle);
+
+/* The canonical column names, in canonical order: the identity of each
+ * column, the names a vocabulary is taught against, and the keys the JSON
+ * of the interchange format uses. A column crosses as its name rather than
+ * as a number, so adding one is not an ABI break. */
+uint64_t chdef_column_count(int32_t kind);
+size_t chdef_column_name(int32_t kind, size_t index, char *buf, size_t cap);
+
+/* A column vocabulary: the spellings one caller accepts for the columns,
+ * and the spelling it writes for each. A vocabulary is data, not a
+ * language chdef knows — chdef_vocabulary_japanese is one value among any
+ * number a caller can build, and has no standing they lack.
+ *
+ * chdef_vocabulary_teach takes a canonical column name (see
+ * chdef_column_name); a name no column answers to is CHDEF_ERR_COLUMN. The
+ * FIRST spelling taught for a column is the one written for a file created
+ * with this vocabulary. */
+int32_t chdef_vocabulary_new(ChdefVocabulary **out);
+int32_t chdef_vocabulary_japanese(ChdefVocabulary **out);
+void chdef_vocabulary_free(ChdefVocabulary *handle);
+int32_t chdef_vocabulary_teach(ChdefVocabulary *handle, int32_t kind,
+                               const uint8_t *spelling, size_t spelling_len,
+                               const uint8_t *column, size_t column_len);
+
+/* chdef_layout_parse, reading both headers with `vocabulary` on top of the
+ * canonical names. A NULL vocabulary is the empty one. */
+int32_t chdef_layout_parse_with(const uint8_t *ch, size_t ch_len,
+                                const uint8_t *bf, size_t bf_len,
+                                const ChdefVocabulary *vocabulary,
+                                ChdefLayout **out_layout,
+                                ChdefIssues **out_issues,
+                                char *err_buf, size_t err_cap);
 
 /* The data length of the frame in bytes, and how many channels it has.
  * Both are 0 for an unusable handle. */

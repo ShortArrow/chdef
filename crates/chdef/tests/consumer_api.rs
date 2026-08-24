@@ -83,7 +83,11 @@ fn a_channel_with_no_named_bits_walks_nothing() {
 // verbatim cell strings". A grid editor needs to read both.
 #[test]
 fn a_table_hands_over_its_header_and_its_rows() {
-    let table = ChTable::parse("番号,バイト数,謎の列\n1,4,keep\n# note\n").unwrap();
+    let table = ChTable::parse_with(
+        "番号,バイト数,謎の列\n1,4,keep\n# note\n",
+        &ColumnVocabulary::japanese(),
+    )
+    .unwrap();
 
     assert_eq!(
         table.header(),

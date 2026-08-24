@@ -308,7 +308,11 @@ mod tests {
 
     #[test]
     fn table_json_is_the_verbatim_grid() {
-        let table = ChTable::parse("番号,バイト数,謎の列\n1,4,keep\n# note\n").unwrap();
+        let table = ChTable::parse_with(
+            "番号,バイト数,謎の列\n1,4,keep\n# note\n",
+            &crate::ColumnVocabulary::japanese(),
+        )
+        .unwrap();
 
         let json = serde_json::to_value(table.to_json()).unwrap();
 

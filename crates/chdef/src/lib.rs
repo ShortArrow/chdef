@@ -21,9 +21,11 @@ pub use channel::{
     build_layout, BitFieldDef, ChannelDef, ChannelLayout, DataType, Decoded, Endian, Value,
     ValueDisplay,
 };
-pub use columns::{BfColumn, ChColumn, ColumnAliases, HeaderLanguage};
+pub use columns::{BfColumn, ChColumn, ColumnVocabulary};
 pub use csv::{
-    load_bf_csv, load_ch_csv, parse_bf_csv, parse_bf_csv_bytes, parse_ch_csv, parse_ch_csv_bytes,
+    load_bf_csv, load_bf_csv_with, load_ch_csv, load_ch_csv_with, parse_bf_csv, parse_bf_csv_bytes,
+    parse_bf_csv_bytes_with, parse_bf_csv_with, parse_ch_csv, parse_ch_csv_bytes,
+    parse_ch_csv_bytes_with, parse_ch_csv_with,
 };
 pub use error::{ChdefError, Result};
 pub use issue::{Issue, IssueCode, Parsed};

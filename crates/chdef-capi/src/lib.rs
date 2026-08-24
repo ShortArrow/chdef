@@ -25,14 +25,15 @@ use std::ffi::c_char;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use chdef::{
-    build_layout, BitFieldDef, ChannelLayout, ChdefError, Endian, Grid, Issue, IssueCode, Value,
+    build_layout, BfColumn, BitFieldDef, ChColumn, ChannelLayout, ChdefError, ColumnVocabulary,
+    Endian, Grid, Issue, IssueCode, Value,
 };
 
 /// The revision of this ABI. It rises whenever a symbol is added or
 /// changed; a caller checks it is **at least** the value its declarations
 /// were written for before calling anything else. Symbols are added and
 /// never withdrawn, so a newer library serves an older caller.
-pub const CHDEF_ABI_VERSION: u32 = 2;
+pub const CHDEF_ABI_VERSION: u32 = 3;
 
 // ---------------------------------------------------------------- statuses
 
@@ -57,6 +58,9 @@ pub const CHDEF_ERR_IO: i32 = -7;
 /// The text denotes no value in the notation of
 /// `docs/spec/format.md` §3.
 pub const CHDEF_ERR_VALUE: i32 = -8;
+
+/// No column answers to that canonical name.
+pub const CHDEF_ERR_COLUMN: i32 = -9;
 /// A panic was caught at the boundary. A bug in chdef; the handles the
 /// call touched are left as they were.
 pub const CHDEF_PANIC: i32 = -99;
@@ -101,6 +105,13 @@ pub const CHDEF_BIT_NAME: i32 = 0;
 
 /// The bit memo, for [`chdef_layout_bit_text`].
 pub const CHDEF_BIT_MEMO: i32 = 1;
+
+/// The columns of a CH CSV, for [`chdef_column_name`] and
+/// [`chdef_vocabulary_teach`].
+pub const CHDEF_COLUMNS_CH: i32 = 0;
+
+/// The columns of a BF CSV.
+pub const CHDEF_COLUMNS_BF: i32 = 1;
 
 // ----------------------------------------------------------- plain records
 
@@ -205,11 +216,19 @@ pub struct ChdefReading {
 const LAYOUT_TAG: u64 = 0x6368_6465_665f_6c79; // "chdef_ly"
 const ISSUES_TAG: u64 = 0x6368_6465_665f_6973; // "chdef_is"
 const GRID_TAG: u64 = 0x6368_6465_665f_6772; // "chdef_gr"
+const VOCABULARY_TAG: u64 = 0x6368_6465_665f_766f; // "chdef_vo"
 
 /// An opaque frame layout. Freed once with [`chdef_layout_free`].
 pub struct ChdefLayout {
     tag: u64,
     layout: ChannelLayout,
+}
+
+/// An opaque column vocabulary. Freed once with
+/// [`chdef_vocabulary_free`].
+pub struct ChdefVocabulary {
+    tag: u64,
+    vocabulary: ColumnVocabulary,
 }
 
 /// An opaque grid of cells. Freed once with [`chdef_grid_free`].
@@ -235,6 +254,16 @@ unsafe fn layout_mut(handle: *mut ChdefLayout) -> Option<&'static mut ChannelLay
     (handle.tag == LAYOUT_TAG).then_some(&mut handle.layout)
 }
 
+unsafe fn vocabulary_of(handle: *const ChdefVocabulary) -> Option<&'static ColumnVocabulary> {
+    let handle = handle.as_ref()?;
+    (handle.tag == VOCABULARY_TAG).then_some(&handle.vocabulary)
+}
+
+unsafe fn vocabulary_mut(handle: *mut ChdefVocabulary) -> Option<&'static mut ColumnVocabulary> {
+    let handle = handle.as_mut()?;
+    (handle.tag == VOCABULARY_TAG).then_some(&mut handle.vocabulary)
+}
+
 unsafe fn grid_of(handle: *const ChdefGrid) -> Option<&'static Grid> {
     let handle = handle.as_ref()?;
     (handle.tag == GRID_TAG).then_some(&handle.grid)
@@ -256,6 +285,13 @@ fn into_issues(issues: Vec<Issue>) -> *mut ChdefIssues {
         issues,
     }))
 }
+
+const CH_COLUMN_NAMES: &[&str] = &[
+    "number", "bytes", "bits", "section", "name", "type", "lsb", "offset", "unit", "min", "max",
+    "default", "memo", "var", "format", "favorite",
+];
+
+const BF_COLUMN_NAMES: &[&str] = &["number", "bit", "name", "default", "memo"];
 
 /// Run `body`, reporting a panic as [`CHDEF_PANIC`] rather than letting it
 /// cross `extern "C"`.
@@ -1295,5 +1331,251 @@ pub unsafe extern "C" fn chdef_grid_to_csv(
             return 0;
         };
         write_text(&grid.to_csv(), buf, cap)
+    })
+}
+
+// -------------------------------------------------------------- vocabulary
+
+/// The canonical column names of a CH CSV or a BF CSV, for
+/// [`chdef_column_count`] and [`chdef_column_name`].
+fn column_names(kind: i32) -> &'static [&'static str] {
+    match kind {
+        CHDEF_COLUMNS_CH => CH_COLUMN_NAMES,
+        CHDEF_COLUMNS_BF => BF_COLUMN_NAMES,
+        _ => &[],
+    }
+}
+
+/// How many columns a CH CSV or a BF CSV has, or `0` for an unknown kind.
+///
+/// # Safety
+///
+/// This call reads nothing through a pointer.
+#[no_mangle]
+pub extern "C" fn chdef_column_count(kind: i32) -> u64 {
+    guard_len(|| column_names(kind).len()) as u64
+}
+
+/// Write the canonical name of one column into `buf`. Returns the length
+/// it needs, or `0` for an unknown kind or index. These are the names a
+/// vocabulary is taught against and the names the JSON of
+/// `docs/spec/interchange.md` uses.
+///
+/// # Safety
+///
+/// `buf` must be writable for `cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_column_name(
+    kind: i32,
+    index: usize,
+    buf: *mut c_char,
+    cap: usize,
+) -> usize {
+    guard_len(|| match column_names(kind).get(index) {
+        Some(name) => write_text(name, buf, cap),
+        None => 0,
+    })
+}
+
+/// Create an empty vocabulary: the canonical names and their variants
+/// alone. The caller frees it with [`chdef_vocabulary_free`].
+///
+/// # Safety
+///
+/// `out` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_vocabulary_new(out: *mut *mut ChdefVocabulary) -> i32 {
+    guard(|| into_vocabulary(ColumnVocabulary::new(), out))
+}
+
+/// Create the vocabulary of `docs/spec/format.md` §2 — the spellings of
+/// the definition files this format was extracted from. It is a value like
+/// any other a caller builds, and has no standing they lack.
+///
+/// # Safety
+///
+/// `out` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_vocabulary_japanese(out: *mut *mut ChdefVocabulary) -> i32 {
+    guard(|| into_vocabulary(ColumnVocabulary::japanese(), out))
+}
+
+unsafe fn into_vocabulary(vocabulary: ColumnVocabulary, out: *mut *mut ChdefVocabulary) -> i32 {
+    if out.is_null() {
+        return CHDEF_ERR_NULL;
+    }
+    *out = Box::into_raw(Box::new(ChdefVocabulary {
+        tag: VOCABULARY_TAG,
+        vocabulary,
+    }));
+    CHDEF_OK
+}
+
+/// Release a vocabulary. A null handle is ignored.
+///
+/// # Safety
+///
+/// The handle must come from this library and must not have been freed
+/// already.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_vocabulary_free(handle: *mut ChdefVocabulary) {
+    guard(|| {
+        if let Some(h) = handle.as_mut() {
+            if h.tag == VOCABULARY_TAG {
+                h.tag = 0;
+                drop(Box::from_raw(handle));
+            }
+        }
+        CHDEF_OK
+    });
+}
+
+/// Teach `spelling` as a name for the column `column` names, in the CSV
+/// `kind` names ([`CHDEF_COLUMNS_CH`] or [`CHDEF_COLUMNS_BF`]).
+///
+/// `column` is a canonical column name — the strings
+/// [`chdef_column_name`] writes — so adding a column to the format is not
+/// an ABI break. A name no column answers to is
+/// [`CHDEF_ERR_COLUMN`]. The **first** spelling taught for a column is the
+/// one written for a file created with this vocabulary.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and both strings valid for
+/// their lengths.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_vocabulary_teach(
+    handle: *mut ChdefVocabulary,
+    kind: i32,
+    spelling: *const u8,
+    spelling_len: usize,
+    column: *const u8,
+    column_len: usize,
+) -> i32 {
+    guard(|| {
+        let Some(held) = vocabulary_mut(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        let spelling = match borrow_str(spelling, spelling_len) {
+            None => return CHDEF_ERR_NULL,
+            Some(Err(())) => return CHDEF_ERR_UTF8,
+            Some(Ok(text)) => text,
+        };
+        let column = match borrow_str(column, column_len) {
+            None => return CHDEF_ERR_NULL,
+            Some(Err(())) => return CHDEF_ERR_UTF8,
+            Some(Ok(text)) => text,
+        };
+
+        let taught = std::mem::take(held);
+        match kind {
+            CHDEF_COLUMNS_CH => match ChColumn::from_header(column) {
+                Some(ch) => {
+                    *held = taught.ch(spelling, ch);
+                    CHDEF_OK
+                }
+                None => {
+                    *held = taught;
+                    CHDEF_ERR_COLUMN
+                }
+            },
+            CHDEF_COLUMNS_BF => match BfColumn::from_header(column) {
+                Some(bf) => {
+                    *held = taught.bf(spelling, bf);
+                    CHDEF_OK
+                }
+                None => {
+                    *held = taught;
+                    CHDEF_ERR_COLUMN
+                }
+            },
+            _ => {
+                *held = taught;
+                CHDEF_ERR_INDEX
+            }
+        }
+    })
+}
+
+/// [`chdef_layout_parse`], reading both headers with `vocabulary` on top
+/// of the canonical names. A null vocabulary is the empty one, which makes
+/// this call identical to [`chdef_layout_parse`].
+///
+/// # Safety
+///
+/// The pointers must be valid for the lengths given, the vocabulary null
+/// or one of ours, and the out-params writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_parse_with(
+    ch: *const u8,
+    ch_len: usize,
+    bf: *const u8,
+    bf_len: usize,
+    vocabulary: *const ChdefVocabulary,
+    out_layout: *mut *mut ChdefLayout,
+    out_issues: *mut *mut ChdefIssues,
+    err_buf: *mut c_char,
+    err_cap: usize,
+) -> i32 {
+    guard(|| {
+        if out_layout.is_null() || out_issues.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        *out_layout = std::ptr::null_mut();
+        *out_issues = std::ptr::null_mut();
+
+        let empty = ColumnVocabulary::new();
+        let words = if vocabulary.is_null() {
+            &empty
+        } else {
+            match vocabulary_of(vocabulary) {
+                Some(words) => words,
+                None => return CHDEF_ERR_HANDLE,
+            }
+        };
+
+        let ch_text = match borrow_str(ch, ch_len) {
+            None => return CHDEF_ERR_NULL,
+            Some(Err(())) => {
+                write_text("the CH definition is not UTF-8", err_buf, err_cap);
+                return CHDEF_ERR_UTF8;
+            }
+            Some(Ok(text)) => text,
+        };
+        let bf_text = match borrow_str(bf, bf_len) {
+            None => "",
+            Some(Err(())) => {
+                write_text("the BF definition is not UTF-8", err_buf, err_cap);
+                return CHDEF_ERR_UTF8;
+            }
+            Some(Ok(text)) => text,
+        };
+
+        let channels = match chdef::parse_ch_csv_with(ch_text, words) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                write_text(&e.to_string(), err_buf, err_cap);
+                return status_of(&e);
+            }
+        };
+        let bitfields = match chdef::parse_bf_csv_with(bf_text, words) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                write_text(&e.to_string(), err_buf, err_cap);
+                return status_of(&e);
+            }
+        };
+
+        let built = build_layout(channels.value, bitfields.value);
+        let mut issues = channels.issues;
+        issues.extend(bitfields.issues);
+        issues.extend(built.issues);
+
+        *out_layout = Box::into_raw(Box::new(ChdefLayout {
+            tag: LAYOUT_TAG,
+            layout: built.value,
+        }));
+        *out_issues = into_issues(issues);
+        CHDEF_OK
     })
 }

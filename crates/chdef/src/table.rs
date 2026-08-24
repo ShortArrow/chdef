@@ -8,7 +8,7 @@
 //! views, interpreted again after each edit.
 
 use crate::channel::{BitFieldDef, ChannelDef};
-use crate::columns::{BfColumn, ChColumn, ColumnAliases, ColumnMap, HeaderLanguage};
+use crate::columns::{BfColumn, ChColumn, ColumnMap, ColumnVocabulary};
 use crate::csv::{decode_utf8, interpret_bf, interpret_ch, is_blank, is_comment};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
@@ -432,18 +432,18 @@ impl ChTable {
     /// `docs/spec/format.md` §2 defines. Only a structurally broken file
     /// fails; everything interpretable-or-not is kept as cells.
     pub fn parse(content: &str) -> Result<ChTable> {
-        ChTable::parse_with(content, &ColumnAliases::new())
+        ChTable::parse_with(content, &ColumnVocabulary::new())
     }
 
     /// [`parse`](ChTable::parse), also accepting the header spellings this
-    /// reader was taught ([`ColumnAliases`]).
-    pub fn parse_with(content: &str, aliases: &ColumnAliases) -> Result<ChTable> {
+    /// reader was taught ([`ColumnVocabulary`]).
+    pub fn parse_with(content: &str, vocabulary: &ColumnVocabulary) -> Result<ChTable> {
         let mut map = None;
         let grid = Grid::split(content, |records| {
             map = records.first().and_then(|first| {
                 ColumnMap::ch_from_header(
                     &first.iter().map(String::as_str).collect::<Vec<_>>(),
-                    aliases,
+                    vocabulary,
                 )
             });
             map.is_some()
@@ -456,32 +456,37 @@ impl ChTable {
 
     /// [`parse`](ChTable::parse) after stripping BOMs and decoding UTF-8.
     pub fn parse_bytes(bytes: &[u8]) -> Result<ChTable> {
-        ChTable::parse_bytes_with(bytes, &ColumnAliases::new())
+        ChTable::parse_bytes_with(bytes, &ColumnVocabulary::new())
     }
 
     /// [`parse_with`](ChTable::parse_with) after stripping BOMs and
     /// decoding UTF-8.
-    pub fn parse_bytes_with(bytes: &[u8], aliases: &ColumnAliases) -> Result<ChTable> {
-        ChTable::parse_with(decode_utf8(bytes)?, aliases)
+    pub fn parse_bytes_with(bytes: &[u8], vocabulary: &ColumnVocabulary) -> Result<ChTable> {
+        ChTable::parse_with(decode_utf8(bytes)?, vocabulary)
     }
 
-    /// An empty table with the canonical columns, spelled in English —
-    /// `with_columns(ChColumn::canonical(), HeaderLanguage::En)`.
+    /// An empty table with the canonical columns under their canonical
+    /// names — `with_columns(ChColumn::canonical(), &ColumnVocabulary::new())`.
     pub fn new() -> ChTable {
-        ChTable::with_columns(ChColumn::canonical(), HeaderLanguage::En)
+        ChTable::with_columns(ChColumn::canonical(), &ColumnVocabulary::new())
     }
 
     /// An empty table whose header names `columns`, in that order, in that
-    /// language (ADR-0003). A column the header omits is one
+    /// vocabulary (ADR-0024). A column the header omits is one
     /// [`insert_channel`](ChTable::insert_channel) drops and
     /// [`channels`](ChTable::channels) reads as unspecified.
     ///
     /// A header that does not name `number` is not read back as a header at
     /// all (`docs/spec/format.md` §2), so a file written from one is read
     /// positionally.
-    pub fn with_columns(columns: &[ChColumn], language: HeaderLanguage) -> ChTable {
+    pub fn with_columns(columns: &[ChColumn], vocabulary: &ColumnVocabulary) -> ChTable {
         ChTable {
-            grid: Grid::with_header(columns.iter().map(|c| c.name(language).into()).collect()),
+            grid: Grid::with_header(
+                columns
+                    .iter()
+                    .map(|c| vocabulary.ch_spelling(*c).to_string())
+                    .collect(),
+            ),
             map: ColumnMap::in_order(columns),
         }
     }
@@ -601,18 +606,18 @@ pub struct BfTable {
 impl BfTable {
     /// Parse CSV text. Only a structurally broken file fails.
     pub fn parse(content: &str) -> Result<BfTable> {
-        BfTable::parse_with(content, &ColumnAliases::new())
+        BfTable::parse_with(content, &ColumnVocabulary::new())
     }
 
     /// [`parse`](BfTable::parse), also accepting the header spellings this
-    /// reader was taught ([`ColumnAliases`]).
-    pub fn parse_with(content: &str, aliases: &ColumnAliases) -> Result<BfTable> {
+    /// reader was taught ([`ColumnVocabulary`]).
+    pub fn parse_with(content: &str, vocabulary: &ColumnVocabulary) -> Result<BfTable> {
         let mut map = None;
         let grid = Grid::split(content, |records| {
             map = records.first().and_then(|first| {
                 ColumnMap::bf_from_header(
                     &first.iter().map(String::as_str).collect::<Vec<_>>(),
-                    aliases,
+                    vocabulary,
                 )
             });
             map.is_some()
@@ -625,26 +630,31 @@ impl BfTable {
 
     /// [`parse`](BfTable::parse) after stripping BOMs and decoding UTF-8.
     pub fn parse_bytes(bytes: &[u8]) -> Result<BfTable> {
-        BfTable::parse_bytes_with(bytes, &ColumnAliases::new())
+        BfTable::parse_bytes_with(bytes, &ColumnVocabulary::new())
     }
 
     /// [`parse_with`](BfTable::parse_with) after stripping BOMs and
     /// decoding UTF-8.
-    pub fn parse_bytes_with(bytes: &[u8], aliases: &ColumnAliases) -> Result<BfTable> {
-        BfTable::parse_with(decode_utf8(bytes)?, aliases)
+    pub fn parse_bytes_with(bytes: &[u8], vocabulary: &ColumnVocabulary) -> Result<BfTable> {
+        BfTable::parse_with(decode_utf8(bytes)?, vocabulary)
     }
 
-    /// An empty table with the canonical columns, spelled in English —
-    /// `with_columns(BfColumn::canonical(), HeaderLanguage::En)`.
+    /// An empty table with the canonical columns under their canonical
+    /// names — `with_columns(BfColumn::canonical(), &ColumnVocabulary::new())`.
     pub fn new() -> BfTable {
-        BfTable::with_columns(BfColumn::canonical(), HeaderLanguage::En)
+        BfTable::with_columns(BfColumn::canonical(), &ColumnVocabulary::new())
     }
 
     /// An empty table whose header names `columns`, in that order, in that
-    /// language (ADR-0003). See [`ChTable::with_columns`].
-    pub fn with_columns(columns: &[BfColumn], language: HeaderLanguage) -> BfTable {
+    /// vocabulary (ADR-0024). See [`ChTable::with_columns`].
+    pub fn with_columns(columns: &[BfColumn], vocabulary: &ColumnVocabulary) -> BfTable {
         BfTable {
-            grid: Grid::with_header(columns.iter().map(|c| c.name(language).into()).collect()),
+            grid: Grid::with_header(
+                columns
+                    .iter()
+                    .map(|c| vocabulary.bf_spelling(*c).to_string())
+                    .collect(),
+            ),
             map: ColumnMap::in_order(columns),
         }
     }

@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./abi.jp.md)
 
-Implemented (0.0.5): everything below — the layout, the conversions, the
+Implemented (0.0.6): everything below — the layout, the conversions, the
 named bits, the grid, the value notation and the diagnostics, through the
 C ABI of `chdef-capi` and the .NET binding built on it. TypeScript is not
 implemented.
@@ -23,6 +23,7 @@ of a rule that has one home:
 | BF default merging, named bits of a reading | [conversion.md](./conversion.md) §4, §6 | the bit calls |
 | Which of the two a reading shows, and its text | [conversion.md](./conversion.md) §7 | the reading calls |
 | `0x` is raw, anything else is physical | [format.md](./format.md) §3 | the value-notation call |
+| Which header spelling denotes which column | [format.md](./format.md) §2 | the vocabulary calls |
 | The file as cells, and writing it back unchanged | [editing.md](./editing.md) | the grid calls |
 | Codes, messages, the row and column they point at | [diagnostics.md](./diagnostics.md) | the diagnostics calls |
 
@@ -78,6 +79,10 @@ Six groups, named after what they carry:
   cell, set a cell, insert / append / remove a row, write the file back.
 - **Value notation** — read the text form of a value into the value it
   denotes.
+- **Vocabulary** — the canonical column names, and a vocabulary built from
+  them that a parse reads its headers with. A column crosses as its
+  canonical **name**, not a number, so adding one to the format is not an
+  ABI break.
 - **Diagnostics** — the count, the numbers and the text of each finding.
 
 A frame's bits are decoded in one pass, not one call per bit: the count

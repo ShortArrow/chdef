@@ -1,64 +1,105 @@
-//! Columns of the CH / BF CSVs, independent of the language their header is
-//! spelled in. Every column has an English and a Japanese canonical spelling
-//! plus aliases; header cells are matched case-insensitively after trimming.
+//! Columns of the CH / BF CSVs. A column has one canonical name, and
+//! every other spelling a header may use belongs to a
+//! [`ColumnVocabulary`] the caller supplies (`docs/spec/format.md` §2).
 
-/// Which of a column's two canonical spellings to write. A file chdef
-/// creates uses one of these throughout; a file it reads keeps whatever
-/// spellings it had, mixed languages included
-/// (`docs/spec/format.md` §2).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-pub enum HeaderLanguage {
-    /// Lower-case ASCII: `number`, `bytes`, … — the default for a new file.
-    #[default]
-    En,
-    /// The original Japanese form: `番号`, `バイト数`, ….
-    Ja,
-}
-
-/// Spellings one reader accepts on top of the ones
-/// `docs/spec/format.md` §2 defines, for files whose headers word a column
-/// their own way.
+/// The spellings one caller accepts for the columns of a CH / BF CSV, and
+/// the spelling it writes for each.
 ///
-/// An alias only ever **adds** a spelling. A canonical spelling and a
-/// documented alias always denote the column the specification says they
-/// do — teaching `number` to mean something else does nothing — and no
-/// alias reaches the writer: a file keeps the header it was read with, and
-/// a file chdef creates uses the canonical spellings. The golden vectors
-/// of `docs/spec/interchange.md` §3 never use one either, so what an
-/// implementation must do to conform is unchanged by anything a consumer
-/// teaches its own reader.
+/// A vocabulary is **data**, not a language chdef knows: chdef ships
+/// [`japanese`](ColumnVocabulary::japanese) because the format was
+/// extracted from files that use those spellings, and it has no standing
+/// one built here lacks (ADR-0024).
+///
+/// Two rules keep the format a format whatever a caller teaches. A
+/// vocabulary only **adds**: cells are matched against the canonical names
+/// and their variants first, so teaching `number` to mean something else
+/// does nothing. And no vocabulary appears in the golden vectors of
+/// `docs/spec/interchange.md` §3, so conformance is defined without one.
 #[derive(Debug, Clone, Default)]
-pub struct ColumnAliases {
+pub struct ColumnVocabulary {
     ch: Vec<(String, ChColumn)>,
     bf: Vec<(String, BfColumn)>,
 }
 
-impl ColumnAliases {
-    /// No aliases: the canonical vocabulary alone.
-    pub fn new() -> ColumnAliases {
-        ColumnAliases::default()
+impl ColumnVocabulary {
+    /// The empty vocabulary: canonical names and their variants alone.
+    pub fn new() -> ColumnVocabulary {
+        ColumnVocabulary::default()
     }
 
-    /// Accept `spelling` as a name for a CH column, matched trimmed and
-    /// case-insensitively like every other spelling. Teaching the same
-    /// spelling twice keeps the last.
-    pub fn ch(mut self, spelling: &str, column: ChColumn) -> ColumnAliases {
-        let key = spelling.trim().to_lowercase();
-        self.ch.retain(|(k, _)| *k != key);
-        self.ch.push((key, column));
+    /// The spellings of the definition files this format was extracted
+    /// from, listed in `docs/spec/format.md` §2.
+    pub fn japanese() -> ColumnVocabulary {
+        ColumnVocabulary::new()
+            .ch("番号", ChColumn::Number)
+            .ch("バイト数", ChColumn::Bytes)
+            .ch("ビット数", ChColumn::Bits)
+            .ch("セクション名", ChColumn::Section)
+            .ch("メッセージ名称", ChColumn::Name)
+            .ch("信号名称", ChColumn::Name)
+            .ch("型", ChColumn::Type)
+            .ch("データ型", ChColumn::Type)
+            .ch("LSB", ChColumn::Lsb)
+            .ch("スケール", ChColumn::Lsb)
+            .ch("オフセット", ChColumn::Offset)
+            .ch("基準値", ChColumn::Offset)
+            .ch("単位", ChColumn::Unit)
+            .ch("値(最小)", ChColumn::Min)
+            .ch("最小値", ChColumn::Min)
+            .ch("値(最大)", ChColumn::Max)
+            .ch("最大値", ChColumn::Max)
+            .ch("値(デフォルト)", ChColumn::Default)
+            .ch("デフォルト値", ChColumn::Default)
+            .ch("備考", ChColumn::Memo)
+            .ch("変数名", ChColumn::Var)
+            .ch("表示形式", ChColumn::Format)
+            .ch("お気に入り", ChColumn::Favorite)
+            .bf("番号", BfColumn::Number)
+            .bf("BIT番号", BfColumn::Bit)
+            .bf("メッセージ名称", BfColumn::Name)
+            .bf("信号名称", BfColumn::Name)
+            .bf("値(デフォルト)", BfColumn::Default)
+            .bf("デフォルト値", BfColumn::Default)
+            .bf("備考", BfColumn::Memo)
+    }
+
+    /// Teach a spelling for a CH column. The **first** spelling taught for
+    /// a column is the one a file created with this vocabulary is written
+    /// with; every one taught is accepted when reading, trimmed and
+    /// case-insensitively.
+    pub fn ch(mut self, spelling: &str, column: ChColumn) -> ColumnVocabulary {
+        self.ch.push((spelling.to_string(), column));
         self
     }
 
-    /// Accept `spelling` as a name for a BF column. See [`ch`](Self::ch).
-    pub fn bf(mut self, spelling: &str, column: BfColumn) -> ColumnAliases {
-        let key = spelling.trim().to_lowercase();
-        self.bf.retain(|(k, _)| *k != key);
-        self.bf.push((key, column));
+    /// Teach a spelling for a BF column. See [`ch`](Self::ch).
+    pub fn bf(mut self, spelling: &str, column: BfColumn) -> ColumnVocabulary {
+        self.bf.push((spelling.to_string(), column));
         self
+    }
+
+    /// This vocabulary, then everything `other` teaches. Where both name
+    /// the same spelling or the same column, this one wins.
+    pub fn with(mut self, other: &ColumnVocabulary) -> ColumnVocabulary {
+        self.ch.extend(other.ch.iter().cloned());
+        self.bf.extend(other.bf.iter().cloned());
+        self
+    }
+
+    /// The spelling this vocabulary writes for a CH column: the first it
+    /// was taught, or the canonical name when it was taught none.
+    pub fn ch_spelling(&self, column: ChColumn) -> &str {
+        Self::written(&self.ch, column).unwrap_or_else(|| column.name())
+    }
+
+    /// The spelling this vocabulary writes for a BF column. See
+    /// [`ch_spelling`](Self::ch_spelling).
+    pub fn bf_spelling(&self, column: BfColumn) -> &str {
+        Self::written(&self.bf, column).unwrap_or_else(|| column.name())
     }
 
     /// The CH column a header cell denotes: what the specification says,
-    /// and only if it says nothing, what this reader was taught.
+    /// and only if it says nothing, what this vocabulary teaches.
     pub(crate) fn ch_column(&self, cell: &str) -> Option<ChColumn> {
         ChColumn::from_header(cell).or_else(|| Self::taught(&self.ch, cell))
     }
@@ -68,14 +109,26 @@ impl ColumnAliases {
         BfColumn::from_header(cell).or_else(|| Self::taught(&self.bf, cell))
     }
 
+    fn written<C: Copy + PartialEq>(table: &[(String, C)], column: C) -> Option<&str> {
+        table
+            .iter()
+            .find(|(_, c)| *c == column)
+            .map(|(spelling, _)| spelling.as_str())
+    }
+
     fn taught<C: Copy>(table: &[(String, C)], cell: &str) -> Option<C> {
         let cell = cell.trim().to_lowercase();
         table
             .iter()
-            .rev()
-            .find(|(spelling, _)| *spelling == cell)
+            .find(|(spelling, _)| spelling.trim().to_lowercase() == cell)
             .map(|(_, column)| *column)
     }
+}
+
+/// Whether a header cell denotes `column`, by the canonical name or one of
+/// its variants. Trimmed and matched case-insensitively.
+fn denotes(cell: &str, name: &str, variants: &[&str]) -> bool {
+    name.to_lowercase() == cell || variants.iter().any(|v| v.to_lowercase() == cell)
 }
 
 /// A column of a CH CSV.
@@ -112,11 +165,43 @@ impl ChColumn {
         &Self::POSITIONAL
     }
 
-    /// The canonical spelling of this column in the given language.
-    pub fn name(self, lang: HeaderLanguage) -> &'static str {
-        match lang {
-            HeaderLanguage::En => self.spellings()[0],
-            HeaderLanguage::Ja => self.spellings()[1],
+    /// The canonical name of this column — its identity throughout the
+    /// specification and this crate.
+    pub fn name(self) -> &'static str {
+        match self {
+            ChColumn::Number => "number",
+            ChColumn::Bytes => "bytes",
+            ChColumn::Bits => "bits",
+            ChColumn::Section => "section",
+            ChColumn::Name => "name",
+            ChColumn::Type => "type",
+            ChColumn::Lsb => "lsb",
+            ChColumn::Offset => "offset",
+            ChColumn::Unit => "unit",
+            ChColumn::Min => "min",
+            ChColumn::Max => "max",
+            ChColumn::Default => "default",
+            ChColumn::Memo => "memo",
+            ChColumn::Var => "var",
+            ChColumn::Format => "format",
+            ChColumn::Favorite => "favorite",
+        }
+    }
+
+    /// The other spellings of the canonical name itself, recognised with
+    /// no vocabulary at all (`docs/spec/format.md` §3).
+    pub fn variants(self) -> &'static [&'static str] {
+        match self {
+            ChColumn::Number => &["no", "ch", "chnumber"],
+            ChColumn::Name => &["signalname"],
+            ChColumn::Type => &["datatype"],
+            ChColumn::Lsb => &["scale"],
+            ChColumn::Default => &["defaultvalue"],
+            ChColumn::Memo => &["description"],
+            ChColumn::Var => &["variable"],
+            ChColumn::Format => &["displayformat"],
+            ChColumn::Favorite => &["isfavorite"],
+            _ => &[],
         }
     }
 
@@ -151,36 +236,14 @@ impl ChColumn {
         ChColumn::Unit,
     ];
 
-    /// English canonical, Japanese canonical, then aliases.
-    fn spellings(self) -> &'static [&'static str] {
-        match self {
-            ChColumn::Number => &["number", "番号", "no", "ch", "chnumber"],
-            ChColumn::Bytes => &["bytes", "バイト数"],
-            ChColumn::Bits => &["bits", "ビット数"],
-            ChColumn::Section => &["section", "セクション名"],
-            ChColumn::Name => &["name", "メッセージ名称", "signalname", "信号名称"],
-            ChColumn::Type => &["type", "型", "datatype", "データ型"],
-            ChColumn::Lsb => &["lsb", "LSB", "scale", "スケール"],
-            ChColumn::Offset => &["offset", "オフセット", "基準値"],
-            ChColumn::Unit => &["unit", "単位"],
-            ChColumn::Min => &["min", "値(最小)", "最小値"],
-            ChColumn::Max => &["max", "値(最大)", "最大値"],
-            ChColumn::Default => &["default", "値(デフォルト)", "デフォルト値", "defaultvalue"],
-            ChColumn::Memo => &["memo", "備考", "description"],
-            ChColumn::Var => &["var", "変数名", "variable"],
-            ChColumn::Format => &["format", "表示形式", "displayformat"],
-            ChColumn::Favorite => &["favorite", "お気に入り", "isfavorite"],
-        }
-    }
-
-    /// The column a header cell denotes, if any. Cells are trimmed and
-    /// matched case-insensitively against both canonical spellings and the
-    /// aliases (`docs/spec/format.md` §2).
+    /// The column a header cell denotes, if any: the canonical name or
+    /// one of its variants (`docs/spec/format.md` §2). A spelling beyond
+    /// these belongs to a [`ColumnVocabulary`].
     pub fn from_header(cell: &str) -> Option<ChColumn> {
         let cell = cell.trim().to_lowercase();
         ChColumn::CANONICAL
             .into_iter()
-            .find(|c| c.spellings().iter().any(|s| s.to_lowercase() == cell))
+            .find(|c| denotes(&cell, c.name(), c.variants()))
     }
 }
 
@@ -201,11 +264,26 @@ impl BfColumn {
         &Self::CANONICAL
     }
 
-    /// The canonical spelling of this column in the given language.
-    pub fn name(self, lang: HeaderLanguage) -> &'static str {
-        match lang {
-            HeaderLanguage::En => self.spellings()[0],
-            HeaderLanguage::Ja => self.spellings()[1],
+    /// The canonical name of this column — its identity throughout the
+    /// specification and this crate.
+    pub fn name(self) -> &'static str {
+        match self {
+            BfColumn::Number => "number",
+            BfColumn::Bit => "bit",
+            BfColumn::Name => "name",
+            BfColumn::Default => "default",
+            BfColumn::Memo => "memo",
+        }
+    }
+
+    /// The other spellings of the canonical name itself, recognised with
+    /// no vocabulary at all (`docs/spec/format.md` §4).
+    pub fn variants(self) -> &'static [&'static str] {
+        match self {
+            BfColumn::Number => &["no", "ch"],
+            BfColumn::Bit => &["bitnumber"],
+            BfColumn::Name => &["signalname"],
+            _ => &[],
         }
     }
 
@@ -217,24 +295,13 @@ impl BfColumn {
         BfColumn::Memo,
     ];
 
-    fn spellings(self) -> &'static [&'static str] {
-        match self {
-            BfColumn::Number => &["number", "番号", "no", "ch"],
-            BfColumn::Bit => &["bit", "BIT番号", "bitnumber"],
-            BfColumn::Name => &["name", "メッセージ名称", "signalname", "信号名称"],
-            BfColumn::Default => &["default", "値(デフォルト)", "デフォルト値"],
-            BfColumn::Memo => &["memo", "備考"],
-        }
-    }
-
-    /// The column a header cell denotes, if any. Cells are trimmed and
-    /// matched case-insensitively against both canonical spellings and the
-    /// aliases (`docs/spec/format.md` §2).
+    /// The column a header cell denotes, if any. See
+    /// [`ChColumn::from_header`].
     pub fn from_header(cell: &str) -> Option<BfColumn> {
         let cell = cell.trim().to_lowercase();
         BfColumn::CANONICAL
             .into_iter()
-            .find(|c| c.spellings().iter().any(|s| s.to_lowercase() == cell))
+            .find(|c| denotes(&cell, c.name(), c.variants()))
     }
 }
 
@@ -268,11 +335,11 @@ impl<C: Copy + PartialEq> ColumnMap<C> {
 }
 
 impl ColumnMap<ChColumn> {
-    /// Identify CH columns from a header row, by the spellings the
-    /// specification defines and any the reader was taught. `None` when the
+    /// Identify CH columns from a header row, by the canonical
+    /// names and variants and any spelling the vocabulary teaches. `None` when the
     /// row holds no `number` column, i.e. it is not a header.
-    pub fn ch_from_header(cells: &[&str], aliases: &ColumnAliases) -> Option<Self> {
-        let map = Self::from_cells(cells, |cell| aliases.ch_column(cell));
+    pub fn ch_from_header(cells: &[&str], vocabulary: &ColumnVocabulary) -> Option<Self> {
+        let map = Self::from_cells(cells, |cell| vocabulary.ch_column(cell));
         map.position(ChColumn::Number).map(|_| map)
     }
 
@@ -292,8 +359,8 @@ impl ColumnMap<ChColumn> {
 impl ColumnMap<BfColumn> {
     /// Identify BF columns from a header row. See
     /// [`ch_from_header`](ColumnMap::ch_from_header).
-    pub fn bf_from_header(cells: &[&str], aliases: &ColumnAliases) -> Option<Self> {
-        let map = Self::from_cells(cells, |cell| aliases.bf_column(cell));
+    pub fn bf_from_header(cells: &[&str], vocabulary: &ColumnVocabulary) -> Option<Self> {
+        let map = Self::from_cells(cells, |cell| vocabulary.bf_column(cell));
         map.position(BfColumn::Number).map(|_| map)
     }
 
@@ -329,31 +396,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn english_and_japanese_spellings_denote_the_same_column() {
+    fn a_canonical_name_and_its_variants_denote_the_same_column() {
         assert_eq!(ChColumn::from_header("number"), Some(ChColumn::Number));
-        assert_eq!(ChColumn::from_header("番号"), Some(ChColumn::Number));
+        assert_eq!(ChColumn::from_header("ChNumber"), Some(ChColumn::Number));
         assert_eq!(ChColumn::from_header(" Default "), Some(ChColumn::Default));
-        assert_eq!(
-            ChColumn::from_header("値(デフォルト)"),
-            Some(ChColumn::Default)
-        );
         assert_eq!(
             ChColumn::from_header("DisplayFormat"),
             Some(ChColumn::Format)
         );
         assert_eq!(ChColumn::from_header("unknown"), None);
-        assert_eq!(BfColumn::from_header("BIT番号"), Some(BfColumn::Bit));
         assert_eq!(BfColumn::from_header("bit"), Some(BfColumn::Bit));
+        assert_eq!(BfColumn::from_header("BitNumber"), Some(BfColumn::Bit));
     }
 
     #[test]
-    fn canonical_names_round_trip_in_both_languages() {
-        for lang in [HeaderLanguage::En, HeaderLanguage::Ja] {
-            for c in ChColumn::CANONICAL {
-                assert_eq!(ChColumn::from_header(c.name(lang)), Some(c));
+    fn a_spelling_of_no_vocabulary_denotes_nothing_on_its_own() {
+        // ADR-0024: Japanese is a vocabulary, so it is not recognised until
+        // one is asked for.
+        assert_eq!(ChColumn::from_header("番号"), None);
+        assert_eq!(BfColumn::from_header("BIT番号"), None);
+        assert_eq!(
+            ColumnVocabulary::japanese().ch_column("番号"),
+            Some(ChColumn::Number)
+        );
+        assert_eq!(
+            ColumnVocabulary::japanese().bf_column("BIT番号"),
+            Some(BfColumn::Bit)
+        );
+    }
+
+    #[test]
+    fn every_canonical_name_and_variant_round_trips() {
+        for c in ChColumn::CANONICAL {
+            assert_eq!(ChColumn::from_header(c.name()), Some(c), "{c:?}");
+            for variant in c.variants() {
+                assert_eq!(ChColumn::from_header(variant), Some(c), "{variant}");
             }
-            for c in BfColumn::CANONICAL {
-                assert_eq!(BfColumn::from_header(c.name(lang)), Some(c));
+        }
+        for c in BfColumn::CANONICAL {
+            assert_eq!(BfColumn::from_header(c.name()), Some(c), "{c:?}");
+            for variant in c.variants() {
+                assert_eq!(BfColumn::from_header(variant), Some(c), "{variant}");
             }
         }
     }
@@ -362,7 +445,7 @@ mod tests {
     fn header_map_locates_columns_wherever_they_are() {
         let map = ColumnMap::ch_from_header(
             &["name", "number", "default", "extra"],
-            &ColumnAliases::new(),
+            &ColumnVocabulary::new(),
         )
         .unwrap();
         assert_eq!(map.position(ChColumn::Number), Some(1));
@@ -374,10 +457,11 @@ mod tests {
     #[test]
     fn a_row_without_number_column_is_not_a_header() {
         assert!(
-            ColumnMap::ch_from_header(&["1", "4", "", "General"], &ColumnAliases::new()).is_none()
+            ColumnMap::ch_from_header(&["1", "4", "", "General"], &ColumnVocabulary::new())
+                .is_none()
         );
         assert!(
-            ColumnMap::bf_from_header(&["2", "0", "Reserved"], &ColumnAliases::new()).is_none()
+            ColumnMap::bf_from_header(&["2", "0", "Reserved"], &ColumnVocabulary::new()).is_none()
         );
         let positional = ColumnMap::ch_positional();
         assert!(positional.assumed);
@@ -387,8 +471,8 @@ mod tests {
 
     #[test]
     fn duplicate_header_names_keep_the_first_position() {
-        let map =
-            ColumnMap::ch_from_header(&["number", "name", "name"], &ColumnAliases::new()).unwrap();
+        let map = ColumnMap::ch_from_header(&["number", "name", "name"], &ColumnVocabulary::new())
+            .unwrap();
         assert_eq!(map.position(ChColumn::Name), Some(1));
     }
 }

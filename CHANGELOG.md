@@ -9,6 +9,43 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.6] - 2026-08-25
+
+### Breaking
+- **Japanese header spellings are no longer read by default.** A column
+  has one canonical name and every other spelling belongs to a
+  `ColumnVocabulary` the caller supplies; reading with none recognises the
+  canonical names and their English variants alone. A file with Japanese
+  headers is read by passing `ColumnVocabulary::japanese()` —
+  `parse_ch_csv_with`, `ChTable::parse_with`, or `Definitions.Parse(ch, bf,
+  vocabulary)` on the .NET side.
+- `ColumnAliases` and `HeaderLanguage` are gone, replaced by
+  `ColumnVocabulary`. `ChColumn::name(lang)` is `ChColumn::name()`, and
+  `with_columns(columns, language)` is `with_columns(columns,
+  &vocabulary)`.
+- `CHDEF_ABI_VERSION` is `3`.
+
+### Added
+- `ColumnVocabulary`: spellings to columns for reading, and the spelling
+  to write for each — the **first** taught for a column is the one
+  written, so a vocabulary that reads a header can also write it.
+  `ColumnVocabulary::japanese()` is one such value and has no standing a
+  caller-built one lacks; `with` composes two.
+- `parse_ch_csv_with`, `parse_bf_csv_with`, `parse_ch_csv_bytes_with`,
+  `parse_bf_csv_bytes_with`, `load_ch_csv_with`, `load_bf_csv_with`.
+- `ChColumn::variants()` / `BfColumn::variants()`: the other spellings of
+  the canonical name itself, recognised with no vocabulary.
+- The vocabulary crosses the C ABI and the .NET binding
+  (`chdef_vocabulary_new` / `_japanese` / `_teach` / `_free`,
+  `chdef_layout_parse_with`; the `ColumnVocabulary` class). A column
+  crosses as its canonical **name**, so adding one to the format is not an
+  ABI break — `chdef_column_count` and `chdef_column_name` report them.
+
+### Changed
+- `docs/spec/format.md` §2 is rewritten around the vocabulary, and prints
+  the Japanese one as a table where it is visibly one vocabulary rather
+  than half the mechanism.
+
 ## [0.0.5] - 2026-08-24
 
 ### Added
