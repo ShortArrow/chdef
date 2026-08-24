@@ -52,7 +52,10 @@ a consumer must vendor by hand is most of the same problem.
   beside it. This is the decision that makes the whole exercise land.
 - **A NuGet package carries the native binaries** under
   `runtimes/<rid>/native/`, so a consumer writes `dotnet add package` and
-  nothing else.
+  nothing else. Each one is built on a runner of its own OS and
+  architecture (`linux-x64`, `win-x64`, `osx-arm64`, `osx-x64`):
+  cross-building a cdylib needs the target platform's linker, and a native
+  runner is both simpler and closer to what ships.
 - **It is published the way the crate is: OIDC trusted publishing**, no
   long-lived secret in this repository. The .NET side follows the layout
   ivi-cli settled on — `global.json` pinning the SDK, a repository-level
