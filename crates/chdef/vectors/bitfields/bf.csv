@@ -1,0 +1,4 @@
+number,bit,name,default,memo
+1,0,alive,,left as the channel default has it
+1,2,fault,0,cleared by this row
+1,7,ready,1,set by this row

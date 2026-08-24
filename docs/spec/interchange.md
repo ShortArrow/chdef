@@ -56,23 +56,39 @@ The cross-language contract. Each set lives in
 `crates/chdef/vectors/<name>/` as `ch.csv` / `bf.csv` / `vectors.txt` — inside
 the package, so the published crate carries them — and the tests of every
 language read the same files. No real-device definitions (all synthetic).
-A set's own definitions must load without Issues.
 
 Format of `vectors.txt` (`#` is a comment, blank lines are ignored):
 
 ```
+# B <little|big>                   : byte order of the lines that follow (little until said otherwise)
 # E <n=value;...> <wire hex>       : frame encoded from the values. Unlisted channels use their default, else 0. '-' means all defaults
 # D <wire hex>  <n=raw/value;...>  : raw and physical values decoded from the frame. A short frame drops overrunning channels
+# F <wire hex>  <n:bit=0|1;...>    : the value of named bits inside a decoded BF channel
 # L <total_bytes> <n:at:bytes;...> : layout
+# P <ch|bf|layout> <code:row;...>  : the Issues that source produces. '-' for none, and '-' as the row for an Issue that carries none
+L 13 1:0:4;2:4:2;3:6:1;4:7:2;5:9:4
+B little
 E 1=1;2=5;3=2;4=-12.3;5=1.5 0100000005000285ffdc050000
 E - 00000000010000000000000000
 D 0100000005000285ffdc050000 1=1/1.0;2=5/5.0;3=2/2.0;4=65413/-12.3;5=1500/1.5
 D 0100000005000285ff 1=1/1.0;2=5/5.0;3=2/2.0;4=65413/-12.3
-L 13 1:0:4;2:4:2;3:6:1;4:7:2;5:9:4
+F 00000000010000000000000000 2:0=1
+P ch -
 ```
 
 - Values in `E` are physical values; with the `0x` prefix they are raw —
   the notation of [format.md §3](./format.md#3-ch-csv), read by
   `Value::parse`.
-- Physical values compare with a tolerance of 1e-9.
+- Physical values compare within 1e-9 relative to the expected magnitude,
+  so a wide channel is compared at its own scale.
+- A `P` line states which Issues a source produces and how many of each; a
+  repeated Issue is not deduplicated ([diagnostics.md §1](./diagnostics.md)),
+  but the order they arrive in is unspecified and is not contracted. A
+  source with no `P` line must produce no Issues.
 - Every vector set has at least one `E`, one `D` and one `L` line.
+
+The sets in this repository: `basic` (the example above), `widths` (all
+eight legal widths at both byte orders, at the boundaries §2 clamps to),
+`scaling` (non-zero `lsb` and `offset` on every channel), `bitfields` (the
+default merging of §4 and the named bits of §6) and `diagnostics` (a
+definition set that is wrong on purpose, contracted by its `P` lines).

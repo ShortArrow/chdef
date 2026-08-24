@@ -55,6 +55,12 @@ tag, published to crates.io.
 - `ChannelLayout::decode` / `channel_bytes` (`conversion.md` §6): slice a
   frame into per-channel bytes with raw and physical readings under the
   layout's `endian`; a channel that overruns a short frame is omitted.
+- Golden vector sets `widths`, `scaling`, `bitfields` and `diagnostics`,
+  and the `B` (byte order), `F` (BF bit values) and `P` (expected Issues)
+  lines the last three needed. The contract now covers all eight legal
+  widths, both byte orders, non-zero `lsb` / `offset`, the BF default
+  merge, and the Issues a broken definition set produces — the areas the
+  first set was blind to, one of which hid the width defect above.
 - Golden vectors (`crates/chdef/vectors/`, `interchange.md` §3, ADR-0013):
   the cross-language contract as `ch.csv` / `bf.csv` / `vectors.txt` per set,
   shipped inside the package, with a harness that runs every set and names

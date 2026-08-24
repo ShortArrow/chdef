@@ -1,0 +1,3 @@
+number,bytes,type,name,lsb,default,format
+1,2,BF,flags,1,0x0005,HEX
+2,1,UI,count,1,,DEC

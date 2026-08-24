@@ -1,0 +1,25 @@
+# conversion.md §4: the channel default with each BF row's bit folded in —
+# 1 sets, 0 clears, unspecified keeps the channel default's bit.
+# Channel 1 defaults to 0x0005 (bits 0 and 2 set); bit 0 is unspecified so
+# it stays 1, bit 2 is cleared, bit 7 is set: 0x0081.
+
+L 3 1:0:2;2:2:1
+
+B little
+
+E - 810000
+
+F 810000 1:0=1;1:2=0;1:7=1
+
+D 810000 1=129/129;2=0/0
+
+# A value given for the channel replaces the merged default outright.
+E 1=0x0004 040000
+
+F 040000 1:0=0;1:2=1;1:7=0
+
+B big
+
+E - 008100
+
+D 008100 1=129/129;2=0/0

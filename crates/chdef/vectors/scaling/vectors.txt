@@ -1,0 +1,26 @@
+# The `+ offset` and `× lsb` terms of conversion.md §1's formula, and the
+# `(value − offset) ÷ lsb` of §2. Every channel here scales and shifts.
+
+L 5 1:0:2;2:2:2;3:4:1
+
+B little
+
+# Each channel at its own offset: the raw value is 0 for all three.
+E 1=-40;2=100;3=-1 0000000000
+
+# temperature 0 degC  -> raw 400  (0 − (−40)) ÷ 0.1
+# pressure    200 kPa -> raw 200  (200 − 100) ÷ 0.5
+# delta       9       -> raw 5    (9 − (−1)) ÷ 2
+E 1=0;2=200;3=9 9001c80005
+
+D 9001c80005 1=400/0;2=200/200;3=5/9
+
+# Reading back the physical values of the all-defaults frame gives each
+# channel's offset, not zero.
+D 0000000000 1=0/-40;2=0/100;3=0/-1
+
+# A raw value bypasses lsb and offset entirely (conversion.md §3).
+E 1=0x0190 9001000000
+
+# Half away from zero (§2): raw 3 needs (v + 1) ÷ 2 = 2.5.
+E 3=4 0000000003

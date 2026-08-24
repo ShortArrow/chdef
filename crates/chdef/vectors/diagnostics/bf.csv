@@ -1,0 +1,4 @@
+number,bit,name,default,memo
+1,0,parent is not a bitfield,,
+2,y,bit is not an integer,,
+3,0,parent does not exist,,

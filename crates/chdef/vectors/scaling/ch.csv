@@ -1,0 +1,4 @@
+number,bytes,type,name,lsb,offset,unit
+1,2,SI,temperature,0.1,-40,degC
+2,2,UI,pressure,0.5,100,kPa
+3,1,SI,delta,2,-1,

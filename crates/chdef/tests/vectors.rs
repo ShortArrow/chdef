@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use chdef::{build_layout, ChannelLayout, Value};
+use chdef::{build_layout, ChannelLayout, Issue, Value};
 
 fn vector_sets() -> Vec<PathBuf> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("vectors");
@@ -18,24 +18,29 @@ fn vector_sets() -> Vec<PathBuf> {
     sets
 }
 
-fn layout_of(dir: &Path) -> ChannelLayout {
-    let channels = chdef::load_ch_csv(dir.join("ch.csv")).unwrap();
-    let bitfields = chdef::load_bf_csv(dir.join("bf.csv")).unwrap();
-    assert!(
-        channels.issues.is_empty() && bitfields.issues.is_empty(),
-        "{}: the definitions of a vector set must load without Issues, got {:?} {:?}",
-        dir.display(),
-        channels.issues,
-        bitfields.issues
-    );
-    let layout = build_layout(channels.value, bitfields.value);
-    assert!(
-        layout.issues.is_empty(),
-        "{}: {:?}",
-        dir.display(),
-        layout.issues
-    );
-    layout.value
+/// `code:row` per Issue, as a `P` line spells it, sorted. A set is
+/// contracted on which Issues it produces and how many of each — an Issue
+/// that fires on several rows is not deduplicated (`docs/spec/diagnostics.md`
+/// §1) — but not on the order they arrive in.
+fn issue_list(issues: &[Issue]) -> Vec<String> {
+    let mut listed: Vec<String> = issues
+        .iter()
+        .map(|i| match i.row {
+            Some(row) => format!("{}:{row}", i.code),
+            None => format!("{}:-", i.code),
+        })
+        .collect();
+    listed.sort();
+    listed
+}
+
+fn declared(field: &str) -> Vec<String> {
+    if field == "-" {
+        return Vec::new();
+    }
+    let mut listed: Vec<String> = field.split(';').map(str::to_string).collect();
+    listed.sort();
+    listed
 }
 
 fn hex_to_bytes(hex: &str) -> Vec<u8> {
@@ -85,9 +90,39 @@ fn check_decode(layout: &ChannelLayout, frame_hex: &str, expected: &str, at: &st
         assert_eq!(reading.raw.to_string(), raw, "{at}: channel {number} raw");
         let want: f64 = value.parse().unwrap();
         assert!(
-            (reading.value - want).abs() < 1e-9,
+            (reading.value - want).abs() <= 1e-9 * want.abs().max(1.0),
             "{at}: channel {number} value {} != {want}",
             reading.value
+        );
+    }
+}
+
+fn check_bits(layout: &ChannelLayout, frame_hex: &str, expected: &str, at: &str) {
+    let frame = hex_to_bytes(frame_hex);
+    let decoded = layout.decode(&frame);
+
+    for want in expected.split(';') {
+        let (position, value) = want.split_once('=').expect("n:bit=value");
+        let (number, bit) = position.split_once(':').expect("n:bit");
+        let number: u32 = number.parse().expect("channel number");
+        let bit: u8 = bit.parse().expect("bit number");
+        let expected: u8 = value.parse().expect("0 or 1");
+
+        let raw = decoded
+            .iter()
+            .find(|d| d.channel.number == number)
+            .unwrap_or_else(|| panic!("{at}: channel {number} is not in the frame"))
+            .raw;
+        let def = layout
+            .bitfields
+            .iter()
+            .find(|b| b.parent_channel == number && b.bit_number == bit)
+            .unwrap_or_else(|| panic!("{at}: bit {bit} of channel {number} is not defined"));
+
+        assert_eq!(
+            def.bit_of(raw),
+            expected,
+            "{at}: bit {bit} of channel {number}"
         );
     }
 }
@@ -105,11 +140,23 @@ fn check_layout(layout: &ChannelLayout, total: &str, positions: &str, at: &str) 
 #[test]
 fn every_golden_vector_holds() {
     for dir in vector_sets() {
-        let layout = layout_of(&dir);
         let name = dir.file_name().unwrap().to_string_lossy().to_string();
         let text = std::fs::read_to_string(dir.join("vectors.txt")).unwrap();
 
+        let channels = chdef::load_ch_csv(dir.join("ch.csv")).unwrap();
+        let bitfields = chdef::load_bf_csv(dir.join("bf.csv")).unwrap();
+        let built = build_layout(channels.value.clone(), bitfields.value.clone());
+        let mut layout = built.value;
+
+        // A set declares the Issues its own definitions produce; declaring
+        // none means they must load cleanly.
+        let mut expected_issues = [
+            ("ch", Vec::new()),
+            ("bf", Vec::new()),
+            ("layout", Vec::new()),
+        ];
         let (mut encodes, mut decodes, mut layouts) = (0, 0, 0);
+
         for (index, line) in text.lines().enumerate() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
@@ -118,6 +165,13 @@ fn every_golden_vector_holds() {
             let at = format!("{name}/vectors.txt:{}", index + 1);
             let fields: Vec<&str> = line.split_whitespace().collect();
             match fields.as_slice() {
+                ["B", order] => {
+                    layout.endian = match *order {
+                        "little" => chdef::Endian::Little,
+                        "big" => chdef::Endian::Big,
+                        other => panic!("{at}: unknown byte order {other:?}"),
+                    }
+                }
                 ["E", values, hex] => {
                     check_encode(&layout, values, hex, &at);
                     encodes += 1;
@@ -126,12 +180,32 @@ fn every_golden_vector_holds() {
                     check_decode(&layout, hex, expected, &at);
                     decodes += 1;
                 }
+                ["F", hex, expected] => check_bits(&layout, hex, expected, &at),
                 ["L", total, positions] => {
                     check_layout(&layout, total, positions, &at);
                     layouts += 1;
                 }
+                ["P", source, expected] => {
+                    let slot = expected_issues
+                        .iter_mut()
+                        .find(|(s, _)| s == source)
+                        .unwrap_or_else(|| panic!("{at}: unknown Issue source {source:?}"));
+                    slot.1 = declared(expected);
+                }
                 _ => panic!("{at}: unreadable vector line {line:?}"),
             }
+        }
+
+        for (source, expected) in &expected_issues {
+            let actual = match *source {
+                "ch" => issue_list(&channels.issues),
+                "bf" => issue_list(&bitfields.issues),
+                _ => issue_list(&built.issues),
+            };
+            assert_eq!(
+                &actual, expected,
+                "{name}: the Issues of the {source} definitions"
+            );
         }
 
         assert!(

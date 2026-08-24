@@ -1,0 +1,7 @@
+number,bytes,type,name,lsb,min,max
+1,2,UI,fine,1,,
+x,2,UI,number is not an integer,1,,
+2,99,UI,bytes out of range,1,,
+3,2,ZZ,type is unknown,1,,
+1,2,UI,number already used,1,,
+4,2,UI,bounds the wrong way round,1,10,5
