@@ -95,9 +95,10 @@ P ch -
   source with no `P` line must produce no Issues.
 - Every vector set has at least one `E`, one `D` and one `L` line.
 
-The harness runs twice: once over the crate's Rust API, and once over the
-C ABI of `chdef-capi` (ADR-0021), so the boundary is verified to be the
-same implementation rather than a second one. `F` and `P` lines are
+The harness runs three times: over the crate's Rust API, over the C ABI of
+`chdef-capi` (ADR-0021), and over the .NET binding (ADR-0022), so every
+path a consumer can take is verified to be the same implementation rather
+than a second one. `F` and `P` lines are
 contracted against the crate only — the ABI exposes neither bit readings
 nor an editing surface.
 

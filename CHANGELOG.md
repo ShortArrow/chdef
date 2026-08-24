@@ -12,6 +12,15 @@ tag, published to crates.io.
 ## [Unreleased]
 
 ### Added
+- A .NET binding (`bindings/dotnet/`, `net8.0`, ADR-0022): the P/Invoke
+  declarations over the C ABI and a safe wrapper that owns the handles,
+  does the two-call buffer dance for every string and turns a status into
+  an exception. A NuGet package carries the native library per platform, so
+  a consumer writes `dotnet add package` and nothing else. The golden
+  vectors of `interchange.md` §3 run through it in this repository's CI —
+  the same files certify the crate, the C ABI and the binding — and a Rust
+  test proves the declarations mirror the ABI in name, order and width,
+  which is the mismatch no vector could catch.
 - `chdef-capi`, a C ABI over the crate (ADR-0021): read CH / BF
   definitions into an opaque layout handle, describe the layout, encode and
   decode frames, and read the diagnostics. It carries no enums — an Issue's
