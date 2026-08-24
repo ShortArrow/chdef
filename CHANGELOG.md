@@ -9,7 +9,7 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
-## [0.0.6] - 2026-08-25
+## [0.0.7] - 2026-08-25
 
 ### Breaking
 - **Japanese header spellings are no longer read by default.** A column

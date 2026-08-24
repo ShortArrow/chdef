@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-25
-- Release: 0.0.6
+- Release: 0.0.7
 - Supersedes [ADR-0019](./0019-aliases-extend-a-reader-not-the-format.md),
   whose decision was that "a column alias extends one reader, not the
   format". The constraint it protected — that a canonical spelling always

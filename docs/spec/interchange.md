@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./interchange.jp.md)
 
-Implemented (0.0.6): the JSON shapes of §1 and §2 behind the `serde`
+Implemented (0.0.7): the JSON shapes of §1 and §2 behind the `serde`
 feature (`interchange::Definitions` / `Readings` / `Grid::to_json`; chdef
 builds the value, the consumer serialises it), and the golden vectors of
 §3 with the harness that runs them through the crate, through the C ABI of
