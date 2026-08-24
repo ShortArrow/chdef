@@ -79,13 +79,22 @@ Example: channel default `0x0010`, BF `{BIT0=1, BIT2=1, BIT4=unspecified}`
 - Output: raw and physical value per channel. If the frame is short and a
   channel **overruns it, that channel is omitted from the result** (not
   zero-filled, so a value that did not arrive never looks as if it did).
-- A BF bit is `(raw >> bit) & 1` of the parent's raw value.
+- A BF bit is `(raw >> bit) & 1` of the parent's raw value. A decoded
+  channel walks the bits the definitions name for it (`bits()`).
 
 ## 7. Display format
 
-- `format` does not affect chdef's conversion (`value` is returned even
-  for `HEX`). The consumer shows the raw value when the format is `HEX`.
-  `HEX` with `lsb ≠ 1` is Issue `hex_with_lsb` ([format.md](./format.md)).
+- `format` selects **which reading is shown**, not the base it is printed
+  in: `DEC` means the physical value, `HEX` the raw one. It affects no
+  conversion — both readings are always available, and `value` is returned
+  for a `HEX` channel too.
+- `displayed_value(raw)` answers the selection, as a value carrying its own
+  notation. `render(raw)` is a default text form — the physical value with
+  the channel's `unit`, or the raw one in hexadecimal padded to the
+  channel's width — which a consumer with its own digit counts, separators
+  or colours replaces.
+- Showing the raw value while `lsb ≠ 1` means the number shown is not the
+  physical quantity: Issue `raw_display_with_lsb`.
 
 ## 8. Range (min / max)
 

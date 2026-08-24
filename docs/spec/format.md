@@ -79,7 +79,7 @@ rules.
 | `default` / `値(デフォルト)` | `DefaultValue`, `デフォルト値` | no | Empty → unspecified. `0x` / `0X` prefix → hexadecimal raw value. Anything else → decimal **raw value** (integer). Either way it is as wide as the channel; past that width → the low bits are kept (Issue `raw_out_of_range`). Neither notation → unspecified (Issue `default_invalid`). For `BF` channels, the BF CSV overrides it bit by bit ([conversion.md](./conversion.md)) |
 | `memo` / `備考` | `Description` | no | String |
 | `var` / `変数名` | `variable` | no | String. Preserved only |
-| `format` / `表示形式` | `DisplayFormat` | no | `DEC` / `HEX` (case-insensitive). Empty / unknown → `DEC`. `HEX` with `lsb` ≠ 1 → Issue `hex_with_lsb`. Carried for the consumer to render with; it never affects a conversion |
+| `format` / `表示形式` | `DisplayFormat` | no | `DEC` / `HEX` (case-insensitive). Empty / unknown → `DEC`. `HEX` with `lsb` ≠ 1 → Issue `raw_display_with_lsb`. What the column selects is **which reading is shown** — the physical value or the raw one — not the base it is printed in ([conversion.md §7](./conversion.md)). It never affects a conversion |
 | `favorite` / `お気に入り` | `IsFavorite` | no | `1` or `true` (case-insensitive) → true, anything else → false. Written as `1` / `0` |
 
 Type prefix and width: the width is `bytes × 8` bits. `UI` is an unsigned

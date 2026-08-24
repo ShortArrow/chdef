@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use crate::channel::{BitFieldDef, ChannelDef, DataType, DisplayFormat, Value};
+use crate::channel::{BitFieldDef, ChannelDef, DataType, Value, ValueDisplay};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
@@ -263,14 +263,14 @@ pub(crate) fn interpret_ch(
         };
 
         let format = cell(record, ChColumn::Format)
-            .and_then(|f| DisplayFormat::parse(&f))
+            .and_then(|f| ValueDisplay::parse(&f))
             .unwrap_or_default();
-        if format == DisplayFormat::Hex && lsb != 1.0 {
+        if format == ValueDisplay::Raw && lsb != 1.0 {
             issue(
-                IssueCode::HexWithLsb,
+                IssueCode::RawDisplayWithLsb,
                 ChColumn::Format,
                 format!(
-                    "`format` is HEX but `lsb` is {lsb}; the HEX display shows the raw value, not the physical one."
+                    "`format` selects the raw value but `lsb` is {lsb}, so what is shown is not the physical quantity."
                 ),
             );
         }
@@ -821,7 +821,7 @@ mod tests {
 
         let parsed = parse_ch_csv(csv_data).unwrap();
 
-        assert_eq!(codes(&parsed.issues), vec![IssueCode::HexWithLsb]);
+        assert_eq!(codes(&parsed.issues), vec![IssueCode::RawDisplayWithLsb]);
         assert_eq!(parsed.issues[0].row, Some(0));
     }
 
@@ -852,12 +852,12 @@ mod tests {
         assert_eq!(first.section, "General");
         assert_eq!(first.memo, "see note");
         assert_eq!(first.var, "g_status");
-        assert_eq!(first.format, DisplayFormat::Hex);
+        assert_eq!(first.format, ValueDisplay::Raw);
         assert!(first.favorite);
 
         let second = &parsed.value[1];
         assert!(second.section.is_empty() && second.memo.is_empty());
-        assert_eq!(second.format, DisplayFormat::Dec);
+        assert_eq!(second.format, ValueDisplay::Physical);
         assert!(!second.favorite);
         assert!(parsed.issues.is_empty());
     }

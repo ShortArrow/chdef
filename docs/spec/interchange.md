@@ -24,7 +24,7 @@ of §3.
   "channels": [
     {"n": 1, "at": 0, "bytes": 4, "type": "UI", "section": "General", "name": "Frame counter",
      "lsb": 1.0, "offset": 0.0, "unit": "", "default": null,
-     "format": "DEC", "min": "", "max": "", "memo": "", "var": "", "favorite": false}
+     "format": "physical", "min": "", "max": "", "memo": "", "var": "", "favorite": false}
   ],
   "bitfields": [
     {"n": 2, "bit": 0, "name": "Reserved", "default": null, "memo": ""}
@@ -38,7 +38,11 @@ of §3.
 - `lsb` is `1.0` even when the CSV has 0 / empty (the reader carries no
   rule).
 - `default` is `null` when unspecified; the same for a BF `default`.
-- `capacity` is present only when one was passed.
+- `format` says which reading the channel shows — `"physical"` or
+  `"raw"` — the meaning of the `DEC` / `HEX` cell, since this is the
+  interpreted view. The verbatim cell is in the Table JSON of §2.
+- `capacity` is present only when the layout carries one, or one was
+  passed.
 - Value JSON (decode result): an array of `{"n": 4, "raw": 65413, "value": -12.3}`.
   A physical value that is not a finite number — NaN or ±∞ — is `null`,
   which is all JSON can say about it.

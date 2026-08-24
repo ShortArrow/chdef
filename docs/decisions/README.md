@@ -19,3 +19,5 @@ specification and the README never point back at an ADR.
 | [0012](./0012-rowed-cross-checks-live-on-the-table.md) | 2026-08-21 | Rowed cross-file checks live on the Table; the layout's stay rowless | Accepted |
 | [0013](./0013-interchange-types-are-separate-from-the-domain.md) | 2026-08-24 | The JSON shape is its own type, and the golden vectors are the cross-language contract | Accepted |
 | [0014](./0014-width-comes-only-from-bytes.md) | 2026-08-24 | The width comes only from `bytes`, and `DataType` stops carrying one | Accepted |
+| [0015](./0015-the-format-column-selects-a-value-not-a-base.md) | 2026-08-24 | The `format` column selects which value is shown, not the base it is printed in | Accepted |
+| [0016](./0016-the-layout-carries-its-capacity.md) | 2026-08-24 | The layout carries the capacity it is measured against | Accepted |

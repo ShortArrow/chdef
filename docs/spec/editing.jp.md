@@ -30,6 +30,8 @@ Table 段階（[layout.jp.md §1](./layout.jp.md)）は、見出し行と全デ�
 
 ## 3. 編集操作
 
+- `header` / `rows` / `row(index)`: 書き出される形のグリッド。見出し行
+  （位置指定で読んだファイルには無い）と、コメント行・空行を含む全データ行。
 - `cell` / `set_cell(row, col, value)`: グリッド。0 始まり・見出し除外
   — Issue の行番号と同じ数え方。短い行の先に書けば空セルで埋まる。
 - `insert_row` / `append_row` / `remove_row`: 生の行。グリッドエディタ用。

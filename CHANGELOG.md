@@ -9,6 +9,32 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [Unreleased]
+
+### Added
+- `ChannelDef::displayed_value` / `render`: which reading the `format`
+  column selects, and a default text form of it a consumer may replace
+  (ADR-0015). They take a raw integer, so no byte order is assumed.
+- `ChannelLayout::capacity` / `with_capacity`: the layout carries the
+  capacity it is measured against, and `check_capacity()` reads it
+  (ADR-0016). `Definitions::of` puts it in the JSON without restating.
+- `Decoded::bits`: the named bits of a decoded channel and whether each is
+  set, so a consumer displaying a bit field writes no shifts.
+- `ChTable` / `BfTable`: `header`, `rows` and `row(index)` hand over the
+  grid an editor draws.
+
+### Changed
+- `DisplayFormat` is `ValueDisplay { Physical, Raw }`, naming the choice
+  the `format` column makes rather than the base its cell is spelled in
+  (ADR-0015). `parse` still reads `DEC` / `HEX` and `as_str` writes them.
+- Issue `hex_with_lsb` is `raw_display_with_lsb`, and the definitions JSON
+  spells `format` as `"physical"` / `"raw"`.
+- `check_capacity` takes no argument and reads the layout's capacity.
+
+### Removed
+- `ChannelDef::format_value`, which rendered with the byte order hardcoded
+  to little-endian. `render` replaces it.
+
 ## [0.0.2] - 2026-08-24
 
 ### Added

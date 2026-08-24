@@ -5,7 +5,7 @@
 //! and record separators are normalised to `docs/spec/format.md` §1).
 //! Rows and Layout are derived views: interpret again after editing.
 
-use crate::channel::{BitFieldDef, ChannelDef, DisplayFormat};
+use crate::channel::{BitFieldDef, ChannelDef};
 use crate::columns::{BfColumn, ChColumn, ColumnMap};
 use crate::csv::{decode_utf8, interpret_bf, interpret_ch, is_blank, is_comment};
 use crate::error::{ChdefError, Result};
@@ -194,6 +194,23 @@ macro_rules! grid_api {
             self.cells.rows.len()
         }
 
+        /// The header row as it was read, or `None` for a file read
+        /// positionally, which has none (`docs/spec/format.md` §2).
+        pub fn header(&self) -> Option<&[String]> {
+            self.cells.header.as_deref()
+        }
+
+        /// Every data row in order, header excluded — the grid an editor
+        /// draws. Comment and blank rows are rows like any other.
+        pub fn rows(&self) -> impl Iterator<Item = &[String]> {
+            self.cells.rows.iter().map(Vec::as_slice)
+        }
+
+        /// One data row, by the same index `cell` and `set_cell` use.
+        pub fn row(&self, index: usize) -> Option<&[String]> {
+            self.cells.rows.get(index).map(Vec::as_slice)
+        }
+
         /// Insert a raw row of cells at `index` (clamped to the end).
         pub fn insert_row(&mut self, index: usize, cells: Vec<String>) {
             let index = index.min(self.cells.rows.len());
@@ -332,13 +349,7 @@ impl ChTable {
         put(ChColumn::Section, def.section.clone());
         put(ChColumn::Memo, def.memo.clone());
         put(ChColumn::Var, def.var.clone());
-        put(
-            ChColumn::Format,
-            match def.format {
-                DisplayFormat::Dec => "DEC".into(),
-                DisplayFormat::Hex => "HEX".into(),
-            },
-        );
+        put(ChColumn::Format, def.format.as_str().into());
         put(
             ChColumn::Favorite,
             if def.favorite { "1".into() } else { "0".into() },
@@ -595,7 +606,7 @@ mod tests {
         def.section = "General".into();
         def.memo = "a, quoted memo".into();
         def.var = "g_status".into();
-        def.format = crate::channel::DisplayFormat::Hex;
+        def.format = crate::channel::ValueDisplay::Raw;
         def.favorite = true;
 
         table.insert_channel(0, &def);
@@ -608,7 +619,7 @@ mod tests {
         assert_eq!(ch.section, "General");
         assert_eq!(ch.memo, "a, quoted memo");
         assert_eq!(ch.var, "g_status");
-        assert_eq!(ch.format, crate::channel::DisplayFormat::Hex);
+        assert_eq!(ch.format, crate::channel::ValueDisplay::Raw);
         assert!(ch.favorite);
     }
 

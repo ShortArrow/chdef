@@ -44,8 +44,9 @@ pub enum IssueCode {
     OffsetInvalid,
     /// `default` is neither an integer nor `0x`. Treated as unspecified.
     DefaultInvalid,
-    /// `format` is `HEX` but `lsb` is not 1.
-    HexWithLsb,
+    /// The channel shows its raw value (`format` is `HEX`) while `lsb` is
+    /// not 1, so the number shown is not the physical quantity.
+    RawDisplayWithLsb,
     /// A `0x` raw value exceeds the width. The low bits were used.
     RawOutOfRange,
     /// `min` is neither a number nor `0x`. Treated as unspecified.
@@ -91,7 +92,7 @@ impl IssueCode {
             IssueCode::LsbInvalid => "lsb_invalid",
             IssueCode::OffsetInvalid => "offset_invalid",
             IssueCode::DefaultInvalid => "default_invalid",
-            IssueCode::HexWithLsb => "hex_with_lsb",
+            IssueCode::RawDisplayWithLsb => "raw_display_with_lsb",
             IssueCode::RawOutOfRange => "raw_out_of_range",
             IssueCode::MinInvalid => "min_invalid",
             IssueCode::MaxInvalid => "max_invalid",

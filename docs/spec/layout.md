@@ -50,11 +50,11 @@ chdef handles a definition in three stages, and every stage is retrievable.
 
 ## 5. Capacity
 
-- A consumer that has a `capacity` (the maximum byte count of the data
-  part) asks the layout about it: `check_capacity(capacity)` reports Issue
-  `layout_exceeds_capacity` when the frame does not fit, and nothing when
-  it does. The layout does not hold a capacity of its own, and nothing
-  checks one unless asked.
+- A layout may carry a `capacity` (the maximum byte count of the data
+  part), set with `with_capacity`. `check_capacity()` then reports Issue
+  `layout_exceeds_capacity` when the frame does not fit it, and nothing
+  when it fits or when the layout carries none. Nothing checks it unless
+  asked.
 
 ## 6. Type and width
 

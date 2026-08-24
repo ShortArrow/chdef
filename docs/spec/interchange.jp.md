@@ -16,7 +16,7 @@
   "channels": [
     {"n": 1, "at": 0, "bytes": 4, "type": "UI", "section": "General", "name": "Frame counter",
      "lsb": 1.0, "offset": 0.0, "unit": "", "default": null,
-     "format": "DEC", "min": "", "max": "", "memo": "", "var": "", "favorite": false}
+     "format": "physical", "min": "", "max": "", "memo": "", "var": "", "favorite": false}
   ],
   "bitfields": [
     {"n": 2, "bit": 0, "name": "Reserved", "default": null, "memo": ""}
@@ -29,7 +29,8 @@
 
 - `lsb` は CSV が 0 / 空欄でも `1.0` を出す（読む側に規則を持たせない）。
 - `default` は未指定なら `null`。BF の `default` も同様。
-- `capacity` は渡されたときだけ出す。
+- `format` はそのチャンネルがどちらの読みを表示するかを言う（`"physical"` か `"raw"`）。`DEC` / `HEX` というセルの意味であり、ここは解釈済みのビューだから。逐語のセルは §2 の Table JSON にある。
+- `capacity` はレイアウトが持つか、渡されたときだけ出す。
 - 値の JSON（decode 結果）: `{"n": 4, "raw": 65413, "value": -12.3}` の配列。有限でない物理値（NaN と ±∞）は `null`。JSON はそれ以上のことを言えない。
 
 ## 2. Table（セル）の JSON

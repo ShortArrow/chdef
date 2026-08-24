@@ -31,7 +31,7 @@ chdef は定義を三段階で扱い、どの段階も取り出せる。
 
 ## 5. 容量
 
-- `capacity`（データ部の最大バイト数）を持つ利用側は、レイアウトに問い合わせる: `check_capacity(capacity)` は収まらなければ Issue `layout_exceeds_capacity` を、収まれば何も返さない。レイアウト自身は容量を持たず、訊かれない限り検査もしない。
+- レイアウトは `capacity`（データ部の最大バイト数）を持てる。`with_capacity` で設定し、`check_capacity()` が、収まらなければ Issue `layout_exceeds_capacity` を、収まるか容量を持たなければ何も返さない。訊かれない限り検査はしない。
 
 ## 6. 型と幅
 

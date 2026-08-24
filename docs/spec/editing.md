@@ -33,6 +33,9 @@ Read → Table → write preserves **rows and cell contents**, not bytes:
 
 ## 3. Edit operations
 
+- `header` / `rows` / `row(index)`: the grid as it will be written — the
+  header row (absent for a file read positionally) and every data row,
+  comment and blank rows included.
 - `cell` / `set_cell(row, col, value)`: the grid, 0-based, header
   excluded — the same row numbering Issues use. Setting past the end of a
   short row pads it with empty cells.

@@ -41,7 +41,7 @@ found and what chdef did about it.
 | `lsb_invalid` | yes | `lsb` is NaN / infinite. Took 1 |
 | `offset_invalid` | yes | `offset` is not a number. Took 0 |
 | `default_invalid` | yes | `default` is neither an integer nor `0x`. Treated as unspecified |
-| `hex_with_lsb` | yes | `format` is `HEX` but `lsb` is not 1 |
+| `raw_display_with_lsb` | yes | The channel shows its raw value (`format` is `HEX`) while `lsb` is not 1, so the number shown is not the physical quantity |
 | `raw_out_of_range` | yes² | A raw value — a `default`, a `min` / `max`, or one handed to `encode` — exceeds the channel's width. Used the low bits only |
 | `min_invalid` | yes | `min` is neither a number nor `0x`. Treated as unspecified |
 | `max_invalid` | yes | `max` is neither a number nor `0x`. Treated as unspecified |

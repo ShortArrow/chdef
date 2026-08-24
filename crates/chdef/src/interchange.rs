@@ -32,7 +32,7 @@ impl<'l> Definitions<'l> {
     pub fn of(layout: &'l ChannelLayout, issues: &'l [Issue]) -> Definitions<'l> {
         Definitions {
             total_bytes: layout.total_bytes(),
-            capacity: None,
+            capacity: layout.capacity,
             endian: match layout.endian {
                 crate::channel::Endian::Little => "little",
                 crate::channel::Endian::Big => "big",
@@ -51,8 +51,8 @@ impl<'l> Definitions<'l> {
                     unit: &ch.unit,
                     default: ch.default_value,
                     format: match ch.format {
-                        crate::channel::DisplayFormat::Dec => "DEC",
-                        crate::channel::DisplayFormat::Hex => "HEX",
+                        crate::channel::ValueDisplay::Physical => "physical",
+                        crate::channel::ValueDisplay::Raw => "raw",
                     },
                     min: ch.min.map(|v| v.to_string()).unwrap_or_default(),
                     max: ch.max.map(|v| v.to_string()).unwrap_or_default(),
@@ -76,8 +76,8 @@ impl<'l> Definitions<'l> {
         }
     }
 
-    /// State the maximum byte count of the data part alongside the layout.
-    /// Without this the key is absent, as it is when no capacity applies.
+    /// State the maximum byte count of the data part, when it is not the
+    /// layout's own. Without either, the key is absent.
     pub fn with_capacity(mut self, capacity: usize) -> Definitions<'l> {
         self.capacity = Some(capacity);
         self
@@ -178,7 +178,7 @@ pub struct TableJson<'t> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::channel::{build_layout, ChannelDef, DataType, DisplayFormat, Endian, Value};
+    use crate::channel::{build_layout, ChannelDef, DataType, Endian, Value, ValueDisplay};
     use crate::table::ChTable;
 
     fn sample() -> crate::channel::ChannelLayout {
@@ -190,7 +190,7 @@ mod tests {
         status.name = "Status".into();
         status.section = "General".into();
         status.default_value = Some(1);
-        status.format = DisplayFormat::Hex;
+        status.format = ValueDisplay::Raw;
 
         let mut temp = ChannelDef::new(3, 2, DataType::SI);
         temp.name = "Temperature".into();
@@ -225,7 +225,7 @@ mod tests {
         assert_eq!(first["offset"], 0.0);
         assert_eq!(first["unit"], "");
         assert!(first["default"].is_null());
-        assert_eq!(first["format"], "DEC");
+        assert_eq!(first["format"], "physical");
         assert_eq!(first["min"], "");
         assert_eq!(first["max"], "");
         assert_eq!(first["memo"], "");
@@ -235,7 +235,7 @@ mod tests {
         assert_eq!(json["channels"][1]["at"], 4);
         assert_eq!(json["channels"][1]["type"], "BF");
         assert_eq!(json["channels"][1]["default"], 1);
-        assert_eq!(json["channels"][1]["format"], "HEX");
+        assert_eq!(json["channels"][1]["format"], "raw");
 
         let third = &json["channels"][2];
         assert_eq!(third["at"], 6);

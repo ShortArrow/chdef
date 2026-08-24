@@ -55,7 +55,7 @@ number,bytes,bits,section,name,type,lsb,offset,unit,min,max,default,memo,var,for
 | `値(デフォルト)` / `default` | `DefaultValue`, `デフォルト値` | 任意 | 空欄 → 未指定。`0x` / `0X` 接頭辞 → 16 進の生値。それ以外 → 10 進の**生値**（整数）。どちらの記法でもチャンネルの幅を持ち、幅を超えたら下位ビットを採用（Issue `raw_out_of_range`）。どちらの記法でもなければ未指定（Issue `default_invalid`）。BF 型では BF CSV の既定値がビット単位で上書きする（[conversion.jp.md](./conversion.jp.md)） |
 | `備考` / `memo` | `Description` | 任意 | 文字列 |
 | `変数名` / `var` | `variable` | 任意 | 文字列。保持のみ |
-| `表示形式` / `format` | `DisplayFormat` | 任意 | `DEC` / `HEX`（大文字小文字不問）。空欄・不明 → `DEC`。`HEX` で `LSB` が 1 以外なら Issue `hex_with_lsb`。表示のために利用側へ渡すだけで、変換には影響しない |
+| `表示形式` / `format` | `DisplayFormat` | 任意 | `DEC` / `HEX`（大文字小文字不問）。空欄・不明 → `DEC`。`HEX` で `LSB` が 1 以外なら Issue `raw_display_with_lsb`。この列が選ぶのは**どちらの読みを表示するか**（物理値か生値か）であって、印字する基数ではない（[conversion.jp.md §7](./conversion.jp.md)）。変換には影響しない |
 | `お気に入り` / `favorite` | `IsFavorite` | 任意 | `1` または `true`（大文字小文字不問）→ 真、それ以外 → 偽。書き出しは `1` / `0` |
 
 `型` の接頭辞と幅の対応: 幅は `バイト数 × 8` ビット。`UI` は符号なし整数、`SI` は 2 の補数の符号付き整数、`BF` はビットの集まり（値としては符号なし）。

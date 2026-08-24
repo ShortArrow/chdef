@@ -31,7 +31,7 @@ Issue { code, row: Option<usize>, col: Option<usize>, message: String }
 | `lsb_invalid` | あり | `LSB` が非数 / 無限。1 とみなした |
 | `offset_invalid` | あり | `オフセット` が非数。0 とみなした |
 | `default_invalid` | あり | `値(デフォルト)` が整数でも `0x` 表記でもない。未指定とみなした |
-| `hex_with_lsb` | あり | `表示形式` が `HEX` なのに `LSB` が 1 でない |
+| `raw_display_with_lsb` | あり | チャンネルが生値を表示する設定（`表示形式` が `HEX`）なのに `LSB` が 1 でなく、表示される数が物理量でない |
 | `raw_out_of_range` | あり² | 生値（`値(デフォルト)`、`値(最小)` / `値(最大)`、`encode` に渡された値）がチャンネルの幅を超える。下位ビットだけ使った |
 | `min_invalid` | あり | `値(最小)` が数値でも `0x` でもない。未指定として扱う |
 | `max_invalid` | あり | `値(最大)` が数値でも `0x` でもない。未指定として扱う |

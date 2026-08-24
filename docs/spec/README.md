@@ -35,8 +35,10 @@ also has a Japanese canonical spelling, and the reader accepts both (see
 
 ## Out of scope (what chdef does not own)
 
-- Presentation (DEC / HEX rendering, digit counts, colours), editing UI,
-  save orchestration.
+- Presentation — digit counts, separators, colours, layout — editing UI,
+  save orchestration. `ChannelDef::render` offers one default text form of
+  a reading; a consumer that wants another writes it from
+  `displayed_value`.
 - Transport (UDP / shared memory / serial), packet headers, packet-number
   rewriting, merging several CSVs into one frame.
 - Where definition files live, path settings, when to reload.

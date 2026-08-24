@@ -10,29 +10,45 @@ pub enum Endian {
     Big,
 }
 
-/// How a consumer renders the channel's value (`format` column). It never
-/// affects a conversion: `raw_to_value` returns the physical value for a
-/// `Hex` channel too, and the consumer shows the raw value instead.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum DisplayFormat {
+/// Which of a channel's two readings the consumer shows: the physical
+/// value, or the raw bit pattern. The `format` column spells these `DEC`
+/// and `HEX` — the base each is conventionally printed in — but what the
+/// column selects is the value, not the base
+/// (`docs/spec/conversion.md` §7). Selecting one changes no conversion:
+/// both readings are always available.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum ValueDisplay {
     #[default]
-    Dec,
-    Hex,
+    Physical,
+    Raw,
 }
 
-impl DisplayFormat {
-    /// `DEC` / `HEX`, case-insensitively; `None` for anything else.
-    pub fn parse(s: &str) -> Option<DisplayFormat> {
+impl ValueDisplay {
+    /// Read the `format` column: `DEC` / `HEX`, case-insensitively and
+    /// after trimming; `None` for anything else.
+    pub fn parse(s: &str) -> Option<ValueDisplay> {
         let s = s.trim();
         if s.eq_ignore_ascii_case("dec") {
-            Some(DisplayFormat::Dec)
+            Some(ValueDisplay::Physical)
         } else if s.eq_ignore_ascii_case("hex") {
-            Some(DisplayFormat::Hex)
+            Some(ValueDisplay::Raw)
         } else {
             None
         }
+    }
+
+    /// The spelling the `format` column uses for this.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ValueDisplay::Physical => "DEC",
+            ValueDisplay::Raw => "HEX",
+        }
+    }
+}
+
+impl std::fmt::Display for ValueDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -155,8 +171,9 @@ pub struct ChannelDef {
     pub section: String,
     pub memo: String,
     pub var: String,
-    /// How the consumer renders the value (`format` column).
-    pub format: DisplayFormat,
+    /// Which reading the consumer shows (`format` column); never affects a
+    /// conversion. See [`ValueDisplay`].
+    pub format: ValueDisplay,
     /// The `favorite` flag a consumer uses to pin the channel.
     pub favorite: bool,
 }
@@ -186,7 +203,7 @@ impl ChannelDef {
             section: String::new(),
             memo: String::new(),
             var: String::new(),
-            format: DisplayFormat::default(),
+            format: ValueDisplay::default(),
             favorite: false,
         }
     }
@@ -371,12 +388,31 @@ impl ChannelDef {
         raw
     }
 
-    pub fn format_value(&self, raw_bytes: &[u8]) -> String {
-        let val = self.raw_to_value(raw_bytes);
-        if self.lsb == 0.0 || self.lsb == 1.0 {
-            format!("{}", val as i64)
-        } else {
-            format!("{:.6}", val)
+    /// The reading this channel's `format` column selects, as a [`Value`]
+    /// carrying its own notation. Deciding which value to show is chdef's;
+    /// turning it into text is the consumer's, and [`render`] is one way.
+    ///
+    /// [`render`]: ChannelDef::render
+    pub fn displayed_value(&self, raw: u64) -> Value {
+        match self.format {
+            ValueDisplay::Physical => Value::Physical(self.raw_to_value_u64(raw)),
+            ValueDisplay::Raw => Value::Raw(raw),
+        }
+    }
+
+    /// A default rendering of [`displayed_value`]: the physical value with
+    /// the channel's `unit` after it when there is one, or the raw value in
+    /// hexadecimal padded to the channel's width. A consumer that wants its
+    /// own digit counts, separators or colours renders the `Value` itself —
+    /// presentation is not chdef's to own
+    /// (`docs/spec/README.md`, "Out of scope").
+    ///
+    /// [`displayed_value`]: ChannelDef::displayed_value
+    pub fn render(&self, raw: u64) -> String {
+        match self.displayed_value(raw) {
+            Value::Raw(r) => format!("0x{r:0width$X}", width = self.width() * 2),
+            Value::Physical(v) if self.unit.is_empty() => format!("{v}"),
+            Value::Physical(v) => format!("{v} {}", self.unit),
         }
     }
 }
@@ -432,6 +468,10 @@ pub struct ChannelLayout {
     /// Byte order of every multi-byte channel of the frame. Not written in
     /// the CSV; the consumer sets it (`Little` when unset).
     pub endian: Endian,
+    /// The maximum byte count of the data part, when the consumer has one.
+    /// Not written in the CSV, and never checked unless
+    /// [`check_capacity`](ChannelLayout::check_capacity) is called.
+    pub capacity: Option<usize>,
 }
 
 /// Build the Layout stage from parsed Rows: duplicates are dropped (the
@@ -499,6 +539,7 @@ pub fn build_layout(
             channels: unique_channels,
             bitfields: unique_bitfields,
             endian: Endian::Little,
+            capacity: None,
         },
         issues,
     }
@@ -513,6 +554,21 @@ pub struct Decoded<'l, 'f> {
     pub bytes: &'f [u8],
     pub raw: u64,
     pub value: f64,
+    /// Every bit the layout defines, of every channel; `bits()` picks out
+    /// this channel's.
+    bitfields: &'l [BitFieldDef],
+}
+
+impl<'l> Decoded<'l, '_> {
+    /// The named bits of this channel and whether each is set
+    /// (`docs/spec/conversion.md` §6). Empty for a channel with no bits
+    /// named, whatever its type.
+    pub fn bits(&self) -> impl Iterator<Item = (&'l BitFieldDef, bool)> {
+        let (number, raw, defs) = (self.channel.number, self.raw, self.bitfields);
+        defs.iter()
+            .filter(move |b| b.parent_channel == number)
+            .map(move |b| (b, b.bit_of(raw) == 1))
+    }
 }
 
 impl ChannelLayout {
@@ -522,10 +578,19 @@ impl ChannelLayout {
         self.channels.iter().map(|ch| ch.width()).sum()
     }
 
-    /// The `layout_exceeds_capacity` Issue when the frame does not fit in
-    /// `capacity` bytes, `None` when it does. Nothing calls this on its
-    /// own — a consumer with a capacity opts in.
-    pub fn check_capacity(&self, capacity: usize) -> Option<Issue> {
+    /// State the maximum byte count of the data part
+    /// (`docs/spec/layout.md` §5), so the layout carries what it is
+    /// measured against instead of the consumer holding it alongside.
+    pub fn with_capacity(mut self, capacity: usize) -> ChannelLayout {
+        self.capacity = Some(capacity);
+        self
+    }
+
+    /// The `layout_exceeds_capacity` Issue when the frame does not fit the
+    /// layout's `capacity`, `None` when it fits or when there is no
+    /// capacity. Nothing calls this on its own — a consumer opts in.
+    pub fn check_capacity(&self) -> Option<Issue> {
+        let capacity = self.capacity?;
         let total = self.total_bytes();
         (total > capacity).then(|| Issue {
             code: IssueCode::LayoutExceedsCapacity,
@@ -553,6 +618,7 @@ impl ChannelLayout {
                 bytes,
                 raw: ch.raw_from_bytes_endian(bytes, self.endian),
                 value: ch.raw_to_value_endian(bytes, self.endian),
+                bitfields: &self.bitfields,
             });
             offset = end;
         }
@@ -850,23 +916,15 @@ mod tests {
     }
 
     #[test]
-    fn format_value_integer_when_lsb_is_one() {
-        let ch = named(1, 2, DataType::UI, "cnt");
-        assert_eq!(ch.format_value(&[0x2A, 0x00]), "42");
-    }
+    fn render_shows_the_unit_after_a_physical_value() {
+        let mut ch = named(1, 4, DataType::SI, "lat");
+        ch.lsb = 4.19e-08;
+        ch.unit = "deg".into();
 
-    #[test]
-    fn format_value_decimal_when_lsb_is_fractional() {
-        let ch = {
-            let mut c = named(1, 4, DataType::SI, "lat");
-            c.lsb = 4.19e-08;
-            c.offset = 0.0;
-            c.unit = "deg".into();
-            c
-        };
-        let raw = 1_000_000i32.to_le_bytes();
-        let formatted = ch.format_value(&raw);
-        assert!(formatted.contains("0.0419"), "Got: {}", formatted);
+        let rendered = ch.render(1_000_000);
+
+        assert!(rendered.starts_with("0.0419"), "got {rendered}");
+        assert!(rendered.ends_with(" deg"), "got {rendered}");
     }
 
     #[test]
@@ -1020,8 +1078,8 @@ mod tests {
     fn check_capacity_reports_only_when_the_frame_does_not_fit() {
         let layout = build_layout(vec![ch(4, DataType::UI, 1.0, 0.0)], vec![]).value;
 
-        assert!(layout.check_capacity(4).is_none());
-        let issue = layout.check_capacity(3).unwrap();
+        assert!(layout.clone().with_capacity(4).check_capacity().is_none());
+        let issue = layout.with_capacity(3).check_capacity().unwrap();
         assert_eq!(issue.code, crate::issue::IssueCode::LayoutExceedsCapacity);
         assert_eq!(issue.row, None);
     }
@@ -1084,15 +1142,15 @@ mod tests {
         let c = ChannelDef::new(1, 2, DataType::UI);
 
         assert!(c.section.is_empty() && c.memo.is_empty() && c.var.is_empty());
-        assert_eq!(c.format, DisplayFormat::Dec);
+        assert_eq!(c.format, ValueDisplay::Physical);
         assert!(!c.favorite);
     }
 
     #[test]
     fn display_format_parses_case_insensitively() {
-        assert_eq!(DisplayFormat::parse("HEX"), Some(DisplayFormat::Hex));
-        assert_eq!(DisplayFormat::parse("dec"), Some(DisplayFormat::Dec));
-        assert_eq!(DisplayFormat::parse("octal"), None);
+        assert_eq!(ValueDisplay::parse("HEX"), Some(ValueDisplay::Raw));
+        assert_eq!(ValueDisplay::parse("dec"), Some(ValueDisplay::Physical));
+        assert_eq!(ValueDisplay::parse("octal"), None);
     }
 
     #[test]
