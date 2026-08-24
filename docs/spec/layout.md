@@ -10,7 +10,8 @@ whole-layout `endian` field of §2 (consumed by `decode`); the BF
 cross-checks and first-wins duplicate dropping in `build_layout`, which
 returns the layout with those Issues; `capacity` as the opt-in
 `check_capacity` query (§5). The Table stage is `ChTable` / `BfTable`
-([editing.md](./editing.md)); whole-frame encode is not implemented yet.
+([editing.md](./editing.md)); whole-frame encode and decode are
+[conversion.md](./conversion.md) §5 / §6.
 
 ## 1. Three stages
 
@@ -56,5 +57,7 @@ chdef handles a definition in three stages, and every stage is retrievable.
 ## 6. Type and width
 
 - The width is `bytes` (1–8). `type` carries no width, only the
-  interpretation (`UI` / `SI` / `BF`).
+  interpretation (`UI` / `SI` / `BF`). A definition built in code whose
+  `bytes` falls outside 1–8 is measured at the nearest legal width
+  (`ChannelDef::width`), the same range the column is clamped to.
 - `SI` is sign-extended at its width. `UI` / `BF` are unsigned.

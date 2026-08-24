@@ -81,8 +81,8 @@ pub(crate) fn interpret_ch(
             );
         }
 
-        let (category, suffix_bytes) = match cell(record, ChColumn::Type) {
-            None => (DataType::UI16, None),
+        let (data_type, suffix_bytes) = match cell(record, ChColumn::Type) {
+            None => (DataType::UI, None),
             Some(s) => match parse_type(&s) {
                 Some(parsed) => parsed,
                 None => {
@@ -94,7 +94,7 @@ pub(crate) fn interpret_ch(
                             shown(&s)
                         ),
                     );
-                    (DataType::UI16, None)
+                    (DataType::UI, None)
                 }
             },
         };
@@ -280,7 +280,7 @@ pub(crate) fn interpret_ch(
             number,
             name: cell(record, ChColumn::Name).unwrap_or_default(),
             byte_count,
-            data_type: DataType::resolve(category, byte_count),
+            data_type,
             lsb,
             offset,
             unit: cell(record, ChColumn::Unit).unwrap_or_default(),
@@ -476,14 +476,15 @@ pub(crate) fn is_comment(record: &[String]) -> bool {
         .unwrap_or(false)
 }
 
-/// `type` cell → the category (as a representative [`DataType`], resolved to
-/// the real width later) and the byte count its width suffix implies, if it
-/// has one. `None` when the cell is not `UI` / `SI` / `BF` with an optional
-/// bit-width suffix that is a positive multiple of 8.
+/// `type` cell → the interpretation and the byte count its width suffix
+/// implies, if it has one. The suffix never becomes the width — `bytes`
+/// does — it is only compared against it. `None` when the cell is not
+/// `UI` / `SI` / `BF` with an optional bit-width suffix that is a positive
+/// multiple of 8.
 fn parse_type(s: &str) -> Option<(DataType, Option<usize>)> {
     let category = match s.get(..2)?.to_ascii_uppercase().as_str() {
-        "UI" => DataType::UI16,
-        "SI" => DataType::SI16,
+        "UI" => DataType::UI,
+        "SI" => DataType::SI,
         "BF" => DataType::BF,
         _ => return None,
     };
@@ -595,25 +596,25 @@ mod tests {
             (
                 channels[0].number,
                 channels[0].byte_count,
-                channels[0].data_type.clone()
+                channels[0].data_type
             ),
-            (1, 4, DataType::UI32)
+            (1, 4, DataType::UI)
         );
         assert_eq!(
             (
                 channels[1].number,
                 channels[1].byte_count,
-                channels[1].data_type.clone()
+                channels[1].data_type
             ),
-            (2, 2, DataType::UI16)
+            (2, 2, DataType::UI)
         );
         assert_eq!(
             (
                 channels[2].number,
                 channels[2].byte_count,
-                channels[2].data_type.clone()
+                channels[2].data_type
             ),
-            (3, 1, DataType::SI8)
+            (3, 1, DataType::SI)
         );
         assert_eq!(codes(&parsed.issues), vec![IssueCode::BytesAssumed]);
         assert_eq!(parsed.issues[0].row, Some(2));
@@ -725,7 +726,7 @@ mod tests {
         let parsed = parse_ch_csv(csv_data).unwrap();
 
         assert_eq!(parsed.value[0].byte_count, 2);
-        assert_eq!(parsed.value[0].data_type, DataType::UI16);
+        assert_eq!(parsed.value[0].data_type, DataType::UI);
         assert_eq!(codes(&parsed.issues), vec![IssueCode::TypeWidthMismatch]);
     }
 
@@ -958,7 +959,7 @@ mod tests {
         assert_eq!(channels.len(), 2);
         assert_eq!(channels[0].name, "Frame counter");
         assert_eq!((channels[0].number, channels[0].byte_count), (1, 4));
-        assert_eq!(channels[0].data_type, DataType::UI32);
+        assert_eq!(channels[0].data_type, DataType::UI);
         assert_eq!((channels[1].lsb, channels[1].offset), (0.1, -40.0));
         assert_eq!(channels[1].unit, "degC");
         assert_eq!(channels[1].default_value, Some(0xFF));

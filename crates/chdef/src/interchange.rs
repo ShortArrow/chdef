@@ -43,7 +43,7 @@ impl<'l> Definitions<'l> {
                     n: ch.number,
                     at,
                     bytes: ch.byte_count,
-                    ty: ch.data_type.category(),
+                    ty: ch.data_type.as_str(),
                     section: &ch.section,
                     name: &ch.name,
                     lsb: ch.lsb,
@@ -182,7 +182,7 @@ mod tests {
     use crate::table::ChTable;
 
     fn sample() -> crate::channel::ChannelLayout {
-        let mut counter = ChannelDef::new(1, 4, DataType::UI32);
+        let mut counter = ChannelDef::new(1, 4, DataType::UI);
         counter.name = "Frame counter".into();
         counter.section = "General".into();
 
@@ -192,7 +192,7 @@ mod tests {
         status.default_value = Some(1);
         status.format = DisplayFormat::Hex;
 
-        let mut temp = ChannelDef::new(3, 2, DataType::SI16);
+        let mut temp = ChannelDef::new(3, 2, DataType::SI);
         temp.name = "Temperature".into();
         temp.lsb = 0.1;
         temp.unit = "degC".into();
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn readings_json_writes_null_for_a_value_that_is_not_a_number() {
-        let mut ch = ChannelDef::new(1, 1, DataType::UI8);
+        let mut ch = ChannelDef::new(1, 1, DataType::UI);
         ch.lsb = f64::NAN;
         let layout = build_layout(vec![ch], vec![]).value;
 

@@ -97,7 +97,7 @@ fn check_layout(layout: &ChannelLayout, total: &str, positions: &str, at: &str) 
     let expected: Vec<&str> = positions.split(';').collect();
     let actual: Vec<String> = layout
         .positions()
-        .map(|(offset, ch)| format!("{}:{offset}:{}", ch.number, ch.byte_count))
+        .map(|(offset, ch)| format!("{}:{offset}:{}", ch.number, ch.width()))
         .collect();
     assert_eq!(actual, expected, "{at}: positions");
 }

@@ -98,7 +98,29 @@ tag, published to crates.io.
   `layout_exceeds_capacity`. Every code of the diagnostics spec is now
   emitted. `BitFieldDef::bit_of` extracts a bit from the parent's raw value.
 
+### Fixed
+- Conversions used two different widths: `raw_to_value_endian` measured a
+  channel by its `DataType` while everything else measured it by
+  `byte_count`, so a 3-, 5-, 6-, 7- or 8-byte channel read only its first
+  two bytes. A 3-byte `SI` channel round-tripped `−100 000` as `+31 072`,
+  and `ChannelLayout::decode` returned a `raw` and a `value` that
+  disagreed inside one `Decoded` (ADR-0014).
+- `raw_to_value_u64` did not sign-extend a 64-bit `SI` channel, so `−1`
+  read back as `1.8e19` and every range query built on `min_value` /
+  `max_value` inherited it.
+- `value_to_raw` clamped in f64, where `2^n − 1` is not representable
+  beyond 53 bits; a 7-byte unsigned channel clamped to `0` instead of its
+  maximum.
+- A `byte_count` of 0 made `bits()` zero and overflowed a subtraction in
+  `raw_to_value_u64`.
+- `BF` channels read big-endian were shifted, because the byte reader
+  zero-padded at the tail regardless of byte order.
+
 ### Changed
+- `DataType` is `UI` / `SI` / `BF` — the interpretation only (ADR-0014,
+  `layout.md` §6). `byte_count()` and `resolve()` are gone; `as_str()` and
+  `Display` give the two-letter tag. `ChannelDef::width()` is the single
+  authority for how wide a channel is, holding `byte_count` to 1–8.
 - `load_ch_csv` / `load_bf_csv` take `impl AsRef<Path>` instead of `&str`, so
   a `PathBuf` and a path that is not valid Unicode both go through. Calls
   passing a string literal are unaffected.

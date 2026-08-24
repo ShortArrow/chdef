@@ -272,7 +272,7 @@ impl ChTable {
         put(ChColumn::Number, def.number.to_string());
         put(ChColumn::Bytes, def.byte_count.to_string());
         put(ChColumn::Name, def.name.clone());
-        put(ChColumn::Type, def.data_type.category().into());
+        put(ChColumn::Type, def.data_type.as_str().into());
         put(ChColumn::Lsb, shortest(def.lsb));
         put(ChColumn::Offset, shortest(def.offset));
         put(ChColumn::Unit, def.unit.clone());
@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn insert_channel_writes_only_the_columns_the_file_has() {
         let mut table = ChTable::parse("number,bytes,name\n1,2,First\n").unwrap();
-        let mut def = ChannelDef::new(7, 4, DataType::UI32);
+        let mut def = ChannelDef::new(7, 4, DataType::UI);
         def.name = "Inserted".into();
         def.lsb = 0.5;
 
@@ -516,7 +516,7 @@ mod tests {
     #[test]
     fn insert_channel_renders_type_bounds_and_default() {
         let mut table = ChTable::new();
-        let mut def = ChannelDef::new(1, 2, DataType::SI16);
+        let mut def = ChannelDef::new(1, 2, DataType::SI);
         def.lsb = 0.1;
         def.min = Some(Value::Raw(0x10));
         def.max = Some(Value::Physical(50.0));
@@ -527,7 +527,7 @@ mod tests {
         let parsed = table.channels();
         assert!(parsed.issues.is_empty());
         let ch = &parsed.value[0];
-        assert_eq!(ch.data_type, DataType::SI16);
+        assert_eq!(ch.data_type, DataType::SI);
         assert_eq!(ch.lsb, 0.1);
         assert_eq!(ch.min, Some(Value::Raw(0x10)));
         assert_eq!(ch.max, Some(Value::Physical(50.0)));
@@ -537,7 +537,7 @@ mod tests {
     #[test]
     fn insert_channel_writes_the_text_columns_too() {
         let mut table = ChTable::new();
-        let mut def = ChannelDef::new(1, 2, DataType::UI16);
+        let mut def = ChannelDef::new(1, 2, DataType::UI);
         def.section = "General".into();
         def.memo = "a, quoted memo".into();
         def.var = "g_status".into();
@@ -583,7 +583,7 @@ mod tests {
         )
         .unwrap();
         let channels = vec![
-            ChannelDef::new(1, 2, DataType::UI16),
+            ChannelDef::new(1, 2, DataType::UI),
             ChannelDef::new(2, 2, DataType::BF),
         ];
 
@@ -624,7 +624,7 @@ x,0,bad number
             ChTable::parse("number,bytes,type,name\n1,1,UI8,a\n3,2,BF,flags\n# note\n4,2,UI16,c\n")
                 .unwrap();
         let mut bf = BfTable::parse("number,bit,name\n3,0,b0\n4,1,x\n").unwrap();
-        let mut def = ChannelDef::new(3, 2, DataType::UI16);
+        let mut def = ChannelDef::new(3, 2, DataType::UI);
         def.name = "inserted".into();
 
         let report = table.insert_channel_renumbering(1, &def, Some(&mut bf));
@@ -643,7 +643,7 @@ x,0,bad number
         let mut table = ChTable::parse("number,name\n1,a\n2,b\n").unwrap();
 
         let report =
-            table.insert_channel_renumbering(2, &ChannelDef::new(9, 2, DataType::UI16), None);
+            table.insert_channel_renumbering(2, &ChannelDef::new(9, 2, DataType::UI), None);
 
         assert!(report.moved.is_empty());
         let numbers: Vec<u32> = table.channels().value.iter().map(|c| c.number).collect();
