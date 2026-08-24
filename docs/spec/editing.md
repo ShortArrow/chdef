@@ -23,10 +23,12 @@ rows, inserting a typed channel, renumbering, the cross-file checks.
 Whether the first record is a header is the one interpretation a bare grid
 makes, and it takes the first record as one; deciding it from the
 vocabulary (§2 of [format.md](./format.md), including the positional
-fallback) is the typed tables'. Rows and Layout are derived views: interpret again
-after an edit (`channels()` / `bitfields()`, then `build_layout`), the
-same way positions and `total_bytes()` are always recomputed. Nothing is
-cached, so nothing goes stale.
+fallback) is the typed tables'.
+
+Rows and Layout are derived views: interpret again after an edit
+(`channels()` / `bitfields()`, then `build_layout`), the same way
+positions and `total_bytes()` are always recomputed. Nothing is cached, so
+nothing goes stale.
 
 ## 2. Round trip
 

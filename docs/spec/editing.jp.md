@@ -19,10 +19,11 @@ Table 段階（[layout.jp.md §1](./layout.jp.md)）は、見出し行と全デ�
 必要なものだけを足す — 行の解釈、型付きチャンネルの挿入、番号の付け替え、
 横断検査。素の Grid が行う唯一の解釈は「最初のレコードが見出しか」で、
 最初のレコードを見出しとみなす。語彙から判定する（位置フォールバックを
-含む [format.jp.md](./format.jp.md) §2）のは型付きの表の仕事。Rows / Layout は導出ビューで、編集したら
-解釈し直す（`channels()` / `bitfields()` → `build_layout`）。位置や
-`total_bytes` が常に再計算されるのと同じ原則で、何もキャッシュしないから
-何も陳腐化しない。
+含む [format.jp.md](./format.jp.md) §2）のは型付きの表の仕事。
+
+Rows / Layout は導出ビューで、編集したら解釈し直す（`channels()` /
+`bitfields()` → `build_layout`）。位置や `total_bytes()` が常に再計算される
+のと同じ原則で、何もキャッシュしないから何も陳腐化しない。
 
 ## 2. 往復の保証
 
