@@ -26,4 +26,4 @@ pub use csv::{
 };
 pub use error::{ChdefError, Result};
 pub use issue::{Issue, IssueCode, Parsed};
-pub use table::{BfTable, ChTable, Renumbered};
+pub use table::{BfTable, ChTable, CsvStyle, LineEnding, Renumbered};

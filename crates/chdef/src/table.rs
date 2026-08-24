@@ -11,6 +11,49 @@ use crate::csv::{decode_utf8, interpret_bf, interpret_ch, is_blank, is_comment};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
 
+/// How a CSV file separates its records.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LineEnding {
+    /// `\r\n`, what chdef writes into a file it creates
+    /// (`docs/spec/format.md` §1).
+    #[default]
+    Crlf,
+    /// `\n`.
+    Lf,
+}
+
+impl LineEnding {
+    fn as_str(self) -> &'static str {
+        match self {
+            LineEnding::Crlf => "\r\n",
+            LineEnding::Lf => "\n",
+        }
+    }
+}
+
+/// The shape of a CSV file, apart from its cells: whether it starts with a
+/// byte-order mark and how it separates records. A table reads this from
+/// the file it parsed and writes it back, so editing one cell of a file
+/// kept with `\n` endings does not rewrite every line of it. The default —
+/// what a table created in code uses — is the write column of
+/// `docs/spec/format.md` §1: a BOM and `\r\n`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CsvStyle {
+    pub bom: bool,
+    pub line_ending: LineEnding,
+}
+
+impl Default for CsvStyle {
+    /// The write column of `docs/spec/format.md` §1: a byte-order mark, so
+    /// spreadsheet software does not guess another encoding, and CRLF.
+    fn default() -> CsvStyle {
+        CsvStyle {
+            bom: true,
+            line_ending: LineEnding::Crlf,
+        }
+    }
+}
+
 /// What [`ChTable::insert_channel_renumbering`] moved: `(old, new)` per
 /// renumbered channel, ascending by old number. The consumer repairs or
 /// announces its own references with it — chdef does not know them.
@@ -27,6 +70,7 @@ struct Cells<C> {
     header: Option<Vec<String>>,
     map: ColumnMap<C>,
     rows: Vec<Vec<String>>,
+    style: CsvStyle,
 }
 
 impl<C: Copy + PartialEq> Cells<C> {
@@ -35,8 +79,10 @@ impl<C: Copy + PartialEq> Cells<C> {
         from_header: fn(&[&str]) -> Option<ColumnMap<C>>,
         positional: fn() -> ColumnMap<C>,
     ) -> Result<Self> {
+        let bom = content.starts_with('\u{FEFF}');
         let content = content.trim_start_matches('\u{FEFF}');
-        if let Some(line) = unterminated_quote(content) {
+        let scan = scan_shape(content);
+        if let Some(line) = scan.unterminated_on {
             return Err(ChdefError::CsvParse {
                 line,
                 message:
@@ -61,27 +107,37 @@ impl<C: Copy + PartialEq> Cells<C> {
         let map = rows
             .first()
             .and_then(|first| from_header(&first.iter().map(String::as_str).collect::<Vec<_>>()));
+        let style = CsvStyle {
+            bom,
+            line_ending: scan.line_ending.unwrap_or_default(),
+        };
         Ok(match map {
             Some(map) => Cells {
                 header: Some(rows.remove(0)),
                 map,
                 rows,
+                style,
             },
             None => Cells {
                 header: None,
                 map: positional(),
                 rows,
+                style,
             },
         })
     }
 
     fn to_csv(&self) -> String {
-        let mut out = String::from("\u{FEFF}");
+        let mut out = String::new();
+        if self.style.bom {
+            out.push('\u{FEFF}');
+        }
+        let separator = self.style.line_ending.as_str();
         if let Some(header) = &self.header {
-            push_row(&mut out, header);
+            push_row(&mut out, header, separator);
         }
         for row in &self.rows {
-            push_row(&mut out, row);
+            push_row(&mut out, row, separator);
         }
         out
     }
@@ -106,16 +162,27 @@ impl<C: Copy + PartialEq> Cells<C> {
     }
 }
 
-/// The 1-based line on which a quoted cell opens and is never closed, if
-/// there is one. A quote only opens a cell at the start of one
-/// (`docs/spec/format.md` §1: a quote outside quotes is a literal
-/// character), and a doubled quote inside one is an escaped quote, not a
-/// closing one. The `csv` crate reads such a cell to the end of the file
-/// without complaint, which silently shortens the definition.
-fn unterminated_quote(content: &str) -> Option<usize> {
+/// What one quote-aware pass over the text finds: a quoted cell left open
+/// at the end of the file, and how the file separates its records.
+struct Shape {
+    /// The 1-based line on which a quoted cell opens and is never closed.
+    /// A quote only opens a cell at the start of one
+    /// (`docs/spec/format.md` §1: a quote outside quotes is a literal
+    /// character), and a doubled quote inside one is an escaped quote, not
+    /// a closing one. The `csv` crate reads such a cell to the end of the
+    /// file without complaint, which silently shortens the definition.
+    unterminated_on: Option<usize>,
+    /// The first record separator outside a quoted cell; `None` for a file
+    /// with no complete record.
+    line_ending: Option<LineEnding>,
+}
+
+fn scan_shape(content: &str) -> Shape {
     let mut line = 1usize;
     let mut opened_on = None;
+    let mut line_ending = None;
     let mut at_field_start = true;
+    let mut saw_cr = false;
     let mut chars = content.chars().peekable();
 
     while let Some(c) = chars.next() {
@@ -124,11 +191,20 @@ fn unterminated_quote(content: &str) -> Option<usize> {
                 '"' if at_field_start => opened_on = Some(line),
                 ',' => at_field_start = true,
                 '\n' => {
+                    line_ending.get_or_insert(if saw_cr {
+                        LineEnding::Crlf
+                    } else {
+                        LineEnding::Lf
+                    });
                     line += 1;
                     at_field_start = true;
+                    saw_cr = false;
                 }
-                '\r' => {}
-                _ => at_field_start = false,
+                '\r' => saw_cr = true,
+                _ => {
+                    at_field_start = false;
+                    saw_cr = false;
+                }
             },
             Some(_) => match c {
                 '"' if chars.peek() == Some(&'"') => {
@@ -143,10 +219,13 @@ fn unterminated_quote(content: &str) -> Option<usize> {
             },
         }
     }
-    opened_on
+    Shape {
+        unterminated_on: opened_on,
+        line_ending,
+    }
 }
 
-fn push_row(out: &mut String, row: &[String]) {
+fn push_row(out: &mut String, row: &[String], separator: &str) {
     for (i, cell) in row.iter().enumerate() {
         if i > 0 {
             out.push(',');
@@ -159,7 +238,7 @@ fn push_row(out: &mut String, row: &[String]) {
             out.push_str(cell);
         }
     }
-    out.push_str("\r\n");
+    out.push_str(separator);
 }
 
 fn shortest(v: f64) -> String {
@@ -192,6 +271,18 @@ macro_rules! grid_api {
         /// Number of data rows (comment and blank rows included).
         pub fn row_count(&self) -> usize {
             self.cells.rows.len()
+        }
+
+        /// The shape the file is written in — its byte-order mark and
+        /// record separator — read from the file this table was parsed
+        /// from, or the write defaults for one created in code.
+        pub fn style(&self) -> CsvStyle {
+            self.cells.style
+        }
+
+        /// Write the file in another shape from now on.
+        pub fn set_style(&mut self, style: CsvStyle) {
+            self.cells.style = style;
         }
 
         /// The header row as it was read, or `None` for a file read
@@ -270,6 +361,7 @@ impl ChTable {
                 map: ColumnMap::ch_from_header(&cells).expect("canonical header names `number`"),
                 header: Some(header),
                 rows: Vec::new(),
+                style: CsvStyle::default(),
             },
         }
     }
@@ -403,6 +495,7 @@ impl BfTable {
                 map: ColumnMap::bf_from_header(&cells).expect("canonical header names `number`"),
                 header: Some(header),
                 rows: Vec::new(),
+                style: CsvStyle::default(),
             },
         }
     }
@@ -499,13 +592,10 @@ mod tests {
         let text = "番号,バイト数,memo,謎の列\n1,2,note,keep\n# comment\n,,,\n2,4,,also\n";
 
         let table = ChTable::parse(text).unwrap();
-        let written = table.to_csv();
 
-        assert!(written.starts_with('\u{FEFF}'));
-        assert_eq!(
-            written.trim_start_matches('\u{FEFF}'),
-            "番号,バイト数,memo,謎の列\r\n1,2,note,keep\r\n# comment\r\n,,,\r\n2,4,,also\r\n"
-        );
+        // The source has no byte-order mark and separates records with a
+        // lone newline; both come back as they were.
+        assert_eq!(table.to_csv(), text);
     }
 
     #[test]
@@ -514,8 +604,8 @@ mod tests {
 
         let written = table.to_csv();
 
-        assert!(written.contains("\r\n1,plain\r\n"));
-        assert!(written.contains("2,\"with,comma\"\r\n"));
+        assert!(written.contains("\n1,plain\n"));
+        assert!(written.contains("2,\"with,comma\"\n"));
     }
 
     #[test]
@@ -721,10 +811,7 @@ x,0,bad number
 
         let written = table.to_csv();
 
-        assert_eq!(
-            written.trim_start_matches('\u{FEFF}'),
-            "1,2,,Sec,Name,UI16,1,,\r\n"
-        );
+        assert_eq!(written, "1,2,,Sec,Name,UI16,1,,\n");
         assert_eq!(table.channels().issues[0].code, IssueCode::HeaderAssumed);
     }
 

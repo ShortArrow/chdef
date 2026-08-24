@@ -14,8 +14,8 @@ Writing is `ChTable::to_csv` /
 
 | Item | Read | Write |
 |---|---|---|
-| Encoding | UTF-8. One or more leading BOMs (`EF BB BF`) are all ignored | UTF-8 with BOM (so spreadsheet software does not guess another encoding) |
-| Record separator | Both `\r\n` and `\n` are accepted | `\r\n` |
+| Encoding | UTF-8. One or more leading BOMs (`EF BB BF`) are all ignored | As the file was read; UTF-8 with a BOM for a file chdef creates (so spreadsheet software does not guess another encoding) |
+| Record separator | Both `\r\n` and `\n` are accepted | As the file was read; `\r\n` for a file chdef creates |
 | Newlines inside a cell | `\n` / `\r\n` inside a quoted cell is part of the cell (RFC 4180) | Written verbatim (`\n` is not normalised to `\r\n`) |
 | Quoting | `"..."`; an inner `"` is `""`. A `"` outside quotes is a literal character | A cell containing any of `,` `"` `\r` `\n` is quoted |
 | Whitespace | Leading / trailing spaces and tabs of a cell are trimmed before interpretation | Not trimmed (the original text is kept) |

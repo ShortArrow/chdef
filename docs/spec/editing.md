@@ -20,16 +20,24 @@ cached, so nothing goes stale.
 
 ## 2. Round trip
 
-Read → Table → write preserves **rows and cell contents**, not bytes:
+Read → Table → write preserves **rows, cell contents and the shape of
+the file**:
 
 - Header spelling, unknown columns, comment rows and rows whose cells are
   all empty survive as they were.
 - Quoting is normalised to the write rules ([format.md §1](./format.md#1-file)):
   a cell is quoted only when it holds `,` `"` or a newline; unnecessary
   quotes in the source are dropped.
-- The record separator is normalised to `\r\n` and one BOM is written.
+- The byte-order mark and the record separator come back as they were
+  read (`CsvStyle`), so editing one cell of a file kept with `\n` endings
+  does not rewrite every line of it. A table created in code writes the
+  defaults of [format.md §1](./format.md#1-file): a BOM and `\r\n`. The
+  shape is readable and settable, for a project that wants one everywhere.
 - A line with no cells at all (fully empty, no commas) yields no record
   and is not preserved. A skippable-but-present row is spelled `,,,`.
+
+A file that already follows the write rules therefore round-trips byte
+for byte.
 
 ## 3. Edit operations
 

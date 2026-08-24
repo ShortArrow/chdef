@@ -22,6 +22,13 @@ tag, published to crates.io.
   set, so a consumer displaying a bit field writes no shifts.
 - `ChTable` / `BfTable`: `header`, `rows` and `row(index)` hand over the
   grid an editor draws.
+- `CsvStyle` / `LineEnding`, with `style` / `set_style`: a table writes the
+  byte-order mark and record separator it read, so editing one cell of a
+  file kept with `
+` endings no longer rewrites every line (ADR-0017). A
+  file that already follows the write rules round-trips byte for byte; a
+  table created in code still writes a BOM and `
+`.
 
 ### Changed
 - `DisplayFormat` is `ValueDisplay { Physical, Raw }`, naming the choice
