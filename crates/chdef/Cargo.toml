@@ -1,6 +1,6 @@
 [package]
 name = "chdef"
-description = "Channel / bit-field definitions (CH設定 / BF設定): CSV parsing, frame layout, raw↔physical conversion"
+description = "Channel and bit-field definitions for binary frames: read the CSVs, compute the frame layout, convert between raw bytes and physical values"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

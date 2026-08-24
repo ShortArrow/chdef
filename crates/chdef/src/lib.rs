@@ -1,4 +1,4 @@
-//! Channel / bit-field definitions (CH設定 / BF設定).
+//! Channel and bit-field definitions for binary frames.
 //!
 //! A CH CSV names each contiguous field of a binary frame in order (offset =
 //! cumulative byte count); a BF CSV names the individual bits of channels whose

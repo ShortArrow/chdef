@@ -10,7 +10,7 @@
     <IsPackable>true</IsPackable>
     <PackageId>Chdef</PackageId>
     <Title>Chdef</Title>
-    <Description>Channel / bit-field definitions (CH設定 / BF設定): read CH / BF CSVs, compute the frame layout, encode and decode frames. A binding over the chdef Rust crate, carrying its native library for every supported runtime.</Description>
+    <Description>Channel and bit-field definitions for binary frames: read the CSVs, compute the frame layout, encode and decode frames. A binding over the chdef Rust crate, carrying its native library for every supported runtime.</Description>
     <PackageProjectUrl>https://github.com/ShortArrow/chdef</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ShortArrow/chdef</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

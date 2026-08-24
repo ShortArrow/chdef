@@ -2,7 +2,7 @@
 
 🌐 [English](./format.md) | **日本語**
 
-実装済み（0.0.3）: 先頭 BOM の除去、英語 / 日本語の見出し名による列特定（先頭 9 列の位置フォールバックと、読み手に教えた綴り `ColumnAliases` を含む）、空行と `#` 行の読み飛ばし、下表の全列の解釈と Issue、`parse_*_csv_bytes` によるバイト列入力、`load_*_csv` の `AsRef<Path>` 受け取り。書き出しは `to_csv` で、往復の保証は [editing.jp.md §2](./editing.jp.md)。chdef が作るファイルは、呼び出し側が指定した列と言語で見出しを書く（`with_columns`）。
+実装済み（0.0.4）: 先頭 BOM の除去、英語 / 日本語の見出し名による列特定（先頭 9 列の位置フォールバックと、読み手に教えた綴り `ColumnAliases` を含む）、空行と `#` 行の読み飛ばし、下表の全列の解釈と Issue、`parse_*_csv_bytes` によるバイト列入力、`load_*_csv` の `AsRef<Path>` 受け取り。書き出しは `to_csv` で、往復の保証は [editing.jp.md §2](./editing.jp.md)。chdef が作るファイルは、呼び出し側が指定した列と言語で見出しを書く（`with_columns`）。
 
 ## 1. ファイル
 

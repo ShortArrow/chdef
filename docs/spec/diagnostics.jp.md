@@ -2,7 +2,7 @@
 
 🌐 [English](./diagnostics.md) | **日本語**
 
-実装済み（0.0.3）: §2 のフィールドを持つ `Issue` 型、全ローダー（`build_layout` 含む）の戻り値 `Parsed { value, issues }`、および下表の全コード。横断コードは `build_layout` が、`layout_exceeds_capacity` は `ChannelLayout::check_capacity` が報告する。横断コードの行なしは ADR-0008 の決定。
+実装済み（0.0.4）: §2 のフィールドを持つ `Issue` 型、全ローダー（`build_layout` 含む）の戻り値 `Parsed { value, issues }`、および下表の全コード。横断コードは `build_layout` が、`layout_exceeds_capacity` は `ChannelLayout::check_capacity` が報告する。横断コードの行なしは ADR-0008 の決定。
 
 ## 1. 原則
 

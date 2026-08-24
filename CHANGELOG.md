@@ -9,6 +9,15 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.4] - 2026-08-24
+
+### Changed
+- The package descriptions on crates.io and nuget.org, and the crate's
+  own front page, are English throughout. That the columns also have
+  Japanese spellings is a fact about the file format, stated where the
+  format is (`docs/spec/format.md` §3), not something a one-line blurb on
+  a registry should be half-written in.
+
 ## [0.0.3] - 2026-08-24
 
 The first release published to crates.io and nuget.org. `0.0.1` and
