@@ -1,6 +1,6 @@
 // Every Issue code, as constants and as a list.
 //
-// The codes cross the ABI as strings so the vocabulary can grow
+// The codes are carried as strings so the vocabulary can grow
 // (ADR-0021), which left a caller holding a string with nothing to check
 // it against: a misspelling compiled and fell through to the English
 // Message, the one field whose wording is not contracted. These constants

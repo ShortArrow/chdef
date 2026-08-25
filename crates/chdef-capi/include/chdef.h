@@ -4,13 +4,13 @@
  *
  * SPDX-License-Identifier: MIT OR Apache-2.0
  *
- * What crosses is every rule docs/spec states, so that a consumer never
- * reimplements one (ADR-0023). What does not cross is what a consumer
+ * The ABI carries every rule docs/spec states, so that a consumer never
+ * reimplements one (ADR-0023). What it does not carry is what a consumer
  * writes anyway: editing UI, undo history, save orchestration.
  *
  * Three rules shape every signature (ADR-0021):
  *
- *  - No enums. Every identity crosses as its stable ASCII string — an
+ *  - No enums. Every identity is carried as its stable ASCII string — an
  *    Issue's code, a channel's type — because both vocabularies are
  *    documented as growing. `endian` is the one exception: two values that
  *    cannot grow.
@@ -174,8 +174,8 @@ void chdef_issues_free(ChdefIssues *handle);
 
 /* The canonical column names, in canonical order: the identity of each
  * column, the names a vocabulary is taught against, and the keys the JSON
- * of the interchange format uses. A column crosses as its name rather than
- * as a number, so adding one is not an ABI break. */
+ * of the interchange format uses. A column is identified by its name
+ * rather than by a number, so adding one is not an ABI break. */
 uint64_t chdef_column_count(int32_t kind);
 size_t chdef_column_name(int32_t kind, size_t index, char *buf, size_t cap);
 
@@ -346,9 +346,9 @@ int32_t chdef_readings_out_of_range(const ChdefLayout *handle,
                              size_t reading_count,
                              ChdefIssues **out_issues);
 
-/* Every Issue code this library can report. The codes cross as strings
- * so the vocabulary can grow, and this is what lets a caller prove its
- * own table covers them. */
+/* Every Issue code this library can report. The codes are carried as
+ * strings so the vocabulary can grow, and this is what lets a caller
+ * prove its own table covers them. */
 uint64_t chdef_issue_code_count(void);
 size_t chdef_issue_code_name(size_t index, char *buf, size_t cap);
 

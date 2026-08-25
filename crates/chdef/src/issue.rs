@@ -198,9 +198,9 @@ const ALL_ISSUE_CODES: [IssueCode; 32] = [
 impl IssueCode {
     /// Every code this chdef can report, in declaration order.
     ///
-    /// The codes cross as strings so the vocabulary can grow (ADR-0021);
-    /// this is what lets a consumer prove its own table covers them
-    /// (ADR-0026) instead of finding a gap when a count moves.
+    /// The codes are carried as strings so the vocabulary can grow
+    /// (ADR-0021); this is what lets a consumer prove its own table
+    /// covers them (ADR-0026) instead of finding a gap when a count moves.
     pub fn all() -> &'static [IssueCode] {
         &ALL_ISSUE_CODES
     }

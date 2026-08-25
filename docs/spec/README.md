@@ -14,7 +14,7 @@ starts with the scope that the current release actually implements.
 | [diagnostics.md](./diagnostics.md) | Diagnostics (Issue): granularity, codes, messages, and the line between an Issue and a fatal error |
 | [editing.md](./editing.md) | The Table stage as the editing substrate: cell / row edits, typed insertion, renumbering, the round-trip guarantee |
 | [interchange.md](./interchange.md) | JSON output shape and the golden-vector format |
-| [abi.md](./abi.md) | What crosses the C ABI and the .NET binding, and the conventions it crosses by |
+| [abi.md](./abi.md) | What the C ABI and the .NET binding carry, and the conventions they carry it by |
 
 ## Terms
 

@@ -7,13 +7,13 @@ named bits, the grid, the value notation and the diagnostics, through the
 C ABI of `chdef-capi` and the .NET binding built on it. TypeScript is not
 implemented.
 
-## 1. What crosses
+## 1. What the ABI carries
 
 **A consumer reaching chdef through the ABI never has to reimplement a
 rule this specification states.** That criterion draws the line in both
 directions, and it decides what the ABI grows next.
 
-Crossing, because a consumer that writes it holds a second implementation
+Carried, because a consumer that writes it holds a second implementation
 of a rule that has one home:
 
 | Rule | Document | Carried by |
@@ -27,13 +27,13 @@ of a rule that has one home:
 | The file as cells, and writing it back unchanged | [editing.md](./editing.md) | the grid calls |
 | Codes, messages, the row and column they point at | [diagnostics.md](./diagnostics.md) | the diagnostics calls |
 
-Not crossing, because a consumer writes it whatever chdef does: editing
+Not carried, because a consumer writes it whatever chdef does: editing
 UI, undo history, save orchestration, and the presentation choices of the
 specification index's out-of-scope list. An ABI that carried these would
 be deciding for the application.
 
-The grid crosses **as cells**, not as a typed editing API: cells are what
-the round-trip guarantee of [editing.md §2](./editing.md#2-round-trip) is
+The grid is exposed **as cells**, not as a typed editing API: cells are
+what the round-trip guarantee of [editing.md §2](./editing.md#2-round-trip) is
 about, and a consumer displaying a definition file needs no column
 vocabulary to do it.
 
@@ -43,9 +43,10 @@ vocabulary to do it.
   negative, and `CHDEF_PANIC` is returned rather than letting a panic
   cross `extern "C"`. A call that returns a length instead returns `0`
   where it would have failed.
-- **No enumerations cross.** A category — a data type, an issue code, a
-  display format — crosses as an ASCII string, so adding one is not an ABI
-  break and a caller that does not know it still has something to show.
+- **No enumeration is exported.** A category — a data type, an issue
+  code, a display format — is carried as an ASCII string, so adding one is
+  not an ABI break and a caller that does not know it still has something
+  to show.
 - **Handles are opaque and tagged.** A handle carries a tag its creating
   call sets, so a null pointer, or a handle of one kind passed where
   another was expected, is reported as `CHDEF_ERR_HANDLE` rather than
@@ -85,7 +86,7 @@ Six groups, named after what they carry:
 - **Value notation** — read the text form of a value into the value it
   denotes.
 - **Vocabulary** — the canonical column names, and a vocabulary built from
-  them that a parse reads its headers with. A column crosses as its
+  them that a parse reads its headers with. A column is identified by its
   canonical **name**, not a number, so adding one to the format is not an
   ABI break.
 - **Diagnostics** — the count, the numbers and the text of each finding.

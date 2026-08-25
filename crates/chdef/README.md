@@ -133,7 +133,7 @@ assert_eq!(read.value[0].number, 7);
 
 ## From C# and C
 
-The same implementation, reached through a C ABI. What crosses it is every
+The same implementation, reached through a C ABI. It carries every
 rule the specification states, so a consumer in another language never
 writes one of them a second time
 ([docs/spec/abi.md](./docs/spec/abi.md)).

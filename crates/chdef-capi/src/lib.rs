@@ -7,7 +7,7 @@
 //!
 //! Three rules shape every signature:
 //!
-//! - **No enums.** Every identity crosses as its stable ASCII string (an
+//! - **No enums.** Every identity is carried as its stable ASCII string (an
 //!   Issue's code, a channel's `type`), because both vocabularies are
 //!   documented as growing. `endian` is the one exception: two values that
 //!   cannot grow.
@@ -829,10 +829,10 @@ pub unsafe extern "C" fn chdef_issue_text(
     })
 }
 
-/// Keep the `IssueCode` import honest: the codes cross as strings, and
-/// this is where that is stated once.
+/// Keep the `IssueCode` import honest: the codes are carried as strings,
+/// and this is where that is stated once.
 #[allow(dead_code)]
-fn code_crosses_as_a_string(code: IssueCode) -> &'static str {
+fn code_is_carried_as_a_string(code: IssueCode) -> &'static str {
     code.as_str()
 }
 
@@ -1606,8 +1606,9 @@ pub unsafe extern "C" fn chdef_layout_parse_with(
 /// How many Issue codes this library can report — the size to walk with
 /// [`chdef_issue_code_name`].
 ///
-/// The codes cross as strings so the vocabulary can grow (ADR-0021); this
-/// is what lets a caller prove its own table covers them (ADR-0026).
+/// The codes are carried as strings so the vocabulary can grow
+/// (ADR-0021); this is what lets a caller prove its own table covers them
+/// (ADR-0026).
 ///
 /// # Safety
 ///

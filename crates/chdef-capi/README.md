@@ -63,9 +63,9 @@ chdef_layout_free(layout);
 
 ## Three rules shape every signature
 
-- **No enumerations cross.** A data type, an Issue code, a display format
-  each cross as a stable ASCII string, so adding one is not an ABI break
-  and a caller that does not know it still has something to show.
+- **No enumeration is exported.** A data type, an Issue code, a display
+  format is carried as a stable ASCII string, so adding one is not an ABI
+  break and a caller that does not know it still has something to show.
 - **Strings go into your buffer.** A `_text` call writes UTF-8, always
   terminates, and returns the length the value needs — call it with
   `buf == NULL, cap == 0` to ask the length first. Nothing chdef produces
@@ -80,7 +80,7 @@ as for any C pointer.
 
 ## Where to look next
 
-- [What crosses this boundary](https://github.com/ShortArrow/chdef/blob/main/docs/spec/abi.md)
+- [What the ABI carries](https://github.com/ShortArrow/chdef/blob/main/docs/spec/abi.md)
   — and why it is everything the specification states
 - [The guide](https://github.com/ShortArrow/chdef/blob/main/docs/guide.md)
   — the shortest path through each task
