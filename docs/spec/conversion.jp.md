@@ -2,7 +2,7 @@
 
 🌐 [English](./conversion.md) | **日本語**
 
-実装済み（0.0.12）: 以下の全部を、`バイト数` が許す全ての幅（1〜8）、`UI` / `SI` / `BF`、両方のバイト順で — 生値 → 物理値（`raw_to_value_endian` / `raw_to_value_u64`）、物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`）、生値 ↔ バイト列のプリミティブ対（`raw_to_bytes_endian` / `raw_from_bytes_endian`）、フレーム全体の encode / decode（§5 / §6）、BF 既定値の合成（§4）、§7 の読みの選択（`displayed_value` / `render`）、§8 の範囲問い合わせ。残る制限は §1 の f64 の精度だけ。
+実装済み（0.0.13）: 以下の全部を、`バイト数` が許す全ての幅（1〜8）、`UI` / `SI` / `BF`、両方のバイト順で — 生値 → 物理値（`raw_to_value_endian` / `raw_to_value_u64`）、物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`）、生値 ↔ バイト列のプリミティブ対（`raw_to_bytes_endian` / `raw_from_bytes_endian`）、フレーム全体の encode / decode（§5 / §6）、BF 既定値の合成（§4）、§7 の読みの選択（`displayed_value` / `render`）、§8 の範囲問い合わせ。残る制限は §1 の f64 の精度だけ。
 
 ## 1. 生値 → 物理値
 

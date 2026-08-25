@@ -9,6 +9,24 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.13] - 2026-08-25
+
+### Fixed
+- **The NuGet page shipped in 0.0.12 was still the wrong one.** The
+  project packed the repository readme rather than the page written for a
+  C# reader, so nuget.org showed a landing page with no C# on it — the
+  defect 0.0.12 existed to remove, one directory over.
+- **The test meant to prevent that was checking nothing.** It asserted
+  the project *declares* a `PackageReadmeFile`, which was true and stayed
+  true while the wrong file was packed. It now reads which file the
+  project packs and fails unless it is the page beside it, and fails again
+  if that page ever shows Rust. Verified by reproducing the shipped bug
+  and watching it fail.
+
+  A test that cannot fail is worse than no test, because it is counted.
+  This one was written in the same hour as five others that do work, which
+  is the whole reason each of them is checked by mutating what it guards.
+
 ## [0.0.12] - 2026-08-25
 
 ### Fixed

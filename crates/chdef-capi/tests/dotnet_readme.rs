@@ -101,16 +101,36 @@ fn every_example_on_the_page_is_a_test_that_runs() {
 }
 
 #[test]
-fn the_page_names_the_package_the_project_builds() {
-    let readme = read("bindings/dotnet/Chdef/README.md");
+fn the_package_carries_this_page_and_not_another() {
+    // The first version of this test asserted that the project *has* a
+    // PackageReadmeFile, which was true and stayed true while the project
+    // packed the repository readme instead — so 0.0.12 shipped a NuGet
+    // page with no C# on it at all. What has to be checked is which file
+    // is packed.
     let project = read("bindings/dotnet/Chdef/Chdef.csproj");
 
     assert!(
-        readme.contains("dotnet add package Chdef"),
+        project.contains("<PackageReadmeFile>README.md</PackageReadmeFile>"),
+        "the package declares no readme"
+    );
+
+    let packed = project
+        .lines()
+        .filter(|line| line.contains("<None Include=") && line.contains("Pack=\"true\""))
+        .filter_map(|line| line.split("Include=\"").nth(1))
+        .filter_map(|rest| rest.split('"').next())
+        .find(|path| path.to_lowercase().ends_with("readme.md"))
+        .expect("nothing named readme.md is packed");
+
+    assert_eq!(
+        packed, "README.md",
+        "the package must carry the page beside it, written for a C#          reader; {packed} is somewhere else"
+    );
+
+    let page = read("bindings/dotnet/Chdef/README.md");
+    assert!(
+        page.contains("dotnet add package Chdef"),
         "the page does not say how to install it"
     );
-    assert!(
-        project.contains("<PackageReadmeFile>README.md</PackageReadmeFile>"),
-        "the package does not carry this page"
-    );
+    assert!(!page.contains("```rust"), "the NuGet page is showing Rust");
 }
