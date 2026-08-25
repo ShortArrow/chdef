@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./diagnostics.jp.md)
 
-Implemented (0.0.7): the `Issue` type with the fields of §2,
+Implemented (0.0.8): the `Issue` type with the fields of §2,
 `Parsed { value, issues }` as the return shape of every loader
 (`build_layout` included), and every code below. The cross-file codes come
 from `build_layout`, and `layout_exceeds_capacity` from
@@ -19,6 +19,11 @@ from `build_layout`, and `layout_exceeds_capacity` from
   0-based column position. An Issue not tied to a row has no row.
 - An Issue that fires on every row is not deduplicated (the consumer
   aggregates).
+
+Every code is reachable without naming it — `IssueCode::all()`, and
+`chdef_issue_code_count` / `chdef_issue_code_name` across the ABI — so a
+consumer keying a table by code proves it complete rather than finding the
+gap when a count moves (ADR-0026).
 
 ## 2. Issue
 
@@ -74,6 +79,8 @@ the fields.
 | `bf_default_invalid` | yes | BF `default` is not `0` / `1`. Treated as unspecified |
 | `bf_duplicate` | yes | The same `(number, bit)` already exists. First row only |
 | `layout_exceeds_capacity` | — | `total_bytes` exceeds `capacity` |
+| `layout_exceeds_channel_capacity` | — | The layout has more channels than `channel_capacity` |
+| `kind_assumed` | yes | `kind` is not a kind this chdef knows; `plain` was assumed |
 | `encode_unknown_channel` | — | An encode value names a channel the layout does not have. Ignored |
 | `encode_value_invalid` | — | An encode value is NaN / infinite. The channel default was used |
 

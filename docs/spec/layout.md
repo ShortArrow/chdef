@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./layout.jp.md)
 
-Implemented (0.0.7): cumulative positions and total byte count
+Implemented (0.0.8): cumulative positions and total byte count
 (`ChannelLayout::channel_offset` / `total_bytes()` / `positions()`, all
 computed on demand so an edited width is never stale); the Rows / Layout
 split (`parse_*` keeps duplicates, `build_layout` drops them first-wins);
@@ -47,13 +47,22 @@ chdef handles a definition in three stages, and every stage is retrievable.
   gaps or enforcing consecutive numbers is the consumer's decision; chdef
   only hands over Rows.
 
-## 5. Capacity
+## 5. Limits
 
-- A layout may carry a `capacity` (the maximum byte count of the data
-  part), set with `with_capacity`. `check_capacity()` then reports Issue
-  `layout_exceeds_capacity` when the frame does not fit it, and nothing
-  when it fits or when the layout carries none. Nothing checks it unless
-  asked.
+A layout may carry the limits it is measured against. Both are stated by
+the consumer, never read from a CSV, and never applied by a conversion:
+`check_capacity()` is the explicit ask, and answers with **every** finding
+so a layout over both is not fixed one at a time.
+
+| Limit | Set with | Issue when exceeded |
+|---|---|---|
+| `capacity` — the maximum byte count of the data part | `with_capacity` | `layout_exceeds_capacity` |
+| `channel_capacity` — the maximum number of channels the port accepts | `with_channel_capacity` | `layout_exceeds_channel_capacity` |
+
+A port that takes 64 channels takes 300 two-byte channels inside any byte
+budget, which is why the count is a limit of its own rather than something
+a byte count can express. A limit the layout does not carry is not
+checked.
 
 ## 6. Type and width
 

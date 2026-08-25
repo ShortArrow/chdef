@@ -32,12 +32,13 @@ fn a_layout_carries_the_capacity_it_is_measured_against() {
     let layout = bf_layout().with_capacity(8);
 
     assert_eq!(layout.capacity, Some(8));
-    assert!(layout.check_capacity().is_none(), "3 bytes fit in 8");
+    assert!(layout.check_capacity().is_empty(), "3 bytes fit in 8");
 
     let tight = bf_layout().with_capacity(2);
-    let issue = tight.check_capacity().expect("3 bytes do not fit in 2");
-    assert_eq!(issue.code, IssueCode::LayoutExceedsCapacity);
-    assert_eq!(issue.row, None);
+    let issues = tight.check_capacity();
+    assert_eq!(issues.len(), 1, "3 bytes do not fit in 2: {issues:?}");
+    assert_eq!(issues[0].code, IssueCode::LayoutExceedsCapacity);
+    assert_eq!(issues[0].row, None);
 }
 
 // Without one there is no check, as §5 has always said.
@@ -46,7 +47,8 @@ fn a_layout_without_a_capacity_checks_nothing() {
     let layout = bf_layout();
 
     assert_eq!(layout.capacity, None);
-    assert!(layout.check_capacity().is_none());
+    assert_eq!(layout.channel_capacity, None);
+    assert!(layout.check_capacity().is_empty());
 }
 
 // conversion.md §6: "A BF bit is `(raw >> bit) & 1` of the parent's raw

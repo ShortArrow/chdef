@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "chdef"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "csv",
  "serde",
@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "chdef-capi"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "chdef",
 ]

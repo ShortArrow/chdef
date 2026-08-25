@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./abi.jp.md)
 
-Implemented (0.0.7): everything below — the layout, the conversions, the
+Implemented (0.0.8): everything below — the layout, the conversions, the
 named bits, the grid, the value notation and the diagnostics, through the
 C ABI of `chdef-capi` and the .NET binding built on it. TypeScript is not
 implemented.

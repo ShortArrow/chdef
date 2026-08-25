@@ -33,7 +33,7 @@ use chdef::{
 /// changed; a caller checks it is **at least** the value its declarations
 /// were written for before calling anything else. Symbols are added and
 /// never withdrawn, so a newer library serves an older caller.
-pub const CHDEF_ABI_VERSION: u32 = 3;
+pub const CHDEF_ABI_VERSION: u32 = 4;
 
 // ---------------------------------------------------------------- statuses
 
@@ -90,6 +90,10 @@ pub const CHDEF_CHANNEL_FORMAT: i32 = 6;
 pub const CHDEF_CHANNEL_MIN: i32 = 7;
 /// A channel's `max`. See [`CHDEF_CHANNEL_MIN`].
 pub const CHDEF_CHANNEL_MAX: i32 = 8;
+
+/// Who decides the channel's value: `plain` / `const` / `counter`
+/// (`docs/spec/format.md` §5). Further kinds may appear.
+pub const CHDEF_CHANNEL_KIND: i32 = 9;
 
 /// An Issue's stable ASCII code.
 pub const CHDEF_ISSUE_CODE: i32 = 0;
@@ -557,6 +561,7 @@ pub unsafe extern "C" fn chdef_layout_channel_text(
             CHDEF_CHANNEL_MEMO => &ch.memo,
             CHDEF_CHANNEL_VAR => &ch.var,
             CHDEF_CHANNEL_FORMAT => ch.format.as_str(),
+            CHDEF_CHANNEL_KIND => ch.kind.as_str(),
             CHDEF_CHANNEL_MIN => {
                 owned = ch.min.map(|v| v.to_string()).unwrap_or_default();
                 &owned
@@ -1580,6 +1585,62 @@ pub unsafe extern "C" fn chdef_layout_parse_with(
             layout: built.value,
         }));
         *out_issues = into_issues(issues);
+        CHDEF_OK
+    })
+}
+
+// ------------------------------------------------------------ issue codes
+
+/// How many Issue codes this library can report — the size to walk with
+/// [`chdef_issue_code_name`].
+///
+/// The codes cross as strings so the vocabulary can grow (ADR-0021); this
+/// is what lets a caller prove its own table covers them (ADR-0026).
+///
+/// # Safety
+///
+/// This call reads nothing through a pointer.
+#[no_mangle]
+pub extern "C" fn chdef_issue_code_count() -> u64 {
+    guard_len(|| IssueCode::all().len()) as u64
+}
+
+/// Write one Issue code into `buf`. Returns the length it needs, or `0`
+/// past the end.
+///
+/// # Safety
+///
+/// `buf` must be writable for `cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_issue_code_name(
+    index: usize,
+    buf: *mut c_char,
+    cap: usize,
+) -> usize {
+    guard_len(|| match IssueCode::all().get(index) {
+        Some(code) => write_text(code.as_str(), buf, cap),
+        None => 0,
+    })
+}
+
+// ------------------------------------------------------------ the limits
+
+/// State the maximum number of channels the port accepts, for
+/// [`chdef_layout_check_capacity`].
+///
+/// # Safety
+///
+/// The handle must be null or one of ours.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_set_channel_capacity(
+    handle: *mut ChdefLayout,
+    channels: u64,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_mut(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        layout.channel_capacity = Some(channels as usize);
         CHDEF_OK
     })
 }

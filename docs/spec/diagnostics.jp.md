@@ -2,7 +2,7 @@
 
 🌐 [English](./diagnostics.md) | **日本語**
 
-実装済み（0.0.7）: §2 のフィールドを持つ `Issue` 型、全ローダー（`build_layout` 含む）の戻り値 `Parsed { value, issues }`、および下表の全コード。横断コードは `build_layout` が、`layout_exceeds_capacity` は `ChannelLayout::check_capacity` が報告する。横断コードの行なしは ADR-0008 の決定。
+実装済み（0.0.8）: §2 のフィールドを持つ `Issue` 型、全ローダー（`build_layout` 含む）の戻り値 `Parsed { value, issues }`、および下表の全コード。横断コードは `build_layout` が、`layout_exceeds_capacity` は `ChannelLayout::check_capacity` が報告する。横断コードの行なしは ADR-0008 の決定。
 
 ## 1. 原則
 
@@ -10,6 +10,8 @@
 - 読み込みを止めるのは、ファイルが開けない（I/O）と、CSV として構造が壊れている（閉じない引用符）ときだけ。これらはエラー。
 - Issue には行と列を付ける。行は**データ行の 0 始まり**（見出しを除く。グリッドの行にそのまま対応）、列は 0 始まりの列位置。行に紐づかない Issue は行なし。
 - 同じ Issue が全行で出る場合も間引かない（利用側が集約する）。
+
+全てのコードは、名指しせずに列挙できる — `IssueCode::all()`、ABI 越しには `chdef_issue_code_count` / `chdef_issue_code_name`。コードを鍵にした表を持つ利用側が、網羅を証明できるようにするため（数が動いてから気づくのではなく。ADR-0026）。
 
 ## 2. Issue
 
@@ -57,6 +59,8 @@ Issue {
 | `bf_default_invalid` | あり | BF の `値(デフォルト)` が `0` / `1` でない。未指定とみなした |
 | `bf_duplicate` | あり | 同じ `(番号, BIT番号)` が既にある。最初の行だけを使う |
 | `layout_exceeds_capacity` | — | 合計バイト数が `capacity` を超える |
+| `layout_exceeds_channel_capacity` | — | チャネル数が `channel_capacity` を超える |
+| `kind_assumed` | あり | `kind` がこの chdef の知る種別でない。`plain` を仮定 |
 | `encode_unknown_channel` | — | encode の値がレイアウトに無いチャンネルを指す。無視した |
 | `encode_value_invalid` | — | encode の値が NaN / 無限大。チャンネルの既定値を使った |
 

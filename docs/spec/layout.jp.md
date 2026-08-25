@@ -2,7 +2,7 @@
 
 🌐 [English](./layout.md) | **日本語**
 
-実装済み（0.0.7）: 位置の累積計算と合計バイト数（`ChannelLayout::channel_offset` / `total_bytes()` / `positions()`。いずれも都度計算なので幅を編集しても陳腐化しない）、Rows / Layout の分離（`parse_*` は重複を保持し、`build_layout` が先勝ちで落とす）、§2 のレイアウト全体の `endian`、`build_layout` での BF 横断検査（Issue つきでレイアウトを返す）、§5 の `capacity`（レイアウトが持ち、`check_capacity()` が報告する）。Table 段階は `Grid` / `ChTable` / `BfTable`（[editing.jp.md](./editing.jp.md)）。フレーム全体の encode / decode は [conversion.jp.md](./conversion.jp.md) §5 / §6。
+実装済み（0.0.8）: 位置の累積計算と合計バイト数（`ChannelLayout::channel_offset` / `total_bytes()` / `positions()`。いずれも都度計算なので幅を編集しても陳腐化しない）、Rows / Layout の分離（`parse_*` は重複を保持し、`build_layout` が先勝ちで落とす）、§2 のレイアウト全体の `endian`、`build_layout` での BF 横断検査（Issue つきでレイアウトを返す）、§5 の `capacity`（レイアウトが持ち、`check_capacity()` が報告する）。Table 段階は `Grid` / `ChTable` / `BfTable`（[editing.jp.md](./editing.jp.md)）。フレーム全体の encode / decode は [conversion.jp.md](./conversion.jp.md) §5 / §6。
 
 ## 1. 三つの段階
 
@@ -31,7 +31,14 @@ chdef は定義を三段階で扱い、どの段階も取り出せる。
 
 ## 5. 容量
 
-- レイアウトは `capacity`（データ部の最大バイト数）を持てる。`with_capacity` で設定し、`check_capacity()` が、収まらなければ Issue `layout_exceeds_capacity` を、収まるか容量を持たなければ何も返さない。訊かれない限り検査はしない。
+レイアウトは、測られる相手の上限を持てる。いずれも利用側が指定するもので、CSV から読むことはなく、変換が適用することもない。`check_capacity()` が明示的な問い合わせで、**全ての**指摘を返す（両方を超えたレイアウトを 1 つずつ直す羽目にならないように）。
+
+| 上限 | 設定 | 超過時の Issue |
+|---|---|---|
+| `capacity` — データ部の最大バイト数 | `with_capacity` | `layout_exceeds_capacity` |
+| `channel_capacity` — 口が受け付けるチャネル数の上限 | `with_channel_capacity` | `layout_exceeds_channel_capacity` |
+
+64ch の口は、どんなバイト予算の中でも 2 バイトのチャネル 300 本を受け取ってしまう。チャネル数がバイト数では表せない独立の上限である理由がこれ。レイアウトが持たない上限は検査されない。
 
 ## 6. 型と幅
 

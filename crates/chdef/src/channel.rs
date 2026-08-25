@@ -109,6 +109,57 @@ pub enum DataType {
     BF,
 }
 
+/// Who decides a channel's value (`docs/spec/format.md` §5).
+///
+/// A mark, not a behaviour: chdef carries it and acts on none of it, and
+/// [`ChannelLayout::encode`] produces the same bytes whatever it says
+/// (ADR-0025). Further kinds may appear, so matches need a catch-all arm.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum ChannelKind {
+    /// The caller supplies the value, or the channel takes its `default`.
+    #[default]
+    Plain,
+    /// The value is the `default` and does not change frame to frame.
+    Const,
+    /// The caller supplies a number that advances every frame. chdef never
+    /// advances it: a counter belongs to the line that sends the frames,
+    /// and one definition may be shared by several.
+    Counter,
+}
+
+impl ChannelKind {
+    /// Read the `kind` column, trimmed and case-insensitively; `None` for
+    /// a value this chdef does not know.
+    pub fn parse(s: &str) -> Option<ChannelKind> {
+        let s = s.trim();
+        if s.eq_ignore_ascii_case("plain") {
+            Some(ChannelKind::Plain)
+        } else if s.eq_ignore_ascii_case("const") {
+            Some(ChannelKind::Const)
+        } else if s.eq_ignore_ascii_case("counter") {
+            Some(ChannelKind::Counter)
+        } else {
+            None
+        }
+    }
+
+    /// The spelling the `kind` column uses for this.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ChannelKind::Plain => "plain",
+            ChannelKind::Const => "const",
+            ChannelKind::Counter => "counter",
+        }
+    }
+}
+
+impl std::fmt::Display for ChannelKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 impl DataType {
     /// The two-letter tag the `type` column spells this with.
     pub fn as_str(self) -> &'static str {
@@ -176,6 +227,9 @@ pub struct ChannelDef {
     pub format: ValueDisplay,
     /// The `favorite` flag a consumer uses to pin the channel.
     pub favorite: bool,
+    /// Who decides this channel value (`docs/spec/format.md` §5).
+    /// Carried, never acted on.
+    pub kind: ChannelKind,
 }
 
 impl ChannelDef {
@@ -205,6 +259,7 @@ impl ChannelDef {
             var: String::new(),
             format: ValueDisplay::default(),
             favorite: false,
+            kind: ChannelKind::default(),
         }
     }
 
@@ -472,6 +527,10 @@ pub struct ChannelLayout {
     /// Not written in the CSV, and never checked unless
     /// [`check_capacity`](ChannelLayout::check_capacity) is called.
     pub capacity: Option<usize>,
+    /// The maximum number of channels the port accepts, when the consumer
+    /// has one — the limit a byte count cannot express. Same terms as
+    /// [`capacity`](ChannelLayout::capacity).
+    pub channel_capacity: Option<usize>,
 }
 
 /// Build the Layout stage from parsed Rows: duplicates are dropped (the
@@ -542,6 +601,7 @@ pub fn build_layout(
             bitfields: unique_bitfields,
             endian: Endian::Little,
             capacity: None,
+            channel_capacity: None,
         },
         issues,
     }
@@ -588,20 +648,49 @@ impl ChannelLayout {
         self
     }
 
+    /// State the maximum number of channels the port accepts
+    /// (`docs/spec/layout.md` §5), for
+    /// [`check_capacity`](ChannelLayout::check_capacity).
+    pub fn with_channel_capacity(mut self, channels: usize) -> ChannelLayout {
+        self.channel_capacity = Some(channels);
+        self
+    }
+
     /// The `layout_exceeds_capacity` Issue when the frame does not fit the
     /// layout's `capacity`, `None` when it fits or when there is no
     /// capacity. Nothing calls this on its own — a consumer opts in.
-    pub fn check_capacity(&self) -> Option<Issue> {
-        let capacity = self.capacity?;
-        let total = self.total_bytes();
-        (total > capacity).then(|| {
-            Issue::new(
-                IssueCode::LayoutExceedsCapacity,
-                format!("the frame needs {total} bytes but the capacity is {capacity}."),
-            )
-            .found(total.to_string())
-            .used(capacity.to_string())
-        })
+    pub fn check_capacity(&self) -> Vec<Issue> {
+        let mut issues = Vec::new();
+
+        if let Some(capacity) = self.capacity {
+            let total = self.total_bytes();
+            if total > capacity {
+                issues.push(
+                    Issue::new(
+                        IssueCode::LayoutExceedsCapacity,
+                        format!("the frame needs {total} bytes but the capacity is {capacity}."),
+                    )
+                    .found(total.to_string())
+                    .used(capacity.to_string()),
+                );
+            }
+        }
+
+        if let Some(capacity) = self.channel_capacity {
+            let count = self.channels.len();
+            if count > capacity {
+                issues.push(
+                    Issue::new(
+                        IssueCode::LayoutExceedsChannelCapacity,
+                        format!("the layout has {count} channels but the port accepts {capacity}."),
+                    )
+                    .found(count.to_string())
+                    .used(capacity.to_string()),
+                );
+            }
+        }
+
+        issues
     }
 
     /// Decode a frame: every channel that fits, in row order, with its
@@ -1086,10 +1175,14 @@ mod tests {
     fn check_capacity_reports_only_when_the_frame_does_not_fit() {
         let layout = build_layout(vec![ch(4, DataType::UI, 1.0, 0.0)], vec![]).value;
 
-        assert!(layout.clone().with_capacity(4).check_capacity().is_none());
-        let issue = layout.with_capacity(3).check_capacity().unwrap();
-        assert_eq!(issue.code, crate::issue::IssueCode::LayoutExceedsCapacity);
-        assert_eq!(issue.row, None);
+        assert!(layout.clone().with_capacity(4).check_capacity().is_empty());
+        let issues = layout.with_capacity(3).check_capacity();
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert_eq!(
+            issues[0].code,
+            crate::issue::IssueCode::LayoutExceedsCapacity
+        );
+        assert_eq!(issues[0].row, None);
     }
 
     #[test]

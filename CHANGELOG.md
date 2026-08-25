@@ -9,6 +9,42 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.8] - 2026-08-25
+
+### Added
+- **A `kind` column**: who decides a channel's value — `plain` (the
+  default, and what an empty cell means), `const`, `counter`. It is a mark
+  and not a behaviour: chdef carries it, exposes it on `ChannelDef`,
+  `chdef_layout_channel_text` and `Channel.Kind`, writes it back, and acts
+  on none of it. `encode` produces the same bytes whatever it says, and a
+  `counter` is never advanced by chdef — a counter belongs to the line
+  that sends the frames, and one definition may be shared by several
+  (ADR-0025). An unrecognised value reads as `plain` with Issue
+  `kind_assumed`.
+- **`channel_capacity`**, the maximum number of channels the port accepts
+  — the limit a byte count cannot express, since a 64-channel port takes
+  300 two-byte channels inside any byte budget. Set with
+  `with_channel_capacity` / `chdef_layout_set_channel_capacity` /
+  `Definitions.ChannelCapacity`; Issue
+  `layout_exceeds_channel_capacity`.
+- **Every Issue code is enumerable**: `IssueCode::all()`,
+  `chdef_issue_code_count` / `chdef_issue_code_name`, and an `IssueCode`
+  class of constants beside `IssueCode.All` in the .NET binding. The codes
+  still cross as strings so the vocabulary can grow (ADR-0021); what was
+  missing was a way to ask what they are, so a consumer keying a table by
+  code can prove it complete instead of finding the gap when a count moves
+  (ADR-0026). The constants are not an enum: a code this assembly has not
+  heard of still arrives as the string it is.
+
+### Breaking
+- `ChannelLayout::check_capacity()` answers with `Vec<Issue>` rather than
+  `Option<Issue>`. A layout can be over both limits, and a consumer that
+  learns one at a time fixes one at a time. The ABI and the .NET binding
+  are unchanged — both already carried a list.
+- The canonical CH header is 17 columns; `kind` is **appended**, so the
+  9- and 10-column positional forms read exactly as before.
+- `CHDEF_ABI_VERSION` is `4`.
+
 ## [0.0.7] - 2026-08-25
 
 ### Breaking

@@ -29,3 +29,5 @@ specification and the README never point back at an ADR.
 | [0022](./0022-the-dotnet-binding-ships-here.md) | 2026-08-24 | The .NET binding ships from here, and its vectors run in this CI | Accepted |
 | [0023](./0023-the-abi-carries-every-rule.md) | 2026-08-24 | The ABI carries every rule a consumer would otherwise reimplement | Accepted |
 | [0024](./0024-a-vocabulary-is-data-not-a-language.md) | 2026-08-25 | A column vocabulary is data, and the canonical name is the identity | Accepted |
+| [0025](./0025-kind-records-who-fills-a-channel.md) | 2026-08-25 | `kind` records who fills a channel, and chdef does not fill it | Accepted |
+| [0026](./0026-a-growing-vocabulary-is-enumerable.md) | 2026-08-25 | A vocabulary that grows is enumerable across the boundary | Accepted |

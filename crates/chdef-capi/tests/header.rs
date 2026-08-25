@@ -78,7 +78,7 @@ fn the_header_declares_every_exported_function() {
     let (source, header) = (source(), header());
     let functions = exported_functions(&source);
 
-    assert!(functions.len() >= 42, "found only {functions:?}");
+    assert!(functions.len() >= 45, "found only {functions:?}");
     for name in functions {
         // The name must appear as a declaration, not merely as a
         // substring of a longer one.
@@ -94,7 +94,7 @@ fn the_header_declares_every_exported_constant() {
     let (source, header) = (source(), header());
     let constants = exported_constants(&source);
 
-    assert!(constants.len() >= 31, "found only {constants:?}");
+    assert!(constants.len() >= 32, "found only {constants:?}");
     for name in constants {
         assert!(
             header.contains(&format!("#define {name} ")),

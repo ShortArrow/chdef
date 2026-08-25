@@ -18,8 +18,8 @@ mod issue;
 mod table;
 
 pub use channel::{
-    build_layout, BitFieldDef, ChannelDef, ChannelLayout, DataType, Decoded, Endian, Value,
-    ValueDisplay,
+    build_layout, BitFieldDef, ChannelDef, ChannelKind, ChannelLayout, DataType, Decoded, Endian,
+    Value, ValueDisplay,
 };
 pub use columns::{BfColumn, ChColumn, ColumnVocabulary};
 pub use csv::{

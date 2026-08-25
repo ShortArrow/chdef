@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use crate::channel::{BitFieldDef, ChannelDef, DataType, Value, ValueDisplay};
+use crate::channel::{BitFieldDef, ChannelDef, ChannelKind, DataType, Value, ValueDisplay};
 use crate::columns::{BfColumn, ChColumn, ColumnMap, ColumnVocabulary};
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
@@ -339,6 +339,29 @@ pub(crate) fn interpret_ch(
             },
         };
 
+        let kind = match cell(record, ChColumn::Kind) {
+            None => ChannelKind::default(),
+            Some(cell) if cell.is_empty() => ChannelKind::default(),
+            Some(cell) => match ChannelKind::parse(&cell) {
+                Some(kind) => kind,
+                None => {
+                    issue(
+                        Issue::new(
+                            IssueCode::KindAssumed,
+                            format!(
+                                "`kind` is {}, not `plain` / `const` / `counter`; plain was assumed.",
+                                shown(&cell)
+                            ),
+                        )
+                        .found(cell.clone())
+                        .used(ChannelKind::default().to_string()),
+                        ChColumn::Kind,
+                    );
+                    ChannelKind::default()
+                }
+            },
+        };
+
         let format = cell(record, ChColumn::Format)
             .and_then(|f| ValueDisplay::parse(&f))
             .unwrap_or_default();
@@ -373,6 +396,7 @@ pub(crate) fn interpret_ch(
             favorite: cell(record, ChColumn::Favorite)
                 .map(|f| f == "1" || f.eq_ignore_ascii_case("true"))
                 .unwrap_or(false),
+            kind,
         };
         if let (Some(lo), Some(hi)) = (ch.min_value(), ch.max_value()) {
             if lo > hi {

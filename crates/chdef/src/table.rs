@@ -571,6 +571,7 @@ impl ChTable {
         put(ChColumn::Memo, def.memo.clone());
         put(ChColumn::Var, def.var.clone());
         put(ChColumn::Format, def.format.as_str().into());
+        put(ChColumn::Kind, def.kind.as_str().into());
         put(
             ChColumn::Favorite,
             if def.favorite { "1".into() } else { "0".into() },

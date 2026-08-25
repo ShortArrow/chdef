@@ -131,6 +131,10 @@ pub enum IssueCode {
     BfParentNotBitfield,
     /// `total_bytes` exceeds the capacity handed to `check_capacity`.
     LayoutExceedsCapacity,
+    /// The layout has more channels than the port stated it accepts.
+    LayoutExceedsChannelCapacity,
+    /// `kind` is not a kind this chdef knows; `plain` was assumed.
+    KindAssumed,
     /// An encode value names a channel the layout does not have. Ignored.
     EncodeUnknownChannel,
     /// An encode value cannot be converted (NaN / infinite). The channel's
@@ -138,7 +142,45 @@ pub enum IssueCode {
     EncodeValueInvalid,
 }
 
+const ALL_ISSUE_CODES: [IssueCode; 26] = [
+    IssueCode::HeaderAssumed,
+    IssueCode::ChannelNumberInvalid,
+    IssueCode::ChannelDuplicate,
+    IssueCode::BytesAssumed,
+    IssueCode::BytesOutOfRange,
+    IssueCode::TypeAssumed,
+    IssueCode::TypeWidthMismatch,
+    IssueCode::LsbInvalid,
+    IssueCode::OffsetInvalid,
+    IssueCode::DefaultInvalid,
+    IssueCode::RawDisplayWithLsb,
+    IssueCode::RawOutOfRange,
+    IssueCode::MinInvalid,
+    IssueCode::MaxInvalid,
+    IssueCode::MinMaxSwapped,
+    IssueCode::BfParentInvalid,
+    IssueCode::BfBitInvalid,
+    IssueCode::BfDefaultInvalid,
+    IssueCode::BfDuplicate,
+    IssueCode::BfBitOutOfRange,
+    IssueCode::BfParentNotBitfield,
+    IssueCode::LayoutExceedsCapacity,
+    IssueCode::LayoutExceedsChannelCapacity,
+    IssueCode::KindAssumed,
+    IssueCode::EncodeUnknownChannel,
+    IssueCode::EncodeValueInvalid,
+];
+
 impl IssueCode {
+    /// Every code this chdef can report, in declaration order.
+    ///
+    /// The codes cross as strings so the vocabulary can grow (ADR-0021);
+    /// this is what lets a consumer prove its own table covers them
+    /// (ADR-0026) instead of finding a gap when a count moves.
+    pub fn all() -> &'static [IssueCode] {
+        &ALL_ISSUE_CODES
+    }
+
     /// The stable ASCII identifier of the code.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -164,6 +206,8 @@ impl IssueCode {
             IssueCode::BfBitOutOfRange => "bf_bit_out_of_range",
             IssueCode::BfParentNotBitfield => "bf_parent_not_bitfield",
             IssueCode::LayoutExceedsCapacity => "layout_exceeds_capacity",
+            IssueCode::LayoutExceedsChannelCapacity => "layout_exceeds_channel_capacity",
+            IssueCode::KindAssumed => "kind_assumed",
             IssueCode::EncodeUnknownChannel => "encode_unknown_channel",
             IssueCode::EncodeValueInvalid => "encode_value_invalid",
         }

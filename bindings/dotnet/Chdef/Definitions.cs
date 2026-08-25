@@ -51,6 +51,7 @@ public sealed record Channel(
     string Min,
     string Max,
     bool Favorite,
+    string Kind,
     IReadOnlyList<Bit> Bits);
 
 /// <summary>
@@ -261,8 +262,18 @@ public sealed unsafe class Definitions : IDisposable
     }
 
     /// <summary>
-    /// The finding when the frame does not fit the capacity set through
-    /// <see cref="Capacity"/>; empty when it fits or none was set.
+    /// The maximum number of channels the port accepts — the limit a byte
+    /// count cannot express. Same terms as <see cref="Capacity"/>.
+    /// </summary>
+    public ulong ChannelCapacity
+    {
+        set => Check(Native.chdef_layout_set_channel_capacity(Handle, value));
+    }
+
+    /// <summary>
+    /// The findings when the layout does not fit the limits set through
+    /// <see cref="Capacity"/> and <see cref="ChannelCapacity"/>; empty when
+    /// it fits or none was set.
     /// </summary>
     public IReadOnlyList<Issue> CheckCapacity()
     {
@@ -438,6 +449,7 @@ public sealed unsafe class Definitions : IDisposable
                 Text(layout, index, Native.CHDEF_CHANNEL_MIN),
                 Text(layout, index, Native.CHDEF_CHANNEL_MAX),
                 raw.Favorite != 0,
+                Text(layout, index, Native.CHDEF_CHANNEL_KIND),
                 ReadBits(layout, index, (int)raw.BitCount)));
         }
         return channels;

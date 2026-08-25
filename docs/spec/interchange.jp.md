@@ -2,7 +2,7 @@
 
 🌐 [English](./interchange.md) | **日本語**
 
-実装済み（0.0.7）: §1・§2 の JSON の形（`serde` feature。`interchange::Definitions` / `Readings` / `Grid::to_json`。chdef は値を組み立て、直列化は利用側が行う）と、§3 のゴールデンベクタおよびそれをクレート経由・`chdef-capi` の C ABI 経由・.NET バインディング経由で走らせるハーネス。TypeScript 型の生成は未実装。
+実装済み（0.0.8）: §1・§2 の JSON の形（`serde` feature。`interchange::Definitions` / `Readings` / `Grid::to_json`。chdef は値を組み立て、直列化は利用側が行う）と、§3 のゴールデンベクタおよびそれをクレート経由・`chdef-capi` の C ABI 経由・.NET バインディング経由で走らせるハーネス。TypeScript 型の生成は未実装。
 
 ## 1. JSON
 

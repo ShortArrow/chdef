@@ -92,14 +92,24 @@ fn favorite_is_written_as_one_or_zero() {
     table.insert_channel(1, &pinned);
 
     let csv = table.to_csv();
-    let rows: Vec<&str> = csv.lines().skip(1).collect();
-    assert!(
-        rows[0].ends_with(",0"),
+    let mut lines = csv.lines();
+    let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+    let at = header
+        .iter()
+        .position(|c| c.trim_start_matches('\u{FEFF}') == "favorite")
+        .expect("the canonical header names favorite");
+    let rows: Vec<&str> = lines.collect();
+    let cell = |row: &str| row.split(',').nth(at).unwrap_or("").to_string();
+
+    assert_eq!(
+        cell(rows[0]),
+        "0",
         "a plain channel writes 0: {:?}",
         rows[0]
     );
-    assert!(
-        rows[1].ends_with(",1"),
+    assert_eq!(
+        cell(rows[1]),
+        "1",
         "a pinned channel writes 1: {:?}",
         rows[1]
     );

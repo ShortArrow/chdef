@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./format.jp.md)
 
-Implemented (0.0.7): BOM stripping; column identification by header name
+Implemented (0.0.8): BOM stripping; column identification by header name
 in English or Japanese, with the 9-column positional fallback and any
 spellings a reader is taught (`ColumnAliases`); blank rows and `#` rows;
 every column interpretation below with its Issues; `parse_*_csv_bytes` for
@@ -105,6 +105,7 @@ is the one written.
 | `memo` | `備考` |
 | `var` | `変数名` |
 | `format` | `表示形式` |
+| `kind` | `種別` |
 | `favorite` | `お気に入り` |
 
 For a BF CSV: `番号`, `BIT番号`, `メッセージ名称` / `信号名称`,
@@ -112,16 +113,16 @@ For a BF CSV: `番号`, `BIT番号`, `メッセージ名称` / `信号名称`,
 
 ## 3. CH CSV
 
-Canonical header (16-column form):
+Canonical header (17-column form):
 
 ```
-number,bytes,bits,section,name,type,lsb,offset,unit,min,max,default,memo,var,format,favorite
+number,bytes,bits,section,name,type,lsb,offset,unit,min,max,default,memo,var,format,favorite,kind
 ```
 
 The same columns spelled by the Japanese vocabulary of §2:
 
 ```
-番号,バイト数,ビット数,セクション名,メッセージ名称,型,LSB,オフセット,単位,値(最小),値(最大),値(デフォルト),備考,変数名,表示形式,お気に入り
+番号,バイト数,ビット数,セクション名,メッセージ名称,型,LSB,オフセット,単位,値(最小),値(最大),値(デフォルト),備考,変数名,表示形式,お気に入り,種別
 ```
 
 The 9–10-column form (first 9 columns plus `default`) is read by the same
@@ -143,6 +144,7 @@ rules.
 | `memo` | `Description` | no | String |
 | `var` | `variable` | no | String. Preserved only |
 | `format` | `DisplayFormat` | no | `DEC` / `HEX` (case-insensitive). Empty / unknown → `DEC`. `HEX` with `lsb` ≠ 1 → Issue `raw_display_with_lsb`. What the column selects is **which reading is shown** — the physical value or the raw one — not the base it is printed in ([conversion.md §7](./conversion.md)). It never affects a conversion |
+| `kind` | — | no | `plain` / `const` / `counter`, case-insensitive and trimmed. Empty → `plain`. Anything else → `plain` (Issue `kind_assumed`). It records **who decides this channel's value** and nothing else: `encode` behaves identically whatever it says, and chdef never fills a channel because of it (§5) |
 | `favorite` | `IsFavorite` | no | `1` or `true` (case-insensitive) → true, anything else → false. Written as `1` / `0` |
 
 Type prefix and width: the width is `bytes × 8` bits. `UI` is an unsigned
@@ -166,3 +168,33 @@ number,bit,name,default,memo
 A BF CSV only needs rows for channels whose `type` is `BF`; it does not have to
 list every channel. One row is one bit. Bit ranges (several bits such as
 `3:1`) are not expressible in 0.0.x.
+
+## 5. Who fills a channel
+
+`kind` records where a channel's value comes from, so that the fact travels
+with the row. Inserting a channel renumbers every channel after it; a
+constant held in code, or a table in another file, goes silently wrong at
+that moment, and a cell cannot.
+
+| `kind` | Meaning |
+|---|---|
+| `plain` | The caller supplies the value, or the channel takes its `default`. |
+| `const` | The value is the `default` and does not change from frame to frame — a sync word, a protocol version. |
+| `counter` | The caller supplies a number that advances every frame. |
+
+**chdef reads the column, carries it, writes it back, and reports what it
+could not read. It never fills a value because of it**, and `encode`
+produces the same bytes whatever `kind` says. Overriding a `const` channel
+is not an Issue: what a caller may send is the caller's to decide.
+
+A `counter` is not advanced by chdef, because a counter belongs to the
+line that sends the frames and one definition may be shared by several
+lines, each with its own running number. **The caller also wraps it**: a
+raw value wider than the channel keeps its low bits (§3, Issue
+`raw_out_of_range`), while a physical value wider than it saturates
+([conversion.md §2](./conversion.md)), so a counter is passed as a raw
+value already reduced to the channel's width.
+
+Values beyond these three may appear; a reader that does not know one
+treats it as `plain` and says so, so a file written for a later chdef
+still loads.

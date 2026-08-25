@@ -49,7 +49,7 @@ extern "C" {
  * changed; check that chdef_abi_version() is at least this value before
  * calling anything else. Symbols are added and never withdrawn, so a newer
  * library serves an older caller. */
-#define CHDEF_ABI_VERSION 3u
+#define CHDEF_ABI_VERSION 4u
 
 /* Statuses. */
 #define CHDEF_OK 0
@@ -78,6 +78,7 @@ extern "C" {
 #define CHDEF_CHANNEL_FORMAT 6  /* "DEC" / "HEX" */
 #define CHDEF_CHANNEL_MIN 7     /* in its cell's notation; "" when unstated */
 #define CHDEF_CHANNEL_MAX 8
+#define CHDEF_CHANNEL_KIND 9  /* "plain" / "const" / "counter" */
 
 /* Text fields of a diagnostic, for chdef_issue_text. */
 #define CHDEF_ISSUE_CODE 0      /* the stable ASCII identifier */
@@ -214,6 +215,10 @@ size_t chdef_layout_channel_text(const ChdefLayout *handle, size_t index,
 
 int32_t chdef_layout_set_endian(ChdefLayout *handle, int32_t endian);
 int32_t chdef_layout_set_capacity(ChdefLayout *handle, uint64_t capacity);
+/* The maximum number of channels the port accepts — the limit a byte
+ * count cannot express. Both limits are reported by check_capacity. */
+int32_t chdef_layout_set_channel_capacity(ChdefLayout *handle,
+                                          uint64_t channels);
 /* Check the frame against the capacity stated with set_capacity;
  * out_issues receives an empty list when it fits or none was stated. */
 int32_t chdef_layout_check_capacity(const ChdefLayout *handle,
@@ -300,6 +305,12 @@ int32_t chdef_grid_remove_row(ChdefGrid *handle, size_t at);
 /* Write the file back in the shape it was read in — its byte-order mark
  * and record separator. */
 size_t chdef_grid_to_csv(const ChdefGrid *handle, char *buf, size_t cap);
+
+/* Every Issue code this library can report. The codes cross as strings
+ * so the vocabulary can grow, and this is what lets a caller prove its
+ * own table covers them. */
+uint64_t chdef_issue_code_count(void);
+size_t chdef_issue_code_name(size_t index, char *buf, size_t cap);
 
 uint64_t chdef_issue_count(const ChdefIssues *handle);
 int32_t chdef_issue_at(const ChdefIssues *handle, size_t index,
