@@ -2,7 +2,7 @@
 
 🌐 [English](./interchange.md) | **日本語**
 
-実装済み（0.0.8）: §1・§2 の JSON の形（`serde` feature。`interchange::Definitions` / `Readings` / `Grid::to_json`。chdef は値を組み立て、直列化は利用側が行う）と、§3 のゴールデンベクタおよびそれをクレート経由・`chdef-capi` の C ABI 経由・.NET バインディング経由で走らせるハーネス。TypeScript 型の生成は未実装。
+実装済み（0.0.9）: §1・§2 の JSON の形（`serde` feature。`interchange::Definitions` / `Readings` / `Grid::to_json`。chdef は値を組み立て、直列化は利用側が行う）と、§3 のゴールデンベクタおよびそれをクレート経由・`chdef-capi` の C ABI 経由・.NET バインディング経由で走らせるハーネス。TypeScript 型の生成は未実装。
 
 ## 1. JSON
 
@@ -47,7 +47,7 @@
 
 言語横断の契約。`crates/chdef/vectors/<name>/` に `ch.csv` / `bf.csv` / `vectors.txt` を置き（パッケージの内側なので公開クレートにも同梱される）、各言語のテストが同じファイルを読む。実機の定義は置かない（全て合成）。
 
-行の種類は英語版 §3 のとおり: `B`（以降のバイト順）、`E`（encode）、`D`（decode）、`F`（BF のビット値）、`L`（レイアウト）、`P`（その入力が出す Issue。`-` で「無し」、行番号の `-` は「行を持たない Issue」）。`P` は個数まで契約するが、Issue が届く順序は未規定で契約しない。`P` 行の無い入力は Issue を出してはならない。
+行の種類は英語版 §3 のとおり: `B`（以降のバイト順）、`E`（encode。4 つ目の欄があれば、その encode が出す Issue とそれが指すチャネルを順序どおり契約する。無ければ「出ない」）、`D`（decode）、`F`（BF のビット値）、`L`（レイアウト）、`P`（その入力が出す Issue。`-` で「無し」、行番号の `-` は「行を持たない Issue」）。`P` は個数まで契約するが、Issue が届く順序は未規定で契約しない。`P` 行の無い入力は Issue を出してはならない。
 
 ハーネスは 3 回走る: クレートの Rust API 経由、`chdef-capi` の C ABI 経由（ADR-0021）、.NET バインディング経由（ADR-0022）。利用側が取りうる全ての経路が、第 2 の実装ではなく同一の実装であることを検証するため。セットの全ての行が、全ての経路で検査される。
 

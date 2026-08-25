@@ -2,7 +2,7 @@
 
 🌐 [English](./diagnostics.md) | **日本語**
 
-実装済み（0.0.8）: §2 のフィールドを持つ `Issue` 型、全ローダー（`build_layout` 含む）の戻り値 `Parsed { value, issues }`、および下表の全コード。横断コードは `build_layout` が、`layout_exceeds_capacity` は `ChannelLayout::check_capacity` が報告する。横断コードの行なしは ADR-0008 の決定。
+実装済み（0.0.9）: §2 のフィールドを持つ `Issue` 型、全ローダー（`build_layout` 含む）の戻り値 `Parsed { value, issues }`、および下表の全コード。横断コードは `build_layout` が、`layout_exceeds_capacity` は `ChannelLayout::check_capacity` が報告する。横断コードの行なしは ADR-0008 の決定。
 
 ## 1. 原則
 
@@ -63,6 +63,7 @@ Issue {
 | `kind_assumed` | あり | `kind` がこの chdef の知る種別でない。`plain` を仮定 |
 | `encode_unknown_channel` | — | encode の値がレイアウトに無いチャンネルを指す。無視した |
 | `encode_value_invalid` | — | encode の値が NaN / 無限大。チャンネルの既定値を使った |
+| `encode_value_clamped` | — | encode の値がチャンネル幅に収まらない。クランプ後の値を書いた |
 
 ¹ `build_layout` からは行なし（型付き行はファイル座標を持たない）。`channel` と `bit` のフィールドが何についての指摘かを名指す。同じ指摘を `BfTable::cross_issues` がグリッドの行・列つきで報告し、エディタはセルに落とせる。
 

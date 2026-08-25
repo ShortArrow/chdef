@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./format.jp.md)
 
-Implemented (0.0.8): BOM stripping; column identification by header name
+Implemented (0.0.9): BOM stripping; column identification by header name
 in English or Japanese, with the 9-column positional fallback and any
 spellings a reader is taught (`ColumnAliases`); blank rows and `#` rows;
 every column interpretation below with its Issues; `parse_*_csv_bytes` for
@@ -108,8 +108,15 @@ is the one written.
 | `kind` | `種別` |
 | `favorite` | `お気に入り` |
 
-For a BF CSV: `番号`, `BIT番号`, `メッセージ名称` / `信号名称`,
-`値(デフォルト)` / `デフォルト値`, `備考`.
+For a BF CSV:
+
+| Column | Spellings |
+|---|---|
+| `number` | `番号` |
+| `bit` | `BIT番号` |
+| `name` | `メッセージ名称`, `信号名称` |
+| `default` | `値(デフォルト)`, `デフォルト値` |
+| `memo` | `備考` |
 
 ## 3. CH CSV
 

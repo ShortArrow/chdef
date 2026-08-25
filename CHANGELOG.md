@@ -9,6 +9,38 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.9] - 2026-08-25
+
+### Fixed
+- **A clamped value is no longer written in silence.** A physical value the
+  channel width cannot hold reaches the wire as a different number;
+  `encode` now returns Issue `encode_value_clamped`, naming the value given
+  and the physical value actually written. The clamping itself is
+  unchanged and still right — a reading past the end of a sensor's range
+  saturates — but every other lossy reading of a cell says so
+  (`bytes_out_of_range`, `raw_out_of_range`, `min_max_swapped`), and this
+  one did not.
+
+  **This can appear on traffic that has always encoded out-of-range
+  values.** A consumer asserting on the count of Issues will see it; the
+  `IssueCode.All` of 0.0.8 is how a table keyed by code stays complete.
+
+### Added
+- `ChannelDef::fits_width(value)`: whether the width can hold a value as
+  given. The primitives (`value_to_raw`, `value_to_bytes`) keep clamping
+  without an Issue, because they answer with a number and not with
+  findings — this is the ask for a caller using them.
+- An `E` line of a golden vector takes an optional fourth field, the
+  Issues that encode produces. A value the width clamps is a different
+  number on the wire, and an implementation that writes the same bytes in
+  silence is not the same implementation, so this is now contracted across
+  all three paths.
+- A test reads the Japanese vocabulary out of `docs/spec/format.md` §2 and
+  compares it with `columns.rs`, both directions. The table lived in two
+  places kept by hand and nothing proved they agreed; the BF half of the
+  specification is a table now rather than prose, so it can be read the
+  same way.
+
 ## [0.0.8] - 2026-08-25
 
 ### Added

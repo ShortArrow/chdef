@@ -18,8 +18,9 @@ E 4=0xFF85 0000000001000085ff00000000
 # Rounding is half away from zero: 2.5 becomes 3.
 E 3=2.5 00000000010003000000000000
 
-# A value past the width of the channel is clamped to it.
-E 3=300 000000000100ff000000000000
+# A value past the width of the channel is clamped to it, and the clamp
+# is reported: the number on the wire is not the number asked for.
+E 3=300 000000000100ff000000000000 encode_value_clamped:3
 
 D 0100000005000285ffdc050000 1=1/1.0;2=5/5.0;3=2/2.0;4=65413/-12.3;5=1500/1.5
 

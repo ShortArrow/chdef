@@ -368,6 +368,22 @@ impl ChannelDef {
     /// width; a negative result is returned as its two's-complement pattern.
     /// `lsb` 0 counts as 1. `None` when `value` is NaN or infinite.
     pub fn value_to_raw(&self, value: f64) -> Option<u64> {
+        self.scale_to_raw(value).map(|(raw, _)| raw)
+    }
+
+    /// Whether the channel width can hold `value` as given
+    /// (`docs/spec/conversion.md` §2) — the ask the primitives answer,
+    /// since they return a number and not findings. `false` for a value
+    /// that cannot be converted at all.
+    ///
+    /// At a 64-bit width the answer is bounded by the f64 limit of §1 and
+    /// errs towards saying a value fits.
+    pub fn fits_width(&self, value: f64) -> bool {
+        matches!(self.scale_to_raw(value), Some((_, false)))
+    }
+
+    /// The raw value, and whether the width had to clamp it.
+    fn scale_to_raw(&self, value: f64) -> Option<(u64, bool)> {
         let lsb = if self.lsb == 0.0 { 1.0 } else { self.lsb };
         let scaled = ((value - self.offset) / lsb).round();
         if !scaled.is_finite() {
@@ -379,6 +395,18 @@ impl ChannelDef {
         } else {
             (1u64 << bits) - 1
         };
+
+        // The bounds in the same terms the clamp below uses. Beyond 53
+        // bits f64 cannot hold them exactly, and rounding outwards is the
+        // safe direction: a clamp may go unreported, but one is never
+        // claimed that did not happen.
+        let (low, high) = if self.data_type == DataType::SI {
+            let bound = 2f64.powi(bits as i32 - 1);
+            (-bound, bound - 1.0)
+        } else {
+            (0.0, 2f64.powi(bits as i32) - 1.0)
+        };
+        let clamped = scaled < low || scaled > high;
         // The clamp happens in integer space: a bound of the form 2^n - 1 is
         // not representable in f64 beyond 53 bits, and rounding it up to 2^n
         // would leave the mask below to erase the value.
@@ -393,7 +421,7 @@ impl ChannelDef {
         } else {
             (scaled.max(0.0) as u64).min(mask)
         };
-        Some(raw & mask)
+        Some((raw & mask, clamped))
     }
 
     /// Physical value → the channel's `byte_count` bytes, little-endian.
@@ -765,8 +793,26 @@ impl ChannelLayout {
                     }
                     *r
                 }
-                Some(Value::Physical(p)) => match ch.value_to_raw(*p) {
-                    Some(raw) => raw,
+                Some(Value::Physical(p)) => match ch.scale_to_raw(*p) {
+                    Some((raw, clamped)) => {
+                        if clamped {
+                            issues.push(
+                                Issue::new(
+                                    IssueCode::EncodeValueClamped,
+                                    format!(
+                                        "the value {p} for channel {} does not fit its {}-bit width; {} was written.",
+                                        ch.number,
+                                        ch.bits(),
+                                        ch.raw_to_value_u64(raw)
+                                    ),
+                                )
+                                .about_channel(ch.number)
+                                .found(p.to_string())
+                                .used(ch.raw_to_value_u64(raw).to_string()),
+                            );
+                        }
+                        raw
+                    }
                     None => {
                         issues.push(
                             Issue::new(

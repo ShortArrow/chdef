@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./conversion.jp.md)
 
-Implemented (0.0.8): all of the below, at every width the `bytes` column
+Implemented (0.0.9): all of the below, at every width the `bytes` column
 allows (1–8), for `UI` / `SI` / `BF` and both byte orders — raw → physical
 (`raw_to_value_endian` / `raw_to_value_u64`), physical → raw
 (`value_to_raw` / `value_to_bytes_endian`), the raw ↔ bytes primitive pair
@@ -39,6 +39,18 @@ raw = clamp(round((value − offset) ÷ lsb))
   `[0, 2^bits − 1]`. After clamping, a negative value becomes its
   two's-complement bit pattern.
 - A NaN / infinite `value` cannot be converted (`None`).
+- **Clamping is reported, not silent.** A value the width cannot hold
+  reaches the wire as a different number, so `encode` returns Issue
+  `encode_value_clamped` naming the value given and the physical value
+  actually written. The conversion still clamps: a reading past the end of
+  a sensor's range saturates, which is the right thing on the wire — what
+  would be wrong is saying nothing about it.
+- The primitives (`value_to_raw`, `value_to_bytes`) clamp without an
+  Issue, because they answer with a number and not with findings.
+  `fits_width(value)` is the ask: false when the width would clamp the
+  value, and false for a value that cannot be converted at all. At a
+  64-bit width the answer is bounded by the f64 limit of §1 and errs
+  towards saying a value fits.
 
 ## 3. Raw values given directly
 

@@ -71,10 +71,34 @@ fn parse_values(field: &str) -> Vec<(u32, Value)> {
         .collect()
 }
 
-fn check_encode(layout: &ChannelLayout, values: &str, expected_hex: &str, at: &str) {
+fn check_encode(
+    layout: &ChannelLayout,
+    values: &str,
+    expected_hex: &str,
+    expected_issues: Option<&str>,
+    at: &str,
+) {
     let encoded = layout.encode(&parse_values(values));
-    assert!(encoded.issues.is_empty(), "{at}: {:?}", encoded.issues);
     assert_eq!(bytes_to_hex(&encoded.value), expected_hex, "{at}");
+
+    let found: Vec<String> = encoded
+        .issues
+        .iter()
+        .map(|i| match i.channel {
+            Some(n) => format!("{}:{n}", i.code),
+            None => format!("{}:-", i.code),
+        })
+        .collect();
+    assert_eq!(found, encode_issues(expected_issues), "{at}");
+}
+
+/// The fourth field of an `E` line: the Issues that encode produces, each
+/// with the channel it points at.
+fn encode_issues(field: Option<&str>) -> Vec<String> {
+    match field {
+        None | Some("-") => Vec::new(),
+        Some(list) => list.split(';').map(str::to_string).collect(),
+    }
 }
 
 fn check_decode(layout: &ChannelLayout, frame_hex: &str, expected: &str, at: &str) {
@@ -172,8 +196,12 @@ fn every_golden_vector_holds() {
                         other => panic!("{at}: unknown byte order {other:?}"),
                     }
                 }
+                ["E", values, hex, issues] => {
+                    check_encode(&layout, values, hex, Some(issues), &at);
+                    encodes += 1;
+                }
                 ["E", values, hex] => {
-                    check_encode(&layout, values, hex, &at);
+                    check_encode(&layout, values, hex, None, &at);
                     encodes += 1;
                 }
                 ["D", hex, expected] => {

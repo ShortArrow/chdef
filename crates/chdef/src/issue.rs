@@ -140,9 +140,12 @@ pub enum IssueCode {
     /// An encode value cannot be converted (NaN / infinite). The channel's
     /// default was used.
     EncodeValueInvalid,
+    /// An encode value does not fit the channel width. The clamped value
+    /// was written.
+    EncodeValueClamped,
 }
 
-const ALL_ISSUE_CODES: [IssueCode; 26] = [
+const ALL_ISSUE_CODES: [IssueCode; 27] = [
     IssueCode::HeaderAssumed,
     IssueCode::ChannelNumberInvalid,
     IssueCode::ChannelDuplicate,
@@ -169,6 +172,7 @@ const ALL_ISSUE_CODES: [IssueCode; 26] = [
     IssueCode::KindAssumed,
     IssueCode::EncodeUnknownChannel,
     IssueCode::EncodeValueInvalid,
+    IssueCode::EncodeValueClamped,
 ];
 
 impl IssueCode {
@@ -210,6 +214,7 @@ impl IssueCode {
             IssueCode::KindAssumed => "kind_assumed",
             IssueCode::EncodeUnknownChannel => "encode_unknown_channel",
             IssueCode::EncodeValueInvalid => "encode_value_invalid",
+            IssueCode::EncodeValueClamped => "encode_value_clamped",
         }
     }
 }

@@ -97,6 +97,9 @@ public static class IssueCode
     /// <summary>An encode value cannot be converted (NaN / infinite). The channel's default was used.</summary>
     public const string EncodeValueInvalid = "encode_value_invalid";
 
+    /// <summary>An encode value does not fit the channel width. The clamped value was written.</summary>
+    public const string EncodeValueClamped = "encode_value_clamped";
+
     /// <summary>
     /// Every code the loaded native library can report, in its order. Read
     /// from the library rather than from this file, so a code added there

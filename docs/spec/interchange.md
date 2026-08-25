@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./interchange.jp.md)
 
-Implemented (0.0.8): the JSON shapes of §1 and §2 behind the `serde`
+Implemented (0.0.9): the JSON shapes of §1 and §2 behind the `serde`
 feature (`interchange::Definitions` / `Readings` / `Grid::to_json`; chdef
 builds the value, the consumer serialises it), and the golden vectors of
 §3 with the harness that runs them through the crate, through the C ABI of
@@ -70,7 +70,8 @@ Format of `vectors.txt` (`#` is a comment, blank lines are ignored):
 
 ```
 # B <little|big>                   : byte order of the lines that follow (little until said otherwise)
-# E <n=value;...> <wire hex>       : frame encoded from the values. Unlisted channels use their default, else 0. '-' means all defaults
+# E <n=value;...> <wire hex> [<code:n;...>] : frame encoded from the values. Unlisted channels use their default, else 0. '-' means all defaults.
+#                                   The last field is the Issues the encode produces, each with the channel it points at; absent means none
 # D <wire hex>  <n=raw/value;...>  : raw and physical values decoded from the frame. A short frame drops overrunning channels
 # F <wire hex>  <n:bit=0|1;...>    : the value of named bits inside a decoded BF channel
 # L <total_bytes> <n:at:bytes;...> : layout
@@ -85,6 +86,10 @@ F 00000000010000000000000000 2:0=1
 P ch -
 ```
 
+- An `E` line with a fourth field contracts the findings of that encode,
+  in order — a value the width clamps is a different number on the wire,
+  and an implementation that writes the same bytes in silence is not the
+  same implementation.
 - Values in `E` are physical values; with the `0x` prefix they are raw —
   the notation of [format.md §3](./format.md#3-ch-csv), read by
   `Value::parse`.

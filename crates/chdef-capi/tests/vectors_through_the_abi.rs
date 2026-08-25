@@ -178,7 +178,13 @@ fn values_of(field: &str) -> Vec<ChdefValue> {
         .collect()
 }
 
-fn check_encode(layout: &Layout, values: &str, expected_hex: &str, at: &str) {
+fn check_encode(
+    layout: &Layout,
+    values: &str,
+    expected_hex: &str,
+    expected_issues: Option<&str>,
+    at: &str,
+) {
     let given = values_of(values);
     let mut frame = vec![0u8; unsafe { chdef_layout_total_bytes(layout.0) } as usize];
     let mut written = 0usize;
@@ -197,10 +203,32 @@ fn check_encode(layout: &Layout, values: &str, expected_hex: &str, at: &str) {
     };
 
     assert_eq!(status, CHDEF_OK, "{at}");
-    assert_eq!(unsafe { chdef_issue_count(issues) }, 0, "{at}: issues");
-    unsafe { chdef_issues_free(issues) };
     frame.truncate(written);
     assert_eq!(bytes_to_hex(&frame), expected_hex, "{at}");
+
+    let found: Vec<String> = (0..unsafe { chdef_issue_count(issues) } as usize)
+        .map(|index| {
+            let mut issue = ChdefIssue::default();
+            assert_eq!(
+                unsafe { chdef_issue_at(issues, index, &mut issue) },
+                CHDEF_OK
+            );
+            let code = text(|buf, cap| unsafe {
+                chdef_issue_text(issues, index, CHDEF_ISSUE_CODE, buf, cap)
+            });
+            match issue.channel {
+                -1 => format!("{code}:-"),
+                channel => format!("{code}:{channel}"),
+            }
+        })
+        .collect();
+    unsafe { chdef_issues_free(issues) };
+
+    let expected = match expected_issues {
+        None | Some("-") => Vec::new(),
+        Some(list) => list.split(';').map(str::to_string).collect::<Vec<_>>(),
+    };
+    assert_eq!(found, expected, "{at}: the Issues of the encode");
 }
 
 fn check_decode(layout: &Layout, frame_hex: &str, expected: &str, at: &str) {
@@ -280,8 +308,12 @@ fn every_golden_vector_holds_through_the_abi() {
             match line.split_whitespace().collect::<Vec<_>>().as_slice() {
                 ["B", "little"] => layout.set_endian(CHDEF_LITTLE),
                 ["B", "big"] => layout.set_endian(CHDEF_BIG),
+                ["E", values, hex, issues] => {
+                    check_encode(&layout, values, hex, Some(issues), &at);
+                    checked += 1;
+                }
                 ["E", values, hex] => {
-                    check_encode(&layout, values, hex, &at);
+                    check_encode(&layout, values, hex, None, &at);
                     checked += 1;
                 }
                 ["D", hex, expected] => {

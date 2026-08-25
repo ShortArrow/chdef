@@ -2,7 +2,7 @@
 
 🌐 [English](./conversion.md) | **日本語**
 
-実装済み（0.0.8）: 以下の全部を、`バイト数` が許す全ての幅（1〜8）、`UI` / `SI` / `BF`、両方のバイト順で — 生値 → 物理値（`raw_to_value_endian` / `raw_to_value_u64`）、物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`）、生値 ↔ バイト列のプリミティブ対（`raw_to_bytes_endian` / `raw_from_bytes_endian`）、フレーム全体の encode / decode（§5 / §6）、BF 既定値の合成（§4）、§7 の読みの選択（`displayed_value` / `render`）、§8 の範囲問い合わせ。残る制限は §1 の f64 の精度だけ。
+実装済み（0.0.9）: 以下の全部を、`バイト数` が許す全ての幅（1〜8）、`UI` / `SI` / `BF`、両方のバイト順で — 生値 → 物理値（`raw_to_value_endian` / `raw_to_value_u64`）、物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`）、生値 ↔ バイト列のプリミティブ対（`raw_to_bytes_endian` / `raw_from_bytes_endian`）、フレーム全体の encode / decode（§5 / §6）、BF 既定値の合成（§4）、§7 の読みの選択（`displayed_value` / `render`）、§8 の範囲問い合わせ。残る制限は §1 の f64 の精度だけ。
 
 ## 1. 生値 → 物理値
 
@@ -24,6 +24,8 @@ raw = clamp(round((value − offset) ÷ lsb))
 - `round` は **0 から遠い方へ丸める**（0.5 → 1、−0.5 → −1、2.5 → 3）。
 - `clamp`: `SI` は `[−2^(bits−1), 2^(bits−1) − 1]`、`UI` / `BF` は `[0, 2^bits − 1]` に収める。収めた後、負値は 2 の補数のビットパターンにする。
 - 非数・無限の `value` は変換できない（`None`）。
+- **クランプは黙って起きない。** 幅に収まらない値は、線の上では別の数になる。だから `encode` は Issue `encode_value_clamped` を返し、渡された値と実際に書かれた物理値を名指す。変換自体はクランプしたままでよい — センサの範囲外が飽和するのは線の上では正しい。間違っていたのは、それについて何も言わないほうだった。
+- プリミティブ（`value_to_raw`、`value_to_bytes`）は Issue なしでクランプする。数を返すものであって、指摘を返すものではないから。訊く手段は `fits_width(value)`: 幅がその値をクランプするなら false、そもそも変換できない値でも false。64 ビット幅では §1 の f64 の限界に縛られ、「収まる」側に倒れる。
 
 ## 3. 生値の直接指定
 

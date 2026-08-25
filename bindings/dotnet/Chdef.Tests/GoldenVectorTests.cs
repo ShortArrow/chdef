@@ -51,7 +51,10 @@ public class GoldenVectorTests
                     defs.Endian = fields[1] == "big" ? Endian.Big : Endian.Little;
                     break;
                 case "E":
-                    CheckEncode(defs, fields[1], fields[2], at);
+                    CheckEncode(
+                        defs, fields[1], fields[2],
+                        fields.Length > 3 ? fields[3] : null,
+                        at);
                     checkedLines++;
                     break;
                 case "D":
@@ -125,12 +128,22 @@ public class GoldenVectorTests
     private static List<string> Declared(string field) =>
         field == "-" ? [] : [.. field.Split(';')];
 
-    private static void CheckEncode(Definitions defs, string values, string expectedHex, string at)
+    private static void CheckEncode(
+        Definitions defs,
+        string values,
+        string expectedHex,
+        string? expectedIssues,
+        string at)
     {
         var frame = defs.Encode(ParseValues(values), out var issues);
-
-        Assert.Empty(issues);
         Assert.Equal(expectedHex, Convert.ToHexString(frame).ToLowerInvariant());
+
+        // The fourth field of an `E` line: the Issues the encode produces,
+        // each with the channel it points at.
+        var found = issues
+            .Select(i => $"{i.Code}:{(i.Channel is { } n ? n.ToString(CultureInfo.InvariantCulture) : "-")}")
+            .ToList();
+        Assert.Equal(Declared(expectedIssues ?? "-"), found);
     }
 
     private static void CheckDecode(Definitions defs, string frameHex, string expected, string at)
