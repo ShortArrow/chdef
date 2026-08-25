@@ -146,9 +146,21 @@ pub enum IssueCode {
     /// A value lies outside its channel's declared range. Nothing was
     /// changed; `used` is the bound it crossed.
     ValueOutOfRange,
+    /// The `derived` cell is not a recipe this chdef knows. The channel
+    /// keeps its `default`.
+    DerivedInvalid,
+    /// A recipe covers a channel the layout does not have, or the frame is
+    /// too short for one it covers. Nothing was computed.
+    DerivedUnknownChannel,
+    /// A derived channel disagrees with its recipe. `found` is the stored
+    /// value, `used` the computed one.
+    DerivedMismatch,
+    /// The recipe reads, and names an algorithm this chdef does not
+    /// compute. Its coverage is still available through `covered_bytes`.
+    DerivedUnknownRecipe,
 }
 
-const ALL_ISSUE_CODES: [IssueCode; 28] = [
+const ALL_ISSUE_CODES: [IssueCode; 32] = [
     IssueCode::HeaderAssumed,
     IssueCode::ChannelNumberInvalid,
     IssueCode::ChannelDuplicate,
@@ -177,6 +189,10 @@ const ALL_ISSUE_CODES: [IssueCode; 28] = [
     IssueCode::EncodeValueInvalid,
     IssueCode::EncodeValueClamped,
     IssueCode::ValueOutOfRange,
+    IssueCode::DerivedInvalid,
+    IssueCode::DerivedUnknownChannel,
+    IssueCode::DerivedMismatch,
+    IssueCode::DerivedUnknownRecipe,
 ];
 
 impl IssueCode {
@@ -220,6 +236,10 @@ impl IssueCode {
             IssueCode::EncodeValueInvalid => "encode_value_invalid",
             IssueCode::EncodeValueClamped => "encode_value_clamped",
             IssueCode::ValueOutOfRange => "value_out_of_range",
+            IssueCode::DerivedInvalid => "derived_invalid",
+            IssueCode::DerivedUnknownChannel => "derived_unknown_channel",
+            IssueCode::DerivedMismatch => "derived_mismatch",
+            IssueCode::DerivedUnknownRecipe => "derived_unknown_recipe",
         }
     }
 }

@@ -2,7 +2,7 @@
 
 🌐 [English](./diagnostics.md) | **日本語**
 
-実装済み（0.0.10）: §2 のフィールドを持つ `Issue` 型、全ローダー（`build_layout` 含む）の戻り値 `Parsed { value, issues }`、および下表の全コード。横断コードは `build_layout` が、`layout_exceeds_capacity` は `ChannelLayout::limits_exceeded` が報告する。横断コードの行なしは ADR-0008 の決定。
+実装済み（0.0.11）: §2 のフィールドを持つ `Issue` 型、全ローダー（`build_layout` 含む）の戻り値 `Parsed { value, issues }`、および下表の全コード。横断コードは `build_layout` が、`layout_exceeds_capacity` は `ChannelLayout::limits_exceeded` が報告する。横断コードの行なしは ADR-0008 の決定。
 
 ## 1. 原則
 
@@ -64,6 +64,9 @@ Issue {
 | `encode_unknown_channel` | — | encode の値がレイアウトに無いチャンネルを指す。無視した |
 | `encode_value_invalid` | — | encode の値が NaN / 無限大。チャンネルの既定値を使った |
 | `encode_value_clamped` | — | encode の値がチャンネル幅に収まらない。クランプ後の値を書いた |
+| `derived_invalid` | あり | `算出` セルがこの chdef の知る手順でない。そのチャンネルは `値(デフォルト)` のまま |
+| `derived_unknown_channel` | — | 手順が、レイアウトの持たない `番号` を対象にしている。何も算出していない |
+| `derived_mismatch` | — | 算出チャンネルが手順と食い違う。`found` が格納値、`used` が算出値 |
 | `value_out_of_range` | — | 値がチャンネルの `値(最小)` / `値(最大)` の外。何も変えていない。`used` は超えた側の境界 |
 
 ¹ `build_layout` からは行なし（型付き行はファイル座標を持たない）。`channel` と `bit` のフィールドが何についての指摘かを名指す。同じ指摘を `BfTable::cross_issues` がグリッドの行・列つきで報告し、エディタはセルに落とせる。

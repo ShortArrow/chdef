@@ -1,3 +1,4 @@
+use crate::derived::{Derivation, DerivedRecipe};
 use crate::issue::{Issue, IssueCode, Parsed};
 
 /// Byte order of multi-byte channels on the wire.
@@ -126,6 +127,10 @@ pub enum ChannelKind {
     /// advances it: a counter belongs to the line that sends the frames,
     /// and one definition may be shared by several.
     Counter,
+    /// chdef computes it from the rest of the frame, by the recipe in the
+    /// `derived` column. Filled by [`ChannelLayout::seal`], never by
+    /// [`ChannelLayout::encode`].
+    Derived,
 }
 
 impl ChannelKind {
@@ -139,6 +144,8 @@ impl ChannelKind {
             Some(ChannelKind::Const)
         } else if s.eq_ignore_ascii_case("counter") {
             Some(ChannelKind::Counter)
+        } else if s.eq_ignore_ascii_case("derived") {
+            Some(ChannelKind::Derived)
         } else {
             None
         }
@@ -150,6 +157,7 @@ impl ChannelKind {
             ChannelKind::Plain => "plain",
             ChannelKind::Const => "const",
             ChannelKind::Counter => "counter",
+            ChannelKind::Derived => "derived",
         }
     }
 }
@@ -230,6 +238,9 @@ pub struct ChannelDef {
     /// Who decides this channel value (`docs/spec/format.md` §5).
     /// Carried, never acted on.
     pub kind: ChannelKind,
+    /// How a `derived` channel is computed (`docs/spec/format.md` §6);
+    /// `None` for every other kind, and for a recipe chdef cannot read.
+    pub derived: Option<DerivedRecipe>,
 }
 
 impl ChannelDef {
@@ -260,6 +271,7 @@ impl ChannelDef {
             format: ValueDisplay::default(),
             favorite: false,
             kind: ChannelKind::default(),
+            derived: None,
         }
     }
 
@@ -742,6 +754,168 @@ impl ChannelLayout {
         }
 
         issues
+    }
+
+    /// Fill every derived channel of `frame` (`docs/spec/format.md` §6),
+    /// in layout order.
+    ///
+    /// A frame is sealed once, after every other value is in place,
+    /// because a recipe reads the bytes as they will be sent. `encode`
+    /// never does this: sealing is a call of its own (ADR-0029).
+    ///
+    /// Returns what could not be done — a frame too short to hold the
+    /// channel, or a recipe covering a channel the layout does not have.
+    /// Nothing is written for a channel that is reported.
+    pub fn seal(&self, frame: &mut [u8]) -> Vec<Issue> {
+        let mut issues = Vec::new();
+        for (at, ch) in self.positions() {
+            let Some(recipe) = ch.derived.as_ref() else {
+                continue;
+            };
+            match self.derived_value(ch, recipe, frame) {
+                Ok(value) => {
+                    let bytes = ch.raw_to_bytes_endian(value, self.endian);
+                    frame[at..at + ch.width()].copy_from_slice(&bytes);
+                }
+                Err(issue) => issues.push(issue),
+            }
+        }
+        issues
+    }
+
+    /// The bytes a derived channel's recipe covers, in the order it
+    /// covers them (`docs/spec/format.md` §6); `None` when the channel is
+    /// not derived, its recipe was unreadable, or the frame is too short.
+    ///
+    /// This is the storey below [`seal`](ChannelLayout::seal): a device
+    /// whose checksum chdef does not compute still says which bytes it
+    /// covers, so a caller runs its own over exactly those and writes the
+    /// result with [`encode`](ChannelLayout::encode).
+    pub fn covered_bytes(&self, number: u32, frame: &[u8]) -> Option<Vec<u8>> {
+        let ch = self.channels.iter().find(|c| c.number == number)?;
+        let recipe = ch.derived.as_ref()?;
+        let mut covered = Vec::new();
+        for (low, high) in &recipe.spans {
+            for over in *low..=*high {
+                let (at, def) = self.positions().find(|(_, c)| c.number == over)?;
+                let stop = at + def.width();
+                if frame.len() < stop {
+                    return None;
+                }
+                covered.extend_from_slice(&frame[at..stop]);
+            }
+        }
+        Some(covered)
+    }
+
+    /// Which derived channels of `frame` disagree with their recipe
+    /// (`docs/spec/format.md` §6) — the check a receiver makes.
+    ///
+    /// `found` is the value the frame holds and `used` the one the recipe
+    /// computes, both in hexadecimal at the channel's width. Nothing is
+    /// changed and nothing is remembered.
+    pub fn derived_mismatches(&self, frame: &[u8]) -> Vec<Issue> {
+        let mut issues = Vec::new();
+        for (at, ch) in self.positions() {
+            let Some(recipe) = ch.derived.as_ref() else {
+                continue;
+            };
+            let width = ch.width();
+            match self.derived_value(ch, recipe, frame) {
+                Err(issue) => issues.push(issue),
+                Ok(expected) => {
+                    let stored = ch.raw_from_bytes_endian(&frame[at..at + width], self.endian);
+                    if stored != expected {
+                        let digits = width * 2;
+                        issues.push(
+                            Issue::new(
+                                IssueCode::DerivedMismatch,
+                                format!(
+                                    "channel {} holds 0x{stored:0digits$X} but its recipe computes 0x{expected:0digits$X}.",
+                                    ch.number
+                                ),
+                            )
+                            .about_channel(ch.number)
+                            .found(format!("0x{stored:0digits$X}"))
+                            .used(format!("0x{expected:0digits$X}")),
+                        );
+                    }
+                }
+            }
+        }
+        issues
+    }
+
+    /// The value a recipe computes over `frame`, or why it cannot.
+    fn derived_value(
+        &self,
+        ch: &ChannelDef,
+        recipe: &DerivedRecipe,
+        frame: &[u8],
+    ) -> Result<u64, Issue> {
+        let end = self
+            .channel_offset(ch.number)
+            .map(|at| at + ch.width())
+            .unwrap_or(0);
+        if frame.len() < end {
+            return Err(Issue::new(
+                IssueCode::DerivedUnknownChannel,
+                format!(
+                    "the frame is {} bytes, too short to hold channel {}.",
+                    frame.len(),
+                    ch.number
+                ),
+            )
+            .about_channel(ch.number)
+            .found(frame.len().to_string())
+            .used(end.to_string()));
+        }
+
+        let mut covered = Vec::new();
+        for (low, high) in &recipe.spans {
+            for number in *low..=*high {
+                let Some((at, over)) = self.positions().find(|(_, c)| c.number == number) else {
+                    return Err(Issue::new(
+                        IssueCode::DerivedUnknownChannel,
+                        format!(
+                            "the recipe of channel {} covers channel {number}, which the layout does not have.",
+                            ch.number
+                        ),
+                    )
+                    .about_channel(ch.number)
+                    .found(number.to_string()));
+                };
+                let stop = at + over.width();
+                if frame.len() < stop {
+                    return Err(Issue::new(
+                        IssueCode::DerivedUnknownChannel,
+                        format!(
+                            "the frame is {} bytes, too short to cover channel {number}.",
+                            frame.len()
+                        ),
+                    )
+                    .about_channel(ch.number)
+                    .found(frame.len().to_string())
+                    .used(stop.to_string()));
+                }
+                covered.extend_from_slice(&frame[at..stop]);
+            }
+        }
+        match &recipe.derivation {
+            Derivation::Crc(crc) => Ok(crc.of(&covered)),
+            other => Err(Issue::new(
+                IssueCode::DerivedUnknownRecipe,
+                format!(
+                    "the recipe of channel {} is {other:?}, which this chdef does not compute; covered_bytes hands over the bytes it covers.",
+                    ch.number
+                ),
+            )
+            .about_channel(ch.number)
+            .found(match other {
+                Derivation::Unknown(name) => name.clone(),
+                _ => String::new(),
+            })),
+        }
     }
 
     /// Which of `values` fall outside their channel's declared range

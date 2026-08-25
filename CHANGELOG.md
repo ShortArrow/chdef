@@ -9,6 +9,42 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.11] - 2026-08-25
+
+### Added
+- **Derived channels.** `kind` gains `derived`, reserved since 0.0.8 and
+  now meaning something: a channel chdef computes from the rest of the
+  frame by a recipe the file states in a new `derived` column, as
+  `crc16/x25 1..7`.
+- **The coverage is stated, never assumed.** A frame of sync, length, data
+  and CRC may cover the data alone, the length and the data, or everything
+  before the CRC; which one a device means is a property of its protocol,
+  not of CRC. A recipe without a range is `derived_invalid`. Spans may be
+  listed — `2..3,5..7` — and they name channels rather than bytes, so
+  inserting a channel moves the coverage with it.
+- **A recipe is its six numbers; a name is a shorthand.** Width,
+  polynomial, initial value, input reflection, output reflection and final
+  XOR describe every CRC. `crc16/x25` expands to exactly those, and a
+  device whose CRC is in no catalogue writes the numbers instead. Six
+  variants ship, each checked against its published check value.
+- **`ChannelLayout::seal`** fills every derived channel; `encode` never
+  does, so ADR-0025's "kind is a mark, not a behaviour" stands and a
+  consumer with no derived channel sees no change.
+  **`derived_mismatches`** is the check a receiver makes.
+- **`covered_bytes`** is the storey below sealing: a device whose checksum
+  chdef does not compute still says which bytes it covers, so a caller
+  runs its own over exactly those. The algorithm is replaceable without a
+  trait, a registry, or a callback across the ABI.
+- All of it across the ABI and the .NET binding — `chdef_seal`,
+  `chdef_derived_mismatches`, `chdef_covered_bytes`,
+  `chdef_recipe_count` / `_name`, and `Definitions.Seal` /
+  `DerivedMismatches` / `CoveredBytes` / `Recipes`.
+
+### Breaking
+- `Channel` in the .NET binding gains `Derived`, so positional
+  deconstruction takes one more element.
+- `CHDEF_ABI_VERSION` is `6`.
+
 ## [0.0.10] - 2026-08-25
 
 ### Added

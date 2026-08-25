@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./layout.jp.md)
 
-Implemented (0.0.10): cumulative positions and total byte count
+Implemented (0.0.11): cumulative positions and total byte count
 (`ChannelLayout::channel_offset` / `total_bytes()` / `positions()`, all
 computed on demand so an edited width is never stale); the Rows / Layout
 split (`parse_*` keeps duplicates, `build_layout` drops them first-wins);

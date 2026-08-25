@@ -11,6 +11,7 @@
 mod channel;
 mod columns;
 mod csv;
+mod derived;
 mod error;
 #[cfg(feature = "serde")]
 pub mod interchange;
@@ -27,6 +28,7 @@ pub use csv::{
     parse_bf_csv_bytes_with, parse_bf_csv_with, parse_ch_csv, parse_ch_csv_bytes,
     parse_ch_csv_bytes_with, parse_ch_csv_with,
 };
+pub use derived::{Crc, DerivedRecipe};
 pub use error::{ChdefError, Result};
 pub use issue::{Issue, IssueCode, Parsed};
 pub use table::{BfTable, ChTable, CsvStyle, Grid, LineEnding, Renumbered};

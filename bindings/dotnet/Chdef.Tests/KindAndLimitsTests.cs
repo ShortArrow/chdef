@@ -31,11 +31,11 @@ public sealed class KindAndLimitsTests
     public void AKindThisBindingDoesNotKnowArrivesAsPlainAndIsReported()
     {
         // format.md §5: a file written for a later chdef still loads.
-        using var defs = Definitions.Parse("number,bytes,kind\n1,2,derived\n");
+        using var defs = Definitions.Parse("number,bytes,kind\n1,2,computed\n");
 
         Assert.Equal("plain", defs.Channels[0].Kind);
         var issue = Assert.Single(defs.Issues, i => i.Code == IssueCode.KindAssumed);
-        Assert.Equal("derived", issue.Found);
+        Assert.Equal("computed", issue.Found);
         Assert.Equal("plain", issue.Used);
     }
 
@@ -137,7 +137,7 @@ public sealed class KindAndLimitsTests
     [Fact]
     public void ACodeThatArrivesIsOneTheListHolds()
     {
-        using var defs = Definitions.Parse("number,bytes,kind\n1,2,derived\n");
+        using var defs = Definitions.Parse("number,bytes,kind\n1,2,computed\n");
         Assert.NotEmpty(defs.Issues);
         Assert.All(defs.Issues, i => Assert.Contains(i.Code, IssueCode.All));
     }

@@ -54,7 +54,7 @@ fn the_list_is_what_a_consumer_checks_its_own_table_against() {
 
 #[test]
 fn an_issue_that_arrives_carries_a_code_the_list_holds() {
-    let parsed = parse_ch_csv("number,bytes,kind\n1,2,derived\n").unwrap();
+    let parsed = parse_ch_csv("number,bytes,kind\n1,2,computed\n").unwrap();
     assert!(!parsed.issues.is_empty());
     for issue in &parsed.issues {
         assert!(

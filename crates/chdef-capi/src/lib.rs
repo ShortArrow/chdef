@@ -26,14 +26,14 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use chdef::{
     build_layout, BfColumn, BitFieldDef, ChColumn, ChannelLayout, ChdefError, ColumnVocabulary,
-    Endian, Grid, Issue, IssueCode, Value,
+    DerivedRecipe, Endian, Grid, Issue, IssueCode, Value,
 };
 
 /// The revision of this ABI. It rises whenever a symbol is added or
 /// changed; a caller checks it is **at least** the value its declarations
 /// were written for before calling anything else. Symbols are added and
 /// never withdrawn, so a newer library serves an older caller.
-pub const CHDEF_ABI_VERSION: u32 = 5;
+pub const CHDEF_ABI_VERSION: u32 = 6;
 
 // ---------------------------------------------------------------- statuses
 
@@ -94,6 +94,10 @@ pub const CHDEF_CHANNEL_MAX: i32 = 8;
 /// Who decides the channel's value: `plain` / `const` / `counter`
 /// (`docs/spec/format.md` §5). Further kinds may appear.
 pub const CHDEF_CHANNEL_KIND: i32 = 9;
+
+/// The `derived` cell as the file spells it; `""` for a channel that
+/// is not derived (`docs/spec/format.md` §6).
+pub const CHDEF_CHANNEL_DERIVED: i32 = 10;
 
 /// An Issue's stable ASCII code.
 pub const CHDEF_ISSUE_CODE: i32 = 0;
@@ -562,6 +566,14 @@ pub unsafe extern "C" fn chdef_layout_channel_text(
             CHDEF_CHANNEL_VAR => &ch.var,
             CHDEF_CHANNEL_FORMAT => ch.format.as_str(),
             CHDEF_CHANNEL_KIND => ch.kind.as_str(),
+            CHDEF_CHANNEL_DERIVED => {
+                owned = ch
+                    .derived
+                    .as_ref()
+                    .map(|r| r.to_string())
+                    .unwrap_or_default();
+                &owned
+            }
             CHDEF_CHANNEL_MIN => {
                 owned = ch.min.map(|v| v.to_string()).unwrap_or_default();
                 &owned
@@ -1716,6 +1728,148 @@ pub unsafe extern "C" fn chdef_readings_out_of_range(
                 .collect()
         };
         *out_issues = into_issues(layout.values_out_of_range(&given));
+        CHDEF_OK
+    })
+}
+
+// ---------------------------------------------------------------- derived
+
+/// How many derivation recipes this library knows by name — the size to
+/// walk with [`chdef_recipe_name`].
+///
+/// The set can grow (ADR-0026), and a recipe naming something outside it
+/// is still read: its coverage is available through
+/// [`chdef_covered_bytes`].
+#[no_mangle]
+pub extern "C" fn chdef_recipe_count() -> u64 {
+    guard_len(|| DerivedRecipe::all().len()) as u64
+}
+
+/// Write one recipe name into `buf`. Returns the length it needs, or `0`
+/// past the end.
+///
+/// # Safety
+///
+/// `buf` must be writable for `cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_recipe_name(index: usize, buf: *mut c_char, cap: usize) -> usize {
+    guard_len(|| match DerivedRecipe::all().get(index) {
+        Some(name) => write_text(name, buf, cap),
+        None => 0,
+    })
+}
+
+/// Fill every derived channel of `frame` (`docs/spec/format.md` §6).
+///
+/// `chdef_encode` never does this: sealing is a call of its own. A frame
+/// is sealed once, after every other value is in place. `out_issues`
+/// receives what could not be done, and nothing is written for a channel
+/// that is reported.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours; `frame` must be writable for
+/// `frame_len`, and `out_issues` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_seal(
+    handle: *const ChdefLayout,
+    frame: *mut u8,
+    frame_len: usize,
+    out_issues: *mut *mut ChdefIssues,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_issues.is_null() || (frame.is_null() && frame_len > 0) {
+            return CHDEF_ERR_NULL;
+        }
+        let bytes = if frame.is_null() {
+            &mut [][..]
+        } else {
+            std::slice::from_raw_parts_mut(frame, frame_len)
+        };
+        *out_issues = into_issues(layout.seal(bytes));
+        CHDEF_OK
+    })
+}
+
+/// Which derived channels of `frame` disagree with their recipe — the
+/// check a receiver makes. Nothing is changed.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours; `frame` must be valid for
+/// `frame_len`, and `out_issues` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_derived_mismatches(
+    handle: *const ChdefLayout,
+    frame: *const u8,
+    frame_len: usize,
+    out_issues: *mut *mut ChdefIssues,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_issues.is_null() || (frame.is_null() && frame_len > 0) {
+            return CHDEF_ERR_NULL;
+        }
+        let bytes = if frame.is_null() {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(frame, frame_len)
+        };
+        *out_issues = into_issues(layout.derived_mismatches(bytes));
+        CHDEF_OK
+    })
+}
+
+/// The bytes a derived channel's recipe covers, in the order it covers
+/// them — the storey below [`chdef_seal`].
+///
+/// A device whose checksum chdef does not compute still says which bytes
+/// it covers, so a caller runs its own over exactly those and writes the
+/// result through [`chdef_encode`]. `out_len` always receives the length
+/// the coverage needs, so a caller given [`CHDEF_ERR_BUFFER`] learns the
+/// room to provide. A channel that is not derived, whose recipe was
+/// unreadable, or a frame too short, is [`CHDEF_ERR_INDEX`].
+///
+/// # Safety
+///
+/// The handle must be null or one of ours; `frame` must be valid for
+/// `frame_len`, `out` writable for `out_cap`, and `out_len` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_covered_bytes(
+    handle: *const ChdefLayout,
+    channel: u32,
+    frame: *const u8,
+    frame_len: usize,
+    out: *mut u8,
+    out_cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_len.is_null() || (frame.is_null() && frame_len > 0) {
+            return CHDEF_ERR_NULL;
+        }
+        *out_len = 0;
+        let bytes = if frame.is_null() {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(frame, frame_len)
+        };
+        let Some(covered) = layout.covered_bytes(channel, bytes) else {
+            return CHDEF_ERR_INDEX;
+        };
+        *out_len = covered.len();
+        if covered.len() > out_cap || out.is_null() {
+            return CHDEF_ERR_BUFFER;
+        }
+        std::ptr::copy_nonoverlapping(covered.as_ptr(), out, covered.len());
         CHDEF_OK
     })
 }

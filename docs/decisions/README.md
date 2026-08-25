@@ -33,3 +33,4 @@ specification and the README never point back at an ADR.
 | [0026](./0026-a-growing-vocabulary-is-enumerable.md) | 2026-08-25 | A vocabulary that grows is enumerable across the boundary | Accepted |
 | [0027](./0027-chdef-answers-what-a-consumer-cannot-compute.md) | 2026-08-25 | chdef answers about a declared property only where a consumer cannot compute the answer | Accepted |
 | [0028](./0028-an-observer-is-named-for-what-it-observes.md) | 2026-08-25 | An observer is named for the state it observes | Accepted |
+| [0029](./0029-a-derived-channel-states-its-own-coverage.md) | 2026-08-25 | A derived channel states what it covers, and sealing is a call of its own | Accepted |

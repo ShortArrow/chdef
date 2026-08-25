@@ -49,7 +49,7 @@ extern "C" {
  * changed; check that chdef_abi_version() is at least this value before
  * calling anything else. Symbols are added and never withdrawn, so a newer
  * library serves an older caller. */
-#define CHDEF_ABI_VERSION 5u
+#define CHDEF_ABI_VERSION 6u
 
 /* Statuses. */
 #define CHDEF_OK 0
@@ -78,7 +78,8 @@ extern "C" {
 #define CHDEF_CHANNEL_FORMAT 6  /* "DEC" / "HEX" */
 #define CHDEF_CHANNEL_MIN 7     /* in its cell's notation; "" when unstated */
 #define CHDEF_CHANNEL_MAX 8
-#define CHDEF_CHANNEL_KIND 9  /* "plain" / "const" / "counter" */
+#define CHDEF_CHANNEL_KIND 9  /* "plain" / "const" / "counter" / "derived" */
+#define CHDEF_CHANNEL_DERIVED 10 /* the recipe cell; "" when not derived */
 
 /* Text fields of a diagnostic, for chdef_issue_text. */
 #define CHDEF_ISSUE_CODE 0      /* the stable ASCII identifier */
@@ -305,6 +306,33 @@ int32_t chdef_grid_remove_row(ChdefGrid *handle, size_t at);
 /* Write the file back in the shape it was read in — its byte-order mark
  * and record separator. */
 size_t chdef_grid_to_csv(const ChdefGrid *handle, char *buf, size_t cap);
+
+/* Derived channels: the recipes this library knows by name. The set can
+ * grow, and a recipe naming something outside it is still read — its
+ * coverage is available through chdef_covered_bytes. */
+uint64_t chdef_recipe_count(void);
+size_t chdef_recipe_name(size_t index, char *buf, size_t cap);
+
+/* Fill every derived channel of `frame`. chdef_encode never does this:
+ * sealing is a call of its own, made once after every other value is in
+ * place. Nothing is written for a channel that is reported. */
+int32_t chdef_seal(const ChdefLayout *handle, uint8_t *frame,
+                   size_t frame_len, ChdefIssues **out_issues);
+
+/* Which derived channels disagree with their recipe — the check a
+ * receiver makes. Nothing is changed. */
+int32_t chdef_derived_mismatches(const ChdefLayout *handle,
+                                 const uint8_t *frame, size_t frame_len,
+                                 ChdefIssues **out_issues);
+
+/* The bytes a derived channel's recipe covers, in the order it covers
+ * them — the storey below chdef_seal. A device whose checksum chdef does
+ * not compute still says which bytes it covers, so a caller runs its own
+ * over exactly those and writes the result through chdef_encode. out_len
+ * always receives the length the coverage needs. */
+int32_t chdef_covered_bytes(const ChdefLayout *handle, uint32_t channel,
+                            const uint8_t *frame, size_t frame_len,
+                            uint8_t *out, size_t out_cap, size_t *out_len);
 
 /* Which values fall outside their channel's declared min / max. Nothing
  * is changed and nothing is remembered: encode and decode behave the same

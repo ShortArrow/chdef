@@ -77,7 +77,7 @@ internal static unsafe partial class Native
 {
     internal const string Library = "chdef_capi";
 
-    internal const uint CHDEF_ABI_VERSION = 5u;
+    internal const uint CHDEF_ABI_VERSION = 6u;
 
     internal const int CHDEF_OK = 0;
     internal const int CHDEF_ERR_HANDLE = -1;
@@ -104,6 +104,7 @@ internal static unsafe partial class Native
     internal const int CHDEF_CHANNEL_MIN = 7;
     internal const int CHDEF_CHANNEL_MAX = 8;
     internal const int CHDEF_CHANNEL_KIND = 9;
+    internal const int CHDEF_CHANNEL_DERIVED = 10;
 
     internal const int CHDEF_ISSUE_CODE = 0;
     internal const int CHDEF_ISSUE_FOUND = 1;
@@ -156,6 +157,26 @@ internal static unsafe partial class Native
     [LibraryImport(Library)]
     internal static partial int chdef_layout_set_channel_capacity(
         nint handle, ulong channels);
+
+    [LibraryImport(Library)]
+    internal static partial ulong chdef_recipe_count();
+
+    [LibraryImport(Library)]
+    internal static partial nuint chdef_recipe_name(
+        nuint index, byte* buf, nuint cap);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_seal(
+        nint handle, byte* frame, nuint frameLen, nint* outIssues);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_derived_mismatches(
+        nint handle, byte* frame, nuint frameLen, nint* outIssues);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_covered_bytes(
+        nint handle, uint channel, byte* frame, nuint frameLen,
+        byte* outBytes, nuint outCap, nuint* outLen);
 
     [LibraryImport(Library)]
     internal static partial int chdef_values_out_of_range(

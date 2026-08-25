@@ -52,6 +52,7 @@ public sealed record Channel(
     string Max,
     bool Favorite,
     string Kind,
+    string Derived,
     IReadOnlyList<Bit> Bits);
 
 /// <summary>
@@ -443,6 +444,94 @@ public sealed unsafe class Definitions : IDisposable
         return read;
     }
 
+    /// <summary>
+    /// The derivation recipes this library knows by name. The set can
+    /// grow, and a recipe naming something outside it is still read — its
+    /// coverage is available through <see cref="CoveredBytes"/>.
+    /// </summary>
+    public static IReadOnlyList<string> Recipes()
+    {
+        var count = (int)Native.chdef_recipe_count();
+        var names = new List<string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var index = (nuint)i;
+            names.Add(TextBuffer.Read((buf, cap) => Native.chdef_recipe_name(index, buf, cap)));
+        }
+        return names;
+    }
+
+    /// <summary>
+    /// Fill every derived channel of <paramref name="frame"/>
+    /// (docs/spec/format.md §6). <see cref="Encode"/> never does this:
+    /// sealing is a call of its own, made once after every other value is
+    /// in place. Nothing is written for a channel that is reported.
+    /// </summary>
+    public IReadOnlyList<Issue> Seal(byte[] frame)
+    {
+        nint handle = 0;
+        int status;
+        fixed (byte* ptr = frame)
+        {
+            status = Native.chdef_seal(Handle, ptr, (nuint)frame.Length, &handle);
+        }
+        Check(status);
+        var read = ReadIssues(handle);
+        Native.chdef_issues_free(handle);
+        return read;
+    }
+
+    /// <summary>
+    /// Which derived channels of <paramref name="frame"/> disagree with
+    /// their recipe — the check a receiver makes. Nothing is changed.
+    /// </summary>
+    public IReadOnlyList<Issue> DerivedMismatches(ReadOnlySpan<byte> frame)
+    {
+        nint handle = 0;
+        int status;
+        fixed (byte* ptr = frame)
+        {
+            status = Native.chdef_derived_mismatches(Handle, ptr, (nuint)frame.Length, &handle);
+        }
+        Check(status);
+        var read = ReadIssues(handle);
+        Native.chdef_issues_free(handle);
+        return read;
+    }
+
+    /// <summary>
+    /// The bytes a derived channel's recipe covers, in the order it covers
+    /// them — the storey below <see cref="Seal"/>. A device whose checksum
+    /// chdef does not compute still says which bytes it covers, so a
+    /// caller runs its own over exactly those and writes the result
+    /// through <see cref="Encode"/>. Null when the channel is not derived,
+    /// its recipe was unreadable, or the frame is too short.
+    /// </summary>
+    public byte[]? CoveredBytes(uint channel, ReadOnlySpan<byte> frame)
+    {
+        nuint needed = 0;
+        int status;
+        fixed (byte* ptr = frame)
+        {
+            status = Native.chdef_covered_bytes(
+                Handle, channel, ptr, (nuint)frame.Length, null, 0, &needed);
+        }
+        if (status == Native.CHDEF_ERR_INDEX)
+        {
+            return null;
+        }
+
+        var covered = new byte[(int)needed];
+        fixed (byte* ptr = frame)
+        fixed (byte* outPtr = covered)
+        {
+            status = Native.chdef_covered_bytes(
+                Handle, channel, ptr, (nuint)frame.Length, outPtr, needed, &needed);
+        }
+        Check(status);
+        return covered;
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -493,6 +582,7 @@ public sealed unsafe class Definitions : IDisposable
                 Text(layout, index, Native.CHDEF_CHANNEL_MAX),
                 raw.Favorite != 0,
                 Text(layout, index, Native.CHDEF_CHANNEL_KIND),
+                Text(layout, index, Native.CHDEF_CHANNEL_DERIVED),
                 ReadBits(layout, index, (int)raw.BitCount)));
         }
         return channels;

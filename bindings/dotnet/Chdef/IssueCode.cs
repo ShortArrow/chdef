@@ -103,6 +103,18 @@ public static class IssueCode
     /// <summary>A value lies outside its channel's declared range. Nothing was changed; <c>used</c> is the bound it crossed.</summary>
     public const string ValueOutOfRange = "value_out_of_range";
 
+    /// <summary>The <c>derived</c> cell is not a recipe this chdef knows. The channel keeps its <c>default</c>.</summary>
+    public const string DerivedInvalid = "derived_invalid";
+
+    /// <summary>A recipe covers a channel the layout does not have, or the frame is too short for one it covers. Nothing was computed.</summary>
+    public const string DerivedUnknownChannel = "derived_unknown_channel";
+
+    /// <summary>A derived channel disagrees with its recipe. <c>found</c> is the stored value, <c>used</c> the computed one.</summary>
+    public const string DerivedMismatch = "derived_mismatch";
+
+    /// <summary>The recipe reads, and names an algorithm this chdef does not compute. Its coverage is still available through <c>covered_bytes</c>.</summary>
+    public const string DerivedUnknownRecipe = "derived_unknown_recipe";
+
     /// <summary>
     /// Every code the loaded native library can report, in its order. Read
     /// from the library rather than from this file, so a code added there

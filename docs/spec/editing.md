@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./editing.jp.md)
 
-Implemented (0.0.10): everything below. `Grid` is the file as its cells;
+Implemented (0.0.11): everything below. `Grid` is the file as its cells;
 `ChTable` and `BfTable` add the column vocabulary and the operations that
 need one (`insert_channel`, `insert_channel_renumbering`, `cross_issues`,
 `with_columns`). Editing **UI**, undo history and save orchestration stay

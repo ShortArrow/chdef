@@ -80,7 +80,7 @@ fn kind_is_a_field_of_its_own_and_not_another_one_over_again() {
 
 #[test]
 fn a_kind_the_library_does_not_know_crosses_as_plain_with_a_finding() {
-    let layout = Layout::parse("number,bytes,kind\n1,2,derived\n");
+    let layout = Layout::parse("number,bytes,kind\n1,2,computed\n");
 
     assert_eq!(layout.field(0, CHDEF_CHANNEL_KIND), "plain");
     let codes: Vec<String> = (0..unsafe { chdef_issue_count(layout.1) } as usize)
@@ -198,7 +198,7 @@ fn the_count_is_the_length_of_the_list_it_describes() {
 
 #[test]
 fn a_code_that_arrives_is_one_the_list_holds() {
-    let layout = Layout::parse("number,bytes,kind\n1,2,derived\n");
+    let layout = Layout::parse("number,bytes,kind\n1,2,computed\n");
     let listed: Vec<String> = (0..chdef_issue_code_count() as usize)
         .map(|i| text(|buf, cap| unsafe { chdef_issue_code_name(i, buf, cap) }))
         .collect();

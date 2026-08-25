@@ -16,7 +16,7 @@ fn a_new_table_uses_the_canonical_header() {
     assert_eq!(
         table.header().map(|h| h.join(",")),
         Some(
-            "number,bytes,bits,section,name,type,lsb,offset,unit,min,max,default,memo,var,format,favorite,kind"
+            "number,bytes,bits,section,name,type,lsb,offset,unit,min,max,default,memo,var,format,favorite,kind,derived"
                 .to_string()
         )
     );
@@ -52,7 +52,7 @@ fn a_table_writes_only_the_columns_it_has() {
 // consumer can build its own header from them.
 #[test]
 fn the_canonical_orders_are_readable() {
-    assert_eq!(ChColumn::canonical().len(), 17);
+    assert_eq!(ChColumn::canonical().len(), 18);
     assert_eq!(ChColumn::positional().len(), 9);
     assert_eq!(ChColumn::canonical()[0], ChColumn::Number);
     assert_eq!(BfColumn::canonical().len(), 5);

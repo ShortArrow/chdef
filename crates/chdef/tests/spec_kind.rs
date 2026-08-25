@@ -55,9 +55,10 @@ fn the_spellings_are_trimmed_and_case_insensitive() {
 
 #[test]
 fn a_value_this_chdef_does_not_know_is_plain_and_is_reported() {
-    // §5: a file written for a later chdef still loads. `derived` is the
-    // value ADR-0025 deliberately left out.
-    let parsed = channels("number,bytes,kind\n1,2,derived\n");
+    // §5: a file written for a later chdef still loads. `derived` stood
+    // here until 0.0.11 gave it a meaning, which is the growth path
+    // ADR-0025 described, arriving.
+    let parsed = channels("number,bytes,kind\n1,2,computed\n");
 
     assert_eq!(parsed.value[0].kind, ChannelKind::Plain);
     let issue = parsed
@@ -66,7 +67,7 @@ fn a_value_this_chdef_does_not_know_is_plain_and_is_reported() {
         .find(|i| i.code == IssueCode::KindAssumed)
         .unwrap_or_else(|| panic!("expected kind_assumed, got {:?}", parsed.issues));
     assert_eq!(issue.channel, Some(1));
-    assert_eq!(issue.found.as_deref(), Some("derived"));
+    assert_eq!(issue.found.as_deref(), Some("computed"));
     assert_eq!(issue.used.as_deref(), Some("plain"));
 }
 
@@ -153,10 +154,14 @@ fn the_column_has_a_canonical_name_and_a_japanese_spelling() {
 #[test]
 fn kind_is_appended_so_the_positional_form_is_untouched() {
     // ADR-0025: the first nine columns are frozen by the positional form.
-    assert_eq!(ChColumn::canonical().len(), 17);
-    assert_eq!(ChColumn::canonical().last(), Some(&ChColumn::Kind));
+    assert_eq!(ChColumn::canonical().len(), 18);
+    assert!(ChColumn::canonical().contains(&ChColumn::Kind));
     assert_eq!(ChColumn::positional().len(), 9);
     assert!(!ChColumn::positional().contains(&ChColumn::Kind));
+    assert!(
+        !ChColumn::positional().contains(&ChColumn::Derived),
+        "every column added since is appended too"
+    );
 
     // A 9-column file still reads by position.
     let parsed = channels("1,4,,General,Frame,UI32,1,,\n");
@@ -170,5 +175,6 @@ fn the_spelling_of_each_kind_is_what_the_column_holds() {
     assert_eq!(ChannelKind::Plain.as_str(), "plain");
     assert_eq!(ChannelKind::Const.as_str(), "const");
     assert_eq!(ChannelKind::Counter.as_str(), "counter");
+    assert_eq!(ChannelKind::Derived.as_str(), "derived");
     assert_eq!(ChannelKind::default(), ChannelKind::Plain);
 }

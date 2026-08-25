@@ -55,6 +55,7 @@ impl ColumnVocabulary {
             .ch("表示形式", ChColumn::Format)
             .ch("お気に入り", ChColumn::Favorite)
             .ch("種別", ChColumn::Kind)
+            .ch("算出", ChColumn::Derived)
             .bf("番号", BfColumn::Number)
             .bf("BIT番号", BfColumn::Bit)
             .bf("メッセージ名称", BfColumn::Name)
@@ -152,6 +153,7 @@ pub enum ChColumn {
     Format,
     Favorite,
     Kind,
+    Derived,
 }
 
 impl ChColumn {
@@ -188,6 +190,7 @@ impl ChColumn {
             ChColumn::Format => "format",
             ChColumn::Favorite => "favorite",
             ChColumn::Kind => "kind",
+            ChColumn::Derived => "derived",
         }
     }
 
@@ -208,7 +211,7 @@ impl ChColumn {
         }
     }
 
-    pub(crate) const CANONICAL: [ChColumn; 17] = [
+    pub(crate) const CANONICAL: [ChColumn; 18] = [
         ChColumn::Number,
         ChColumn::Bytes,
         ChColumn::Bits,
@@ -226,6 +229,7 @@ impl ChColumn {
         ChColumn::Format,
         ChColumn::Favorite,
         ChColumn::Kind,
+        ChColumn::Derived,
     ];
 
     pub(crate) const POSITIONAL: [ChColumn; 9] = [

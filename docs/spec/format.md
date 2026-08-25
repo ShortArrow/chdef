@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./format.jp.md)
 
-Implemented (0.0.10): BOM stripping; column identification by header name
+Implemented (0.0.11): BOM stripping; column identification by header name
 in English or Japanese, with the 9-column positional fallback and any
 spellings a reader is taught (`ColumnAliases`); blank rows and `#` rows;
 every column interpretation below with its Issues; `parse_*_csv_bytes` for
@@ -106,6 +106,7 @@ is the one written.
 | `var` | `変数名` |
 | `format` | `表示形式` |
 | `kind` | `種別` |
+| `derived` | `算出` |
 | `favorite` | `お気に入り` |
 
 For a BF CSV:
@@ -151,7 +152,8 @@ rules.
 | `memo` | `Description` | no | String |
 | `var` | `variable` | no | String. Preserved only |
 | `format` | `DisplayFormat` | no | `DEC` / `HEX` (case-insensitive). Empty / unknown → `DEC`. `HEX` with `lsb` ≠ 1 → Issue `raw_display_with_lsb`. What the column selects is **which reading is shown** — the physical value or the raw one — not the base it is printed in ([conversion.md §7](./conversion.md)). It never affects a conversion |
-| `kind` | — | no | `plain` / `const` / `counter`, case-insensitive and trimmed. Empty → `plain`. Anything else → `plain` (Issue `kind_assumed`). It records **who decides this channel's value** and nothing else: `encode` behaves identically whatever it says, and chdef never fills a channel because of it (§5) |
+| `kind` | — | no | `plain` / `const` / `counter` / `derived`, case-insensitive and trimmed. Empty → `plain`. Anything else → `plain` (Issue `kind_assumed`). It records **who decides this channel's value** and nothing else: `encode` behaves identically whatever it says, and chdef never fills a channel because of it (§5) |
+| `derived` | — | no | How a `derived` channel is computed (§6). Read only for `kind` = `derived`, and ignored otherwise. Unreadable → the channel keeps its `default` and nothing is computed (Issue `derived_invalid`) |
 | `favorite` | `IsFavorite` | no | `1` or `true` (case-insensitive) → true, anything else → false. Written as `1` / `0` |
 
 Type prefix and width: the width is `bytes × 8` bits. `UI` is an unsigned
@@ -188,10 +190,12 @@ that moment, and a cell cannot.
 | `plain` | The caller supplies the value, or the channel takes its `default`. |
 | `const` | The value is the `default` and does not change from frame to frame — a sync word, a protocol version. |
 | `counter` | The caller supplies a number that advances every frame. |
+| `derived` | chdef computes it from the rest of the frame, by the recipe in the `derived` column (§6). |
 
 **chdef reads the column, carries it, writes it back, and reports what it
-could not read. It never fills a value because of it**, and `encode`
-produces the same bytes whatever `kind` says. Overriding a `const` channel
+could not read**, and `encode` produces the same bytes whatever `kind`
+says. `derived` is the one kind chdef can compute, and it still does not
+compute it in `encode`: sealing a frame is a call of its own (§6). Overriding a `const` channel
 is not an Issue: what a caller may send is the caller's to decide.
 
 A `counter` is not advanced by chdef, because a counter belongs to the
@@ -205,3 +209,57 @@ value already reduced to the channel's width.
 Values beyond these three may appear; a reader that does not know one
 treats it as `plain` and says so, so a file written for a later chdef
 still loads.
+
+## 6. Derived channels
+
+A channel whose `kind` is `derived` is computed from the rest of the
+frame. The `derived` column says how. Today one recipe is defined:
+
+```
+crc16/x25 1..7
+^^^^^^^^^ ^^^^
+recipe    the channels it covers, both ends included
+```
+
+- **The range names channels, not bytes**, by their `number`. Inserting a
+  channel renumbers the ones after it and the range follows, which a byte
+  range would not. The channels are covered in layout order; a `number`
+  the layout does not hold is an Issue and the recipe computes nothing.
+- **The range is required, and there is no default.** A frame laid out as
+  sync, length, data, CRC may cover the data alone, the length and the
+  data, or everything before the CRC — which of those a device means is a
+  property of its protocol, not of CRC. A default would be right often and
+  silently wrong otherwise, and a CRC that is silently wrong shows up as
+  hardware discarding frames with no reason given. A recipe without a
+  range is `derived_invalid`.
+- **Spans may be listed** when the covered channels are not one run:
+  `crc16/x25 2..3,5..7`. Each span is `low..high` with both ends included,
+  and they are covered left to right as written.
+- **A recipe is six numbers**, the model every CRC is described by:
+  width, polynomial, initial value, whether the input is reflected,
+  whether the output is reflected, and the value XORed at the end. Written
+  out, the line above is
+
+  ```
+  crc16 poly=0x1021 init=0xFFFF refin=1 refout=1 xorout=0xFFFF 1..7
+  ```
+
+  chdef ships the catalogued variants as names — `crc16/x25` is exactly
+  the six numbers above — and a name has no standing the numbers lack. A
+  file for a device whose CRC is in no catalogue writes the numbers.
+- Anything else in the cell is an Issue `derived_invalid`; the channel
+  keeps its `default` and nothing is computed.
+
+### Sealing and checking
+
+`encode` never fills a derived channel. **Sealing is a call of its own**,
+`ChannelLayout::seal`, which fills every derived channel of a frame in
+layout order. A frame is sealed once, after every other value is in place,
+because a recipe reads the bytes as they will be sent.
+
+Going the other way, `derived_mismatches` reports Issue `derived_mismatch`
+for every derived channel whose stored value disagrees with the recipe —
+the check a receiver makes, and the one place chdef says a frame is wrong
+rather than merely unusual.
+
+Neither is applied by `encode` or `decode`, and neither is remembered.

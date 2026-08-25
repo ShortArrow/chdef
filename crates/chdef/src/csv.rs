@@ -3,6 +3,7 @@ use std::path::Path;
 
 use crate::channel::{BitFieldDef, ChannelDef, ChannelKind, DataType, Value, ValueDisplay};
 use crate::columns::{BfColumn, ChColumn, ColumnMap, ColumnVocabulary};
+use crate::derived::DerivedRecipe;
 use crate::error::{ChdefError, Result};
 use crate::issue::{Issue, IssueCode, Parsed};
 
@@ -362,6 +363,29 @@ pub(crate) fn interpret_ch(
             },
         };
 
+        let derived = if kind == ChannelKind::Derived {
+            let cell = cell(record, ChColumn::Derived).unwrap_or_default();
+            match DerivedRecipe::parse(&cell) {
+                Some(recipe) => Some(recipe),
+                None => {
+                    issue(
+                        Issue::new(
+                            IssueCode::DerivedInvalid,
+                            format!(
+                                "`derived` is {}, not a recipe with the channels it covers; nothing is computed for this channel.",
+                                shown(&cell)
+                            ),
+                        )
+                        .found(cell.clone()),
+                        ChColumn::Derived,
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         let format = cell(record, ChColumn::Format)
             .and_then(|f| ValueDisplay::parse(&f))
             .unwrap_or_default();
@@ -397,6 +421,7 @@ pub(crate) fn interpret_ch(
                 .map(|f| f == "1" || f.eq_ignore_ascii_case("true"))
                 .unwrap_or(false),
             kind,
+            derived,
         };
         if let (Some(lo), Some(hi)) = (ch.min_value(), ch.max_value()) {
             if lo > hi {
