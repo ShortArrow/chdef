@@ -9,6 +9,28 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.14] - 2026-08-25
+
+### Added
+- **`chdef-capi` has a front page written for a C reader.** Its crates.io
+  page had been the repository landing page — not wrong the way the NuGet
+  one was, but with no C on it, no way to build the `cdylib`, and no
+  example. It now carries the header's three rules, a worked call from
+  parse to free, and a line sending a C# reader to the package that suits
+  them.
+- **One test covers every artifact's front page**, because the defect
+  0.0.13 fixed was never specific to one of them: each package must carry
+  the page beside it, and each page must speak the language of its reader.
+  A page that starts showing another language fails the build.
+- The calls shown on the C page are checked against `include/chdef.h`. C
+  has no doctest and CI carries no C toolchain, so what is checked is the
+  failure that actually happens: a call renamed out from under the page.
+
+### Fixed
+- Every checker in this area is now verified by mutating what it guards —
+  seven of them, including a replay of the bug 0.0.12 shipped. The one
+  that was not verified is the one that let that bug through.
+
 ## [0.0.13] - 2026-08-25
 
 ### Fixed

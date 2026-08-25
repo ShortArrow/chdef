@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./format.jp.md)
 
-Implemented (0.0.13): BOM stripping; column identification by header name
+Implemented (0.0.14): BOM stripping; column identification by header name
 in English or Japanese, with the 9-column positional fallback and any
 spellings a reader is taught (`ColumnAliases`); blank rows and `#` rows;
 every column interpretation below with its Issues; `parse_*_csv_bytes` for
