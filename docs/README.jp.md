@@ -17,8 +17,9 @@
 | [`chdef`](../crates/chdef/README.md) | ライブラリ | `cargo add chdef` |
 | [`chdef-capi`](../crates/chdef-capi/include/chdef.h) | その上の C ABI | `cargo add chdef-capi` |
 | [`Chdef`](../bindings/dotnet/Chdef/README.md) | .NET バインディング（ネイティブ同梱） | `dotnet add package Chdef` |
+| [`chdef`](../bindings/js/README.md) | JavaScript バインディング（WebAssembly と TypeScript 宣言を同梱） | `npm install chdef` |
 
-それぞれが、呼び出す言語に向けた README を持つ。C ABI は仕様が定める規則を全て運ぶので、他言語の利用側がそれを 2 度書くことはない。
+それぞれが、呼び出す言語に向けた README を持つ。C ABI は仕様が定める規則を全て運ぶので、C や C# の利用側がそれを 2 度書くことはない。JavaScript バインディングは同じ規則に WebAssembly 経由で届く。
 
 ## ドキュメント
 
@@ -29,7 +30,7 @@
 | [docs/migration.jp.md](./migration.jp.md) | 0.0.x の各版で何が変わったか |
 | [docs/decisions/](./decisions/README.md) | なぜそうなっているか（英語） |
 
-Rust の README にある例は全て `cargo test` がコンパイルして実行する。.NET の README にある例は全て `Chdef.Tests` のテストで、README との一致をワークスペースが検査する。**腐りようのないページ**にすることが狙い。
+Rust の README にある例は全て `cargo test` がコンパイルして実行する。.NET の README にある例は全て `Chdef.Tests` のテストで、README との一致をワークスペースが検査する。npm の README にある例はテストが README から取り出してそのまま実行する。**腐りようのないページ**にすることが狙い。
 
 ## 由来
 

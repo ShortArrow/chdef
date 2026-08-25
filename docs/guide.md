@@ -7,7 +7,8 @@ The shortest path through each task. What the format *is* lives in
 done.
 
 Every call named here exists in Rust, across the C ABI, and in the .NET
-binding, spelled the way each language spells things.
+and JavaScript bindings, spelled the way each language spells things.
+The examples are Rust; each binding's own front page shows its spelling.
 
 ## The shape of it
 

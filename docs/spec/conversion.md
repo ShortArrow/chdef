@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./conversion.jp.md)
 
-Implemented (0.0.14): all of the below, at every width the `bytes` column
+Implemented (0.0.15): all of the below, at every width the `bytes` column
 allows (1–8), for `UI` / `SI` / `BF` and both byte orders — raw → physical
 (`raw_to_value_endian` / `raw_to_value_u64`), physical → raw
 (`value_to_raw` / `value_to_bytes_endian`), the raw ↔ bytes primitive pair

@@ -20,6 +20,9 @@ allowed. Every one is listed here.
 | 0.0.9 → 0.0.10 | `check_capacity` is `limits_exceeded` |
 | 0.0.10 → 0.0.11 | `Channel` gained `Derived` (positional deconstruction) |
 | 0.0.11 → 0.0.12 | nothing |
+| 0.0.12 → 0.0.13 | nothing |
+| 0.0.13 → 0.0.14 | nothing |
+| 0.0.14 → 0.0.15 | nothing; a JavaScript binding is new on npm |
 
 `CHDEF_ABI_VERSION` went 2 → 3 → 4 → 5 → 6 across these. The .NET package
 carries its own native library, so that pairing is never yours to manage.

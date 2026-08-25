@@ -2,12 +2,14 @@
 
 🌐 **English** | [日本語](./interchange.jp.md)
 
-Implemented (0.0.14): the JSON shapes of §1 and §2 behind the `serde`
+Implemented (0.0.15): the JSON shapes of §1 and §2 behind the `serde`
 feature (`interchange::Definitions` / `Readings` / `Grid::to_json`; chdef
 builds the value, the consumer serialises it), and the golden vectors of
 §3 with the harness that runs them through the crate, through the C ABI of
-`chdef-capi`, and through the .NET binding. TypeScript type generation is
-not implemented.
+`chdef-capi`, through the .NET binding and through the JavaScript binding.
+TypeScript declarations for the JSON shapes of §1 and §2 are not
+generated; the WebAssembly binding's own declarations describe its API,
+which is a different thing.
 
 ## 1. JSON
 
@@ -101,10 +103,11 @@ P ch -
   source with no `P` line must produce no Issues.
 - Every vector set has at least one `E`, one `D` and one `L` line.
 
-The harness runs three times: over the crate's Rust API, over the C ABI of
-`chdef-capi` (ADR-0021), and over the .NET binding (ADR-0022), so every
-path a consumer can take is verified to be the same implementation rather
-than a second one. Every line of a set is checked on every path.
+The harness runs four times: over the crate's Rust API, over the C ABI of
+`chdef-capi` (ADR-0021), over the .NET binding (ADR-0022) and over the
+JavaScript binding (ADR-0030), so every path a consumer can take is
+verified to be the same implementation rather than a second one. Every
+line of a set is checked on every path.
 
 The sets in this repository: `basic` (the example above), `widths` (all
 eight legal widths at both byte orders, at the boundaries

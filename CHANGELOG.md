@@ -9,6 +9,39 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.15] - 2026-08-25
+
+### Added
+- **A JavaScript binding, on npm as `chdef`.** WebAssembly over the crate,
+  with TypeScript declarations generated from the Rust types. The package
+  ships a `bundler` build for Vite and friends and a `nodejs` build for
+  Node, and picks between them itself. It reads definitions, computes the
+  layout, encodes, seals, decodes, answers the range and width questions,
+  and edits a definition file as cells — the same surface the .NET binding
+  carries.
+- **The golden vectors run through it**, as they run through the crate,
+  the C ABI and the .NET binding. Every example on its npm front page is
+  executed by the test suite, so the page is the test rather than a copy
+  of one.
+- **The release guard checks every version site**, not only
+  `Cargo.toml`: the .NET props and the npm manifest each have to match the
+  tag before anything is built.
+
+### Fixed
+- **A raw bit pattern wider than 53 bits was silently rounded** on the way
+  into JavaScript. A JavaScript `number` is a double, so
+  `0x0102030405060708` reached the wire as `0x0102030405060700` — a frame
+  the right length with the wrong low byte and no Issue reported. Every
+  raw bit pattern now crosses as a `bigint`; a physical value stays a
+  `number`. Found by the golden vectors on the first run.
+
+### Notes
+- Nothing in the crate, the C ABI or the .NET package changed.
+  `CHDEF_ABI_VERSION` stays 6.
+- `chdef-wasm` is not published to crates.io. It is the source of the npm
+  package; a Rust caller targeting WebAssembly wants the `chdef` crate
+  itself, which compiles to `wasm32` as it stands.
+
 ## [0.0.14] - 2026-08-25
 
 ### Added

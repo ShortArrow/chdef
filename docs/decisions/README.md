@@ -34,3 +34,6 @@ specification and the README never point back at an ADR.
 | [0027](./0027-chdef-answers-what-a-consumer-cannot-compute.md) | 2026-08-25 | chdef answers about a declared property only where a consumer cannot compute the answer | Accepted |
 | [0028](./0028-an-observer-is-named-for-what-it-observes.md) | 2026-08-25 | An observer is named for the state it observes | Accepted |
 | [0029](./0029-a-derived-channel-states-its-own-coverage.md) | 2026-08-25 | A derived channel states what it covers, and sealing is a call of its own | Accepted |
+| [0030](./0030-the-javascript-binding-binds-the-crate.md) | 2026-08-25 | The JavaScript binding ships from here, and binds the crate rather than the C ABI | Accepted |
+| [0031](./0031-a-record-crosses-as-an-object.md) | 2026-08-25 | A record crosses to JavaScript as an object, and only state is a handle | Accepted |
+| [0032](./0032-a-bit-pattern-crosses-as-a-bigint.md) | 2026-08-25 | A bit pattern crosses to JavaScript as a bigint | Accepted |

@@ -8,8 +8,9 @@ name: Release
 #
 # Job sequence:
 #
-#   guard ┬→ test (matrix) ──┬→ publish-crates ┬→ release
-#         └→ publish-gate ┬─┴→ publish-nuget ─┘
+#   guard ┬→ test (matrix) ──┬→ publish-crates ─┬→ release
+#         ├→ javascript ────┼→ publish-nuget ──┤
+#         └→ publish-gate ┬─┴→ publish-npm ────┘
 #                         └→ native (matrix) ─┘
 #
 # 1. guard:          asserts that the workspace `Cargo.toml` at the tagged
@@ -20,6 +21,8 @@ name: Release
 #                    shipped platform. The golden vectors of
 #                    docs/spec/interchange.md §3 run through the crate,
 #                    the C ABI and the binding.
+# 2b. javascript:    the same vectors through the WebAssembly binding, and
+#                    every example on its npm front page.
 # 3. publish-gate:   parses the head commit's message line by line and
 #                    outputs `publish=true|false`. Only a STANDALONE
 #                    `[skip publish]` line counts as a skip; a mention of
@@ -32,10 +35,14 @@ name: Release
 #                    runtime's own OS and architecture.
 # 6. publish-nuget:  collects those libraries, packs them into the
 #                    package, and pushes over OIDC via NuGet/login.
+# 7. publish-npm:    builds both WebAssembly targets and publishes the npm
+#                    package over OIDC, which npm reads from the job's own
+#                    id-token — no npm token is stored anywhere.
 #
-# No long-lived secrets. GITHUB_TOKEN is auto-provided; crates.io and
-# nuget.org trust is established via OIDC. Both need Trusted Publishing
-# configured once for this repository and this workflow filename.
+# No long-lived secrets. GITHUB_TOKEN is auto-provided; crates.io,
+# nuget.org and npmjs.com trust is established via OIDC. All three need
+# Trusted Publishing configured once for this repository and this workflow
+# filename.
 
 on:
   push:
@@ -49,7 +56,7 @@ env:
 
 jobs:
   guard:
-    name: guard (Cargo.toml version matches tag)
+    name: guard (every version site matches the tag)
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.derive.outputs.version }}
@@ -58,7 +65,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Derive version from tag and check Cargo.toml
+      - name: Derive version from tag and check every version site
         id: derive
         # The most common footgun under the human-tag flow is "tagged the
         # wrong commit". Catching it here avoids burning the build matrix
@@ -71,13 +78,19 @@ jobs:
             exit 1
           fi
           version="${tag#v}"
-          manifest_version=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "(.*)"/\1/')
-          if [ "$manifest_version" != "$version" ]; then
-            echo "::error::tag $tag implies version $version, but Cargo.toml reads $manifest_version" >&2
-            exit 1
-          fi
+          check() {
+            found=$(sed -nE "$2" "$1" | head -1)
+            if [ "$found" != "$version" ]; then
+              echo "::error::tag $tag implies version $version, but $1 reads ${found:-nothing}" >&2
+              exit 1
+            fi
+            echo "  $1 = $found"
+          }
+          echo "guard: tag=$tag version=$version"
+          check Cargo.toml 's/^version = "(.*)"/\1/p'
+          check bindings/dotnet/Directory.Build.props 's|.*<Version>(.*)</Version>.*|\1|p'
+          check bindings/js/package.json 's/^  "version": "(.*)",/\1/p'
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "guard ok: tag=$tag version=$version Cargo.toml=$manifest_version"
 
   publish-gate:
     name: decide whether to publish
@@ -147,6 +160,73 @@ jobs:
           dotnet restore bindings/dotnet/Chdef.slnx --locked-mode
           CHDEF_NATIVE="$native" dotnet test bindings/dotnet/Chdef.slnx \
             --configuration Release --no-restore
+
+  javascript:
+    # The golden vectors of docs/spec/interchange.md §3 certify the path a
+    # JavaScript project actually takes, not one beside it (ADR-0030).
+    name: Test the JavaScript binding
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked --version 0.15.0
+      - name: Build and test
+        working-directory: bindings/js
+        run: |
+          node build.mjs
+          npm test
+
+  publish-npm:
+    # npm reads the job's OIDC token, so nothing long-lived is stored.
+    # npmjs.com needs a trusted publisher configured once for this
+    # repository and this workflow filename.
+    name: Publish to npm (OIDC)
+    needs: [guard, javascript, publish-gate]
+    if: ${{ needs.publish-gate.outputs.publish == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked --version 0.15.0
+
+      - name: Publish
+        # A version already on npm is skipped, so re-running a
+        # partially-failed release stays green.
+        working-directory: bindings/js
+        env:
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Trusted publishing needs an npm that speaks OIDC.
+          npm install -g npm@latest
+          status=$(curl -fsS -o /dev/null -w '%{http_code}'             "https://registry.npmjs.org/chdef/$VERSION" || echo "000")
+          if [ "$status" = "200" ]; then
+            echo "chdef $VERSION already on npm — skipping"
+            exit 0
+          fi
+          node build.mjs
+          npm publish --access public
 
   publish-crates:
     # Opt out with `[skip publish]` on its own line in the head commit's
@@ -316,7 +396,7 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: [publish-crates, publish-nuget]
+    needs: [publish-crates, publish-nuget, publish-npm]
     runs-on: ubuntu-latest
     permissions:
       contents: write

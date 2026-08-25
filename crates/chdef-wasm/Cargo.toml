@@ -1,0 +1,22 @@
+[package]
+name = "chdef-wasm"
+description = "A WebAssembly binding over chdef: read CH / BF definitions, describe the frame layout, encode and decode frames, from JavaScript and TypeScript"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+# Built by `bindings/js` into the npm package; a Rust caller wants the
+# `chdef` crate itself, so this one has no crates.io audience.
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+chdef.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_bytes = "0.11.19"
+tsify = { version = "0.5.8", default-features = false, features = ["js"] }
+wasm-bindgen = "0.2"
+

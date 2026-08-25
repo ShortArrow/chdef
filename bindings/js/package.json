@@ -1,0 +1,29 @@
+{
+  "name": "chdef",
+  "version": "0.0.15",
+  "description": "Read CH / BF definitions, describe the frame layout, encode and decode frames, from JavaScript and TypeScript",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShortArrow/chdef.git",
+    "directory": "bindings/js"
+  },
+  "homepage": "https://github.com/ShortArrow/chdef",
+  "bugs": "https://github.com/ShortArrow/chdef/issues",
+  "keywords": ["wasm", "csv", "telemetry", "binary", "frame", "can", "crc"],
+  "files": ["bundler", "node", "README.md"],
+  "exports": {
+    ".": {
+      "types": "./bundler/chdef.d.ts",
+      "node": "./node/chdef.js",
+      "default": "./bundler/chdef.js"
+    }
+  },
+  "sideEffects": ["./bundler/chdef.js"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "prepublishOnly": "node build.mjs"
+  }
+}

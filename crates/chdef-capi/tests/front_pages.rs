@@ -7,8 +7,8 @@
 //! *declares* a readme — true, and true while the wrong file was packed.
 //!
 //! What has to be checked is which file each package carries and whether
-//! it addresses the right reader. All three are checked here, together,
-//! because the defect was not specific to one of them.
+//! it addresses the right reader. Every published package is checked here,
+//! together, because the defect was not specific to one of them.
 
 use std::path::Path;
 
@@ -80,6 +80,34 @@ fn the_dotnet_package_carries_the_page_beside_it() {
 }
 
 #[test]
+fn the_npm_package_carries_the_page_beside_it() {
+    let manifest = read("bindings/js/package.json");
+
+    let packed: Vec<&str> = manifest
+        .lines()
+        .skip_while(|line| !line.contains("\"files\""))
+        .take(1)
+        .flat_map(|line| line.split('"'))
+        .filter(|word| word.ends_with(".md") || *word == "bundler" || *word == "node")
+        .collect();
+
+    assert!(
+        packed.contains(&"README.md"),
+        "the npm package does not carry a front page; it packs {packed:?}"
+    );
+    for build in ["bundler", "node"] {
+        assert!(
+            packed.contains(&build),
+            "the npm package does not carry its {build} build"
+        );
+    }
+    assert!(
+        !read("bindings/js/README.md").is_empty(),
+        "bindings/js has no front page"
+    );
+}
+
+#[test]
 fn each_page_speaks_the_language_of_its_reader() {
     let rust = read("crates/chdef/README.md");
     assert!(blocks(&rust, "rust") >= 3, "the crate page shows no Rust");
@@ -101,10 +129,23 @@ fn each_page_speaks_the_language_of_its_reader() {
         "the NuGet page does not say how to install it"
     );
 
+    let js = read("bindings/js/README.md");
+    assert!(blocks(&js, "js") >= 4, "the npm page shows no JavaScript");
+    assert_eq!(blocks(&js, "rust"), 0, "the npm page shows Rust");
+    assert_eq!(blocks(&js, "csharp"), 0, "the npm page shows C#");
+    assert!(
+        js.contains("npm install chdef"),
+        "the npm page does not say how to install it"
+    );
+
     // The repository readme is the one page for nobody in particular: it
     // says what is here and sends each reader to their own.
     let repo = read("README.md");
-    for artifact in ["crates/chdef/README.md", "bindings/dotnet/Chdef/README.md"] {
+    for artifact in [
+        "crates/chdef/README.md",
+        "bindings/dotnet/Chdef/README.md",
+        "bindings/js/README.md",
+    ] {
         assert!(
             repo.contains(artifact),
             "the repository page does not point at {artifact}"

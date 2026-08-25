@@ -2,7 +2,7 @@
 
 🌐 [English](./abi.md) | **日本語**
 
-実装済み（0.0.14）: 下記の全部 — レイアウト、変換、名前付きビット、Grid、値の記法、Issue を、`chdef-capi` の C ABI と、その上に立つ .NET バインディング経由で。TypeScript は未実装。
+実装済み（0.0.15）: 下記の全部 — レイアウト、変換、名前付きビット、Grid、値の記法、Issue を、`chdef-capi` の C ABI と、その上に立つ .NET バインディング経由で。TypeScript はこの ABI 経由では届かず、クレートの上に立つ WebAssembly バインディングが同じ規則を運ぶ。
 
 ## 1. ABI が何を運ぶか
 

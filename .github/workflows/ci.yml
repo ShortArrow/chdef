@@ -26,6 +26,30 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
 
+  javascript:
+    name: JavaScript binding
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked --version 0.15.0
+      # The golden vectors of docs/spec/interchange.md §3 certify the path
+      # a JavaScript project actually takes, not one beside it (ADR-0030).
+      - name: Build and test the JavaScript binding
+        working-directory: bindings/js
+        run: |
+          node build.mjs
+          npm test
+
   lint:
     name: Lint (fmt + clippy)
     runs-on: ubuntu-latest
