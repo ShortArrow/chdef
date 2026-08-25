@@ -67,7 +67,7 @@ public sealed record Bit(
     int? Default);
 
 /// <summary>One named bit of a decoded frame, and whether it is set.</summary>
-public sealed record BitReading(uint Channel, uint Number, bool Value);
+public sealed record BitReading(uint Channel, uint Number, string Name, bool Value);
 
 /// <summary>
 /// A per-row problem found while reading. Every field a consumer needs to
@@ -354,6 +354,13 @@ public sealed unsafe class Definitions : IDisposable
             return grouped;
         }
 
+        // The names live on the channels this layout already read; the
+        // ABI carries numbers, so the join happens here rather than in
+        // every caller.
+        var named = _channels
+            .SelectMany(c => c.Bits)
+            .ToDictionary(b => (b.Channel, b.Number), b => b.Name);
+
         var bits = new ChdefBitReading[total];
         nuint count = 0;
         int status;
@@ -372,8 +379,11 @@ public sealed unsafe class Definitions : IDisposable
                 of = new List<BitReading>();
                 grouped[bit.Channel] = of;
             }
-            ((List<BitReading>)of).Add(
-                new BitReading(bit.Channel, bit.Bit, bit.Value != 0));
+            ((List<BitReading>)of).Add(new BitReading(
+                bit.Channel,
+                bit.Bit,
+                named.TryGetValue((bit.Channel, bit.Bit), out var name) ? name : string.Empty,
+                bit.Value != 0));
         }
         return grouped;
     }

@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./format.jp.md)
 
-Implemented (0.0.11): BOM stripping; column identification by header name
+Implemented (0.0.12): BOM stripping; column identification by header name
 in English or Japanese, with the 9-column positional fallback and any
 spellings a reader is taught (`ColumnAliases`); blank rows and `#` rows;
 every column interpretation below with its Issues; `parse_*_csv_bytes` for
@@ -249,6 +249,24 @@ recipe    the channels it covers, both ends included
   file for a device whose CRC is in no catalogue writes the numbers.
 - Anything else in the cell is an Issue `derived_invalid`; the channel
   keeps its `default` and nothing is computed.
+
+The names this chdef ships, each with the numbers it stands for and the
+check value that identifies it — the CRC of the ASCII bytes `123456789`,
+the self-test every CRC catalogue prints:
+
+| name | width | poly | init | refin | refout | xorout | check |
+|---|---|---|---|---|---|---|---|
+| `crc16/x25` | 16 | `0x1021` | `0xFFFF` | yes | yes | `0xFFFF` | `0x906E` |
+| `crc16/ibm-3740` | 16 | `0x1021` | `0xFFFF` | no | no | `0x0000` | `0x29B1` |
+| `crc16/kermit` | 16 | `0x1021` | `0x0000` | yes | yes | `0x0000` | `0x2189` |
+| `crc16/xmodem` | 16 | `0x1021` | `0x0000` | no | no | `0x0000` | `0x31C3` |
+| `crc8/smbus` | 8 | `0x07` | `0x00` | no | no | `0x00` | `0xF4` |
+| `crc32/iso-hdlc` | 32 | `0x04C11DB7` | `0xFFFFFFFF` | yes | yes | `0xFFFFFFFF` | `0xCBF43926` |
+
+A device whose CRC is in no catalogue writes the numbers instead, and one
+using something that is not a CRC at all is not blocked either: the
+coverage is still read, and `covered_bytes` hands over exactly the bytes
+it names.
 
 ### Sealing and checking
 

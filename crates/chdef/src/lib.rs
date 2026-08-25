@@ -1,12 +1,10 @@
 //! Channel and bit-field definitions for binary frames.
 //!
-//! A CH CSV names each contiguous field of a binary frame in order (offset =
-//! cumulative byte count); a BF CSV names the individual bits of channels whose
-//! type is `BF`. Columns are found by header name, spelled in English or
-//! Japanese. This crate parses both files, computes the frame layout, and
-//! converts between raw bytes and physical values (`raw * lsb + offset`).
-//! A problem in one row never stops loading; it comes back as an [`Issue`]
-//! next to the value.
+//! The crate front page is the repository readme, included here so that
+//! every example on it is compiled and run by `cargo test`. A page that
+//! cannot rot is the point: this one is what crates.io shows, and it went
+//! stale twice before it was checked.
+#![doc = include_str!("../README.md")]
 
 mod channel;
 mod columns;

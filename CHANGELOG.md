@@ -9,6 +9,43 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.12] - 2026-08-25
+
+### Fixed
+- **The front page was wrong, in both registries.** Its Rust example did
+  not compile — `parse_ch_csv` answers with `Parsed`, and the example fed
+  that straight to `build_layout`, which takes a `Vec` — and the crate's
+  own first line still said columns are "spelled in English or Japanese",
+  which stopped being true in 0.0.7. Both had rotted because nothing
+  compiled them.
+
+### Added
+- **Every example on a readme is executed.** The Rust one is the crate's
+  doc page (`include_str!`), so `cargo test` compiles and runs each block;
+  the C# one is mirrored by `Chdef.Tests/ReadmeTests.cs` with a checker in
+  the workspace that fails the build if the page and the tests disagree.
+  C# has no doctest, so the mirror is what stands in for one.
+- [docs/guide.md](docs/guide.md): the shortest path through reading,
+  sending, receiving, asking and editing — and what chdef will not do for
+  you, each with the reason.
+- [docs/migration.md](docs/migration.md): every break from 0.0.5 onward in
+  one place, for someone jumping several releases at once.
+- A readme per audience. `crates/chdef/README.md` is the crates.io and
+  docs.rs front page, `bindings/dotnet/Chdef/README.md` the NuGet one, and
+  the repository readme points at both. The NuGet page had been showing
+  Rust code.
+- The specification prints the CRC catalogue and the Issue codes, and a
+  test compares both against what the crate ships. It found a code
+  documented nowhere on its first run.
+- Japanese counterparts of the guide and the migration notes.
+
+### Breaking
+- `BitReading` in the .NET binding gained `Name`. The Rust side has always
+  handed the whole definition over beside the value; the binding handed
+  over a number and left the caller to look the name up, which only became
+  visible when the readme example was written against it. Positional
+  deconstruction of that record takes four elements.
+
 ## [0.0.11] - 2026-08-25
 
 ### Added

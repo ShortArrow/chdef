@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./diagnostics.jp.md)
 
-Implemented (0.0.11): the `Issue` type with the fields of §2,
+Implemented (0.0.12): the `Issue` type with the fields of §2,
 `Parsed { value, issues }` as the return shape of every loader
 (`build_layout` included), and every code below. The cross-file codes come
 from `build_layout`, and `layout_exceeds_capacity` from
@@ -89,6 +89,7 @@ the fields.
 | `derived_invalid` | yes | The `derived` cell is not a recipe this chdef knows. The channel keeps its `default` |
 | `derived_unknown_channel` | — | A recipe covers a `number` the layout does not hold. Nothing was computed |
 | `derived_mismatch` | — | A derived channel disagrees with its recipe. `found` is the stored value, `used` the computed one |
+| `derived_unknown_recipe` | — | The recipe reads and names an algorithm this chdef does not compute. Its coverage is still available through `covered_bytes` |
 | `value_out_of_range` | — | A value lies outside its channel's `min` / `max`. Nothing was changed; `used` is the bound it crossed |
 
 ¹ Rowless from `build_layout` (typed rows carry no file coordinates); the

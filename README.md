@@ -13,88 +13,43 @@
 
 ---
 
-## What it is
-
 A **CH definition** (channel definition CSV) gives every field of a binary
 frame a meaning; a **BF definition** (bit-field definition CSV) gives every
-bit of a `BF`-typed channel a name. `chdef` is the one Rust implementation
-of both, so that every consumer reads the same file the same way.
+bit of a `BF`-typed channel a name. This repository holds one
+implementation of both and every path to it, so that every consumer reads
+the same file the same way.
 
-- Parse a CH CSV / BF CSV — a column has one canonical name
-  (`number,bytes,…`) and every other spelling a header may use is a
-  **vocabulary you supply**, so a header in any language is read by
-  teaching its spellings; a leading BOM is ignored and rows without an
-  integer `number` are skipped
-- Compute the frame layout (each channel sits at the cumulative `bytes`,
-  plus the total byte count)
-- Convert raw ↔ physical: `value = raw × lsb + offset` and back
-  (`lsb` 0 / empty is 1, `SI` is signed, endianness selectable, rounding half
-  away from zero, clamped to the channel width)
+## What is here
 
-```rust
-// The canonical names, with no vocabulary at all.
-let channels = chdef::parse_ch_csv(ch_csv_text)?;
-let bitfields = chdef::parse_bf_csv(bf_csv_text)?;
-let layout = chdef::build_layout(channels, bitfields);
-let value = layout.channels[0].raw_to_value(&frame[..4]);
-let bytes = layout.channels[0].value_to_bytes(value);
-```
+| | | |
+|---|---|---|
+| [`chdef`](./crates/chdef/README.md) | the library | `cargo add chdef` |
+| [`chdef-capi`](./crates/chdef-capi/include/chdef.h) | a C ABI over it | `cargo add chdef-capi` |
+| [`Chdef`](./bindings/dotnet/Chdef/README.md) | the .NET binding, native libraries included | `dotnet add package Chdef` |
 
-A header in another vocabulary — one chdef ships, or one you build — is
-read the same way:
+Each has its own readme, aimed at the language you are calling from. The
+C ABI carries every rule the specification states, so a consumer in
+another language never writes one of them a second time.
 
-```rust
-let japanese = chdef::ColumnVocabulary::japanese();
-let german = chdef::ColumnVocabulary::new()
-    .ch("Nummer", chdef::ChColumn::Number)
-    .ch("Bytes", chdef::ChColumn::Bytes);
+## Documentation
 
-let channels = chdef::parse_ch_csv_with(ch_csv_text, &japanese)?;
-```
+| | |
+|---|---|
+| [docs/guide.md](./docs/guide.md) | The shortest path through each task |
+| [docs/spec/](./docs/spec/README.md) | What the format is, exactly |
+| [docs/migration.md](./docs/migration.md) | What changed between 0.0.x releases |
+| [docs/decisions/](./docs/decisions/README.md) | Why it is the way it is |
 
-The columns of both CSVs, their canonical names, and how each cell is read
-are specified in [docs/spec/format.md](./docs/spec/format.md).
-
-The specification lives in [docs/spec/](./docs/spec/README.md); design
-decisions in [docs/decisions/](./docs/decisions/README.md).
-
-## From C# and C
-
-The same implementation, reached through a C ABI. What crosses it is every
-rule the specification states, so a consumer in another language never
-writes one of them a second time
-([docs/spec/abi.md](./docs/spec/abi.md)).
-
-```sh
-dotnet add package Chdef
-```
-
-The NuGet package carries the native library for `linux-x64`, `win-x64`,
-`osx-arm64` and `osx-x64`, so nothing else is needed.
-
-```csharp
-using var defs = Definitions.Parse(chCsv, bfCsv);
-var frame = defs.Encode([Value.Parse("0x0004", 1)], out var issues);
-foreach (var reading in defs.Decode(frame))
-{
-    foreach (var bit in reading.Bits) { /* name and value of each bit */ }
-}
-
-using var grid = Grid.Parse(File.ReadAllBytes(path));
-grid.SetCell(0, 1, "4");
-File.WriteAllBytes(path, grid.ToCsvBytes());
-```
-
-For C, the header is
-[crates/chdef-capi/include/chdef.h](./crates/chdef-capi/include/chdef.h)
-and the library is the `chdef-capi` crate built as a `cdylib`.
+Every example in the Rust readme is compiled and run by `cargo test`;
+every example in the .NET readme is a test in `Chdef.Tests`, checked
+against the readme by the workspace. A page that cannot rot is the point.
 
 ## Origin
 
 The CH / BF concept was extracted from `chbridge-core` of chbridge, an
-internal telemetry bridge. Definition files
-themselves (real-device channel tables) belong to each consumer; this
-repository holds synthetic data only.
+internal telemetry bridge. Definition files themselves (real-device
+channel tables) belong to each consumer; this repository holds synthetic
+data only.
 
 ## License
 
