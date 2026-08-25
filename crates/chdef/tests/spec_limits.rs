@@ -2,7 +2,7 @@
 //! the byte capacity of ADR-0016, and the channel count beside it.
 //!
 //! Both are stated by the consumer, never inferred, and never applied by a
-//! conversion — `check_capacity` is the explicit ask.
+//! conversion — `limits_exceeded` is the explicit ask.
 
 use chdef::*;
 
@@ -15,19 +15,19 @@ fn layout_of(channels: usize) -> ChannelLayout {
 
 #[test]
 fn a_layout_with_no_limit_stated_reports_nothing() {
-    assert!(layout_of(300).check_capacity().is_empty());
+    assert!(layout_of(300).limits_exceeded().is_empty());
 }
 
 #[test]
 fn a_frame_that_fits_both_limits_reports_nothing() {
     let layout = layout_of(10).with_capacity(246).with_channel_capacity(64);
-    assert!(layout.check_capacity().is_empty(), "20 bytes, 10 channels");
+    assert!(layout.limits_exceeded().is_empty(), "20 bytes, 10 channels");
 }
 
 #[test]
 fn a_frame_longer_than_its_byte_capacity_is_reported() {
     let layout = layout_of(10).with_capacity(8);
-    let issues = layout.check_capacity();
+    let issues = layout.limits_exceeded();
 
     assert_eq!(issues.len(), 1, "{issues:?}");
     assert_eq!(issues[0].code, IssueCode::LayoutExceedsCapacity);
@@ -40,7 +40,7 @@ fn more_channels_than_the_port_accepts_is_reported() {
     // The limit a byte count cannot express: a 64-channel port takes 300
     // two-byte channels without complaint until the count is stated.
     let layout = layout_of(300).with_channel_capacity(64);
-    let issues = layout.check_capacity();
+    let issues = layout.limits_exceeded();
 
     assert_eq!(issues.len(), 1, "{issues:?}");
     assert_eq!(issues[0].code, IssueCode::LayoutExceedsChannelCapacity);
@@ -50,10 +50,10 @@ fn more_channels_than_the_port_accepts_is_reported() {
 
 #[test]
 fn both_limits_are_reported_together_rather_than_one_of_them() {
-    // The reason check_capacity answers with a list: a layout can be over
+    // The reason limits_exceeded answers with a list: a layout can be over
     // both, and a consumer that learns one at a time fixes one at a time.
     let layout = layout_of(300).with_capacity(8).with_channel_capacity(64);
-    let codes: Vec<IssueCode> = layout.check_capacity().iter().map(|i| i.code).collect();
+    let codes: Vec<IssueCode> = layout.limits_exceeded().iter().map(|i| i.code).collect();
 
     assert_eq!(
         codes,

@@ -2,7 +2,7 @@
 
 🌐 **English** | [日本語](./conversion.jp.md)
 
-Implemented (0.0.9): all of the below, at every width the `bytes` column
+Implemented (0.0.10): all of the below, at every width the `bytes` column
 allows (1–8), for `UI` / `SI` / `BF` and both byte orders — raw → physical
 (`raw_to_value_endian` / `raw_to_value_u64`), physical → raw
 (`value_to_raw` / `value_to_bytes_endian`), the raw ↔ bytes primitive pair
@@ -118,3 +118,19 @@ Example: channel default `0x0010`, BF `{BIT0=1, BIT2=1, BIT4=unspecified}`
   `range_contains` answers whether a physical value lies inside it, and
   `clamp_to_range` clamps one into it. An unspecified side is unbounded;
   NaN is never inside; a swapped range matches nothing.
+- **A range is not a width.** The width of §2 clamps: a value it cannot
+  hold reaches the wire as a different number, which is why `encode`
+  reports it. A range does not: a value outside it is written exactly as
+  given, so nothing is hidden and `encode` says nothing.
+- **Asking is a call, not a mode.** `values_out_of_range` answers which of the
+  values a caller is about to encode fall outside their channel's range,
+  and `readings_out_of_range` the same for a decoded frame — each as Issue
+  `value_out_of_range`, naming the value and the bound it crossed. Neither
+  changes what `encode` or `decode` do, and neither is remembered: whether
+  the answer is wanted is a question of the moment, not a property of the
+  layout.
+- **A cell an editor can paint is a third ask.** `ChTable::defaults_out_of_range`
+  checks each row's own `default` against that row's `min` / `max`, and
+  each finding carries the grid row and the `default` column — the
+  discipline of [editing.md §4](./editing.md), so an editor colours the
+  cell instead of showing a message with no place to point.

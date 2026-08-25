@@ -291,6 +291,29 @@ impl ChannelDef {
             && self.max_value().map_or(true, |hi| value <= hi)
     }
 
+    /// The finding when `value` lies outside the declared range, naming
+    /// the bound it crossed (`docs/spec/conversion.md` §8); `None` when it
+    /// is inside, or when neither side is declared.
+    pub(crate) fn out_of_range(&self, value: f64) -> Option<Issue> {
+        let crossed = match (self.min_value(), self.max_value()) {
+            (Some(low), _) if value < low => low,
+            (_, Some(high)) if value > high => high,
+            _ => return None,
+        };
+        Some(
+            Issue::new(
+                IssueCode::ValueOutOfRange,
+                format!(
+                    "the value {value} for channel {} is outside its declared range; the bound it crosses is {crossed}.",
+                    self.number
+                ),
+            )
+            .about_channel(self.number)
+            .found(value.to_string())
+            .used(crossed.to_string()),
+        )
+    }
+
     /// `value` clamped into the declared range — the explicit way to apply
     /// bounds that no conversion applies on its own. NaN stays NaN; a
     /// swapped range clamps to `max`.
@@ -553,7 +576,7 @@ pub struct ChannelLayout {
     pub endian: Endian,
     /// The maximum byte count of the data part, when the consumer has one.
     /// Not written in the CSV, and never checked unless
-    /// [`check_capacity`](ChannelLayout::check_capacity) is called.
+    /// [`limits_exceeded`](ChannelLayout::limits_exceeded) is called.
     pub capacity: Option<usize>,
     /// The maximum number of channels the port accepts, when the consumer
     /// has one — the limit a byte count cannot express. Same terms as
@@ -678,7 +701,7 @@ impl ChannelLayout {
 
     /// State the maximum number of channels the port accepts
     /// (`docs/spec/layout.md` §5), for
-    /// [`check_capacity`](ChannelLayout::check_capacity).
+    /// [`limits_exceeded`](ChannelLayout::limits_exceeded).
     pub fn with_channel_capacity(mut self, channels: usize) -> ChannelLayout {
         self.channel_capacity = Some(channels);
         self
@@ -687,7 +710,7 @@ impl ChannelLayout {
     /// The `layout_exceeds_capacity` Issue when the frame does not fit the
     /// layout's `capacity`, `None` when it fits or when there is no
     /// capacity. Nothing calls this on its own — a consumer opts in.
-    pub fn check_capacity(&self) -> Vec<Issue> {
+    pub fn limits_exceeded(&self) -> Vec<Issue> {
         let mut issues = Vec::new();
 
         if let Some(capacity) = self.capacity {
@@ -719,6 +742,37 @@ impl ChannelLayout {
         }
 
         issues
+    }
+
+    /// Which of `values` fall outside their channel's declared range
+    /// (`docs/spec/conversion.md` §8), as Issue `value_out_of_range`.
+    ///
+    /// Nothing is changed and nothing is remembered: this is the question
+    /// asked before encoding, and `encode` behaves the same whether it was
+    /// asked or not. A value naming a channel the layout does not have is
+    /// not a range finding — `encode` reports that one.
+    pub fn values_out_of_range(&self, values: &[(u32, Value)]) -> Vec<Issue> {
+        values
+            .iter()
+            .filter_map(|(number, value)| {
+                let ch = self.channels.iter().find(|c| c.number == *number)?;
+                let physical = match *value {
+                    Value::Physical(v) => v,
+                    Value::Raw(r) => ch.raw_to_value_u64(r),
+                };
+                ch.out_of_range(physical)
+            })
+            .collect()
+    }
+
+    /// Which of `readings` fall outside their channel's declared range —
+    /// the same question as [`values_out_of_range`](ChannelLayout::values_out_of_range),
+    /// asked of a frame that has arrived.
+    pub fn readings_out_of_range(&self, readings: &[Decoded<'_, '_>]) -> Vec<Issue> {
+        readings
+            .iter()
+            .filter_map(|reading| reading.channel.out_of_range(reading.value))
+            .collect()
     }
 
     /// Decode a frame: every channel that fits, in row order, with its
@@ -1218,11 +1272,11 @@ mod tests {
     }
 
     #[test]
-    fn check_capacity_reports_only_when_the_frame_does_not_fit() {
+    fn limits_exceeded_reports_only_when_the_frame_does_not_fit() {
         let layout = build_layout(vec![ch(4, DataType::UI, 1.0, 0.0)], vec![]).value;
 
-        assert!(layout.clone().with_capacity(4).check_capacity().is_empty());
-        let issues = layout.with_capacity(3).check_capacity();
+        assert!(layout.clone().with_capacity(4).limits_exceeded().is_empty());
+        let issues = layout.with_capacity(3).limits_exceeded();
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert_eq!(
             issues[0].code,

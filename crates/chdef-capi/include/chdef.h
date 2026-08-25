@@ -49,7 +49,7 @@ extern "C" {
  * changed; check that chdef_abi_version() is at least this value before
  * calling anything else. Symbols are added and never withdrawn, so a newer
  * library serves an older caller. */
-#define CHDEF_ABI_VERSION 4u
+#define CHDEF_ABI_VERSION 5u
 
 /* Statuses. */
 #define CHDEF_OK 0
@@ -216,12 +216,12 @@ size_t chdef_layout_channel_text(const ChdefLayout *handle, size_t index,
 int32_t chdef_layout_set_endian(ChdefLayout *handle, int32_t endian);
 int32_t chdef_layout_set_capacity(ChdefLayout *handle, uint64_t capacity);
 /* The maximum number of channels the port accepts — the limit a byte
- * count cannot express. Both limits are reported by check_capacity. */
+ * count cannot express. Both limits are reported by limits_exceeded. */
 int32_t chdef_layout_set_channel_capacity(ChdefLayout *handle,
                                           uint64_t channels);
 /* Check the frame against the capacity stated with set_capacity;
  * out_issues receives an empty list when it fits or none was stated. */
-int32_t chdef_layout_check_capacity(const ChdefLayout *handle,
+int32_t chdef_layout_limits_exceeded(const ChdefLayout *handle,
                                     ChdefIssues **out_issues);
 
 /* Build a frame from `values`; channels not named take their default.
@@ -305,6 +305,18 @@ int32_t chdef_grid_remove_row(ChdefGrid *handle, size_t at);
 /* Write the file back in the shape it was read in — its byte-order mark
  * and record separator. */
 size_t chdef_grid_to_csv(const ChdefGrid *handle, char *buf, size_t cap);
+
+/* Which values fall outside their channel's declared min / max. Nothing
+ * is changed and nothing is remembered: encode and decode behave the same
+ * whether these were called or not. chdef_readings_out_of_range reads only the
+ * channel and value of each reading. */
+int32_t chdef_values_out_of_range(const ChdefLayout *handle,
+                           const ChdefValue *values, size_t value_count,
+                           ChdefIssues **out_issues);
+int32_t chdef_readings_out_of_range(const ChdefLayout *handle,
+                             const ChdefReading *readings,
+                             size_t reading_count,
+                             ChdefIssues **out_issues);
 
 /* Every Issue code this library can report. The codes cross as strings
  * so the vocabulary can grow, and this is what lets a caller prove its

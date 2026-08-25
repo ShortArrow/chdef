@@ -2,7 +2,7 @@
 
 🌐 [English](./conversion.md) | **日本語**
 
-実装済み（0.0.9）: 以下の全部を、`バイト数` が許す全ての幅（1〜8）、`UI` / `SI` / `BF`、両方のバイト順で — 生値 → 物理値（`raw_to_value_endian` / `raw_to_value_u64`）、物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`）、生値 ↔ バイト列のプリミティブ対（`raw_to_bytes_endian` / `raw_from_bytes_endian`）、フレーム全体の encode / decode（§5 / §6）、BF 既定値の合成（§4）、§7 の読みの選択（`displayed_value` / `render`）、§8 の範囲問い合わせ。残る制限は §1 の f64 の精度だけ。
+実装済み（0.0.10）: 以下の全部を、`バイト数` が許す全ての幅（1〜8）、`UI` / `SI` / `BF`、両方のバイト順で — 生値 → 物理値（`raw_to_value_endian` / `raw_to_value_u64`）、物理値 → 生値（`value_to_raw` / `value_to_bytes_endian`）、生値 ↔ バイト列のプリミティブ対（`raw_to_bytes_endian` / `raw_from_bytes_endian`）、フレーム全体の encode / decode（§5 / §6）、BF 既定値の合成（§4）、§7 の読みの選択（`displayed_value` / `render`）、§8 の範囲問い合わせ。残る制限は §1 の f64 の精度だけ。
 
 ## 1. 生値 → 物理値
 
@@ -62,3 +62,6 @@ raw = clamp(round((value − offset) ÷ lsb))
 
 - `値(最小)` / `値(最大)` は物理値。`0x` 接頭辞なら生値のビットパターンで、問い合わせ時にそのチャネルの**現在の** `LSB` / `オフセット` で解決する（`SI` は符号拡張）。実行時に `LSB` を書き換えれば境界も動く。
 - どの変換も範囲を自動適用しない。利用側が明示的に選ぶ: `range_contains` は物理値が範囲内かを答え、`clamp_to_range` は範囲に収める。未指定の側は無制限、NaN はどの範囲にも入らず、逆転した範囲は何にも一致しない。
+- **範囲は幅ではない。** §2 の幅はクランプする — 収まらない値は別の数になって線に乗るので、`encode` はそれを報告する。範囲はクランプしない。範囲外の値も渡されたとおりに書かれるので、隠されるものが無く、`encode` は何も言わない。
+- **訊くのは呼び出しであって、モードではない。** `values_out_of_range` は、これから encode する値のうちチャネルの範囲を外れているものを答え、`readings_out_of_range` はデコード済みフレームについて同じことを答える。どちらも Issue `value_out_of_range` で、値と、超えた側の境界を名指す。`encode` / `decode` の挙動は変わらず、設定として覚えられることもない。答えが欲しいかどうかはその時々の問いであって、レイアウトの属性ではないから。
+- **エディタが塗れるセルは 3 つ目の問い。** `ChTable::defaults_out_of_range` は、各行の `値(デフォルト)` をその行自身の `値(最小)` / `値(最大)` に照らす。指摘はグリッドの行と `値(デフォルト)` 列を持つので（[editing.jp.md §4](./editing.jp.md) の流儀）、エディタは指す先の無いメッセージではなくセルを塗れる。

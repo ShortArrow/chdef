@@ -129,7 +129,7 @@ pub enum IssueCode {
     /// BF parent channel missing, or its `type` is not `BF`. Row skipped by
     /// the layout.
     BfParentNotBitfield,
-    /// `total_bytes` exceeds the capacity handed to `check_capacity`.
+    /// `total_bytes` exceeds the capacity handed to `limits_exceeded`.
     LayoutExceedsCapacity,
     /// The layout has more channels than the port stated it accepts.
     LayoutExceedsChannelCapacity,
@@ -143,9 +143,12 @@ pub enum IssueCode {
     /// An encode value does not fit the channel width. The clamped value
     /// was written.
     EncodeValueClamped,
+    /// A value lies outside its channel's declared range. Nothing was
+    /// changed; `used` is the bound it crossed.
+    ValueOutOfRange,
 }
 
-const ALL_ISSUE_CODES: [IssueCode; 27] = [
+const ALL_ISSUE_CODES: [IssueCode; 28] = [
     IssueCode::HeaderAssumed,
     IssueCode::ChannelNumberInvalid,
     IssueCode::ChannelDuplicate,
@@ -173,6 +176,7 @@ const ALL_ISSUE_CODES: [IssueCode; 27] = [
     IssueCode::EncodeUnknownChannel,
     IssueCode::EncodeValueInvalid,
     IssueCode::EncodeValueClamped,
+    IssueCode::ValueOutOfRange,
 ];
 
 impl IssueCode {
@@ -215,6 +219,7 @@ impl IssueCode {
             IssueCode::EncodeUnknownChannel => "encode_unknown_channel",
             IssueCode::EncodeValueInvalid => "encode_value_invalid",
             IssueCode::EncodeValueClamped => "encode_value_clamped",
+            IssueCode::ValueOutOfRange => "value_out_of_range",
         }
     }
 }

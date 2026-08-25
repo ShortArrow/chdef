@@ -363,7 +363,7 @@ fn the_capacity_of_a_layout_is_checked_only_when_stated() {
 
     let mut over = ptr::null_mut();
     assert_eq!(
-        unsafe { chdef_layout_check_capacity(layout, &mut over) },
+        unsafe { chdef_layout_limits_exceeded(layout, &mut over) },
         CHDEF_OK
     );
     assert_eq!(unsafe { chdef_issue_count(over) }, 0, "no capacity stated");
@@ -371,7 +371,7 @@ fn the_capacity_of_a_layout_is_checked_only_when_stated() {
 
     unsafe { chdef_layout_set_capacity(layout, 4) };
     let mut over = ptr::null_mut();
-    unsafe { chdef_layout_check_capacity(layout, &mut over) };
+    unsafe { chdef_layout_limits_exceeded(layout, &mut over) };
     assert_eq!(unsafe { chdef_issue_count(over) }, 1);
     let code = text(|buf, cap| unsafe { chdef_issue_text(over, 0, CHDEF_ISSUE_CODE, buf, cap) });
     assert_eq!(code, "layout_exceeds_capacity");

@@ -82,7 +82,7 @@ public static class IssueCode
     /// <summary>BF parent channel missing, or its <c>type</c> is not <c>BF</c>. Row skipped by the layout.</summary>
     public const string BfParentNotBitfield = "bf_parent_not_bitfield";
 
-    /// <summary><c>total_bytes</c> exceeds the capacity handed to <c>check_capacity</c>.</summary>
+    /// <summary><c>total_bytes</c> exceeds the capacity handed to <c>limits_exceeded</c>.</summary>
     public const string LayoutExceedsCapacity = "layout_exceeds_capacity";
 
     /// <summary>The layout has more channels than the port stated it accepts.</summary>
@@ -99,6 +99,9 @@ public static class IssueCode
 
     /// <summary>An encode value does not fit the channel width. The clamped value was written.</summary>
     public const string EncodeValueClamped = "encode_value_clamped";
+
+    /// <summary>A value lies outside its channel's declared range. Nothing was changed; <c>used</c> is the bound it crossed.</summary>
+    public const string ValueOutOfRange = "value_out_of_range";
 
     /// <summary>
     /// Every code the loaded native library can report, in its order. Read

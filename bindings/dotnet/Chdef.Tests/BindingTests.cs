@@ -153,10 +153,10 @@ public class BindingTests
     public void ACapacityIsCheckedOnlyWhenStated()
     {
         using var defs = Definitions.Parse(Ch, Bf);
-        Assert.Empty(defs.CheckCapacity());
+        Assert.Empty(defs.LimitsExceeded());
 
         defs.Capacity = 4;
-        var issue = Assert.Single(defs.CheckCapacity());
+        var issue = Assert.Single(defs.LimitsExceeded());
         Assert.Equal("layout_exceeds_capacity", issue.Code);
         Assert.Equal("8", issue.Found);
         Assert.Equal("4", issue.Used);

@@ -2,13 +2,13 @@
 
 🌐 **English** | [日本語](./layout.jp.md)
 
-Implemented (0.0.9): cumulative positions and total byte count
+Implemented (0.0.10): cumulative positions and total byte count
 (`ChannelLayout::channel_offset` / `total_bytes()` / `positions()`, all
 computed on demand so an edited width is never stale); the Rows / Layout
 split (`parse_*` keeps duplicates, `build_layout` drops them first-wins);
 the whole-layout `endian` of §2; the BF cross-checks in `build_layout`,
 which returns the layout with those Issues; the `capacity` of §5, carried
-on the layout and reported by `check_capacity()`. The Table stage is
+on the layout and reported by `limits_exceeded()`. The Table stage is
 `Grid`, `ChTable` and `BfTable` ([editing.md](./editing.md)); whole-frame
 encode and decode are [conversion.md](./conversion.md) §5 / §6.
 
@@ -51,7 +51,7 @@ chdef handles a definition in three stages, and every stage is retrievable.
 
 A layout may carry the limits it is measured against. Both are stated by
 the consumer, never read from a CSV, and never applied by a conversion:
-`check_capacity()` is the explicit ask, and answers with **every** finding
+`limits_exceeded()` is the explicit ask, and answers with **every** finding
 so a layout over both is not fixed one at a time.
 
 | Limit | Set with | Issue when exceeded |

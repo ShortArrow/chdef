@@ -32,10 +32,10 @@ fn a_layout_carries_the_capacity_it_is_measured_against() {
     let layout = bf_layout().with_capacity(8);
 
     assert_eq!(layout.capacity, Some(8));
-    assert!(layout.check_capacity().is_empty(), "3 bytes fit in 8");
+    assert!(layout.limits_exceeded().is_empty(), "3 bytes fit in 8");
 
     let tight = bf_layout().with_capacity(2);
-    let issues = tight.check_capacity();
+    let issues = tight.limits_exceeded();
     assert_eq!(issues.len(), 1, "3 bytes do not fit in 2: {issues:?}");
     assert_eq!(issues[0].code, IssueCode::LayoutExceedsCapacity);
     assert_eq!(issues[0].row, None);
@@ -48,7 +48,7 @@ fn a_layout_without_a_capacity_checks_nothing() {
 
     assert_eq!(layout.capacity, None);
     assert_eq!(layout.channel_capacity, None);
-    assert!(layout.check_capacity().is_empty());
+    assert!(layout.limits_exceeded().is_empty());
 }
 
 // conversion.md §6: "A BF bit is `(raw >> bit) & 1` of the parent's raw

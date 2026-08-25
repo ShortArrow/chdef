@@ -2,11 +2,11 @@
 
 🌐 **English** | [日本語](./diagnostics.jp.md)
 
-Implemented (0.0.9): the `Issue` type with the fields of §2,
+Implemented (0.0.10): the `Issue` type with the fields of §2,
 `Parsed { value, issues }` as the return shape of every loader
 (`build_layout` included), and every code below. The cross-file codes come
 from `build_layout`, and `layout_exceeds_capacity` from
-`ChannelLayout::check_capacity`.
+`ChannelLayout::limits_exceeded`.
 
 ## 1. Principles
 
@@ -44,7 +44,9 @@ Everything a consumer needs to write its own sentence is a field:
 - `found` is the value chdef could not use, spelled as the file spells it
   — a raw value keeps its cell's notation, so `0x1FF` comes back as
   `0x1FF` and `511` as `511`. It is the one fact parsing throws away.
-- `used` is the value chdef put in its place, where it substituted one.
+- `used` is the value chdef put in its place where it substituted one,
+  and otherwise the bound the finding was measured against — the
+  capacity, the parent width, the range bound that was crossed.
 - `channel` and `bit` say which channel, or which bit of which channel,
   the finding is about — the only way to name a finding that carries no
   row.
@@ -84,6 +86,7 @@ the fields.
 | `encode_unknown_channel` | — | An encode value names a channel the layout does not have. Ignored |
 | `encode_value_invalid` | — | An encode value is NaN / infinite. The channel default was used |
 | `encode_value_clamped` | — | An encode value does not fit the channel width. The clamped value was written |
+| `value_out_of_range` | — | A value lies outside its channel's `min` / `max`. Nothing was changed; `used` is the bound it crossed |
 
 ¹ Rowless from `build_layout` (typed rows carry no file coordinates); the
 `channel` and `bit` fields name what it is about, and

@@ -3,6 +3,9 @@
 - Status: Accepted
 - Date: 2026-08-25
 - Release: 0.0.8
+- The ground this record gives for declining a `const` check is
+  replaced by [ADR-0027](./0027-chdef-answers-what-a-consumer-cannot-compute.md);
+  the decision that `kind` is a mark chdef does not act on stands.
 
 ## Context
 

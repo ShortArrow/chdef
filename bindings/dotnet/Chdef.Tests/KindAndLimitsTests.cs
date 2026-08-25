@@ -77,7 +77,7 @@ public sealed class KindAndLimitsTests
     public void ALayoutWithNoLimitStatedReportsNothing()
     {
         using var defs = Definitions.Parse(Ch);
-        Assert.Empty(defs.CheckCapacity());
+        Assert.Empty(defs.LimitsExceeded());
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class KindAndLimitsTests
 
         Assert.Equal(
             new[] { IssueCode.LayoutExceedsCapacity, IssueCode.LayoutExceedsChannelCapacity },
-            defs.CheckCapacity().Select(i => i.Code));
+            defs.LimitsExceeded().Select(i => i.Code));
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class KindAndLimitsTests
         defs.Capacity = 246;
         defs.ChannelCapacity = 2;
 
-        var issue = Assert.Single(defs.CheckCapacity());
+        var issue = Assert.Single(defs.LimitsExceeded());
         Assert.Equal(IssueCode.LayoutExceedsChannelCapacity, issue.Code);
         Assert.Equal("3", issue.Found);
         Assert.Equal("2", issue.Used);

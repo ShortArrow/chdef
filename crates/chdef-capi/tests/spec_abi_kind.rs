@@ -107,7 +107,7 @@ fn both_limits_are_stated_and_both_are_reported() {
 
     let mut issues = ptr::null_mut();
     assert_eq!(
-        unsafe { chdef_layout_check_capacity(layout.0, &mut issues) },
+        unsafe { chdef_layout_limits_exceeded(layout.0, &mut issues) },
         CHDEF_OK
     );
     let codes: Vec<String> = (0..unsafe { chdef_issue_count(issues) } as usize)
@@ -140,7 +140,7 @@ fn a_layout_within_both_limits_reports_nothing() {
 
     let mut issues = ptr::null_mut();
     assert_eq!(
-        unsafe { chdef_layout_check_capacity(layout.0, &mut issues) },
+        unsafe { chdef_layout_limits_exceeded(layout.0, &mut issues) },
         CHDEF_OK
     );
     assert_eq!(unsafe { chdef_issue_count(issues) }, 0);

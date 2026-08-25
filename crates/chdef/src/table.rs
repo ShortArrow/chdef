@@ -504,6 +504,40 @@ impl ChTable {
         interpret_ch(&self.map, self.grid.data())
     }
 
+    /// Which rows hold a `default` outside that row's own `min` / `max`
+    /// (`docs/spec/conversion.md` §8), as Issue `value_out_of_range`.
+    ///
+    /// Each finding carries the grid row and the `default` column, so an
+    /// editor colours the cell rather than showing a message with no place
+    /// to point. Each row is judged on its own terms: `default` is a raw
+    /// value and the bounds are physical, so the row's `lsb` and `offset`
+    /// resolve it first. A row with no `default`, or with neither bound,
+    /// is not a finding, and neither is a file with no `default` column.
+    pub fn defaults_out_of_range(&self) -> Vec<Issue> {
+        let default_col = self.map.position(ChColumn::Default);
+        if default_col.is_none() {
+            return Vec::new();
+        }
+
+        let mut issues = Vec::new();
+        for (row_index, row) in self.grid.data().iter().enumerate() {
+            if is_blank(row) || is_comment(row) {
+                continue;
+            }
+            let read = crate::csv::interpret_ch(&self.map, std::slice::from_ref(row));
+            let Some(ch) = read.value.first() else {
+                continue;
+            };
+            let Some(default) = ch.default_value else {
+                continue;
+            };
+            if let Some(issue) = ch.out_of_range(ch.raw_to_value_u64(default)) {
+                issues.push(issue.at(row_index, default_col));
+            }
+        }
+        issues
+    }
+
     /// Insert `def` as a new data row at `row_index`, rendering the columns
     /// this file has (a field without a column is dropped);
     /// `docs/spec/editing.md` §3 lists the renderings.

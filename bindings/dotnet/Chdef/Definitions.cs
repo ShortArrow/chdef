@@ -254,7 +254,7 @@ public sealed unsafe class Definitions : IDisposable
 
     /// <summary>
     /// The maximum byte count of the data part, for
-    /// <see cref="CheckCapacity"/>.
+    /// <see cref="LimitsExceeded"/>.
     /// </summary>
     public ulong Capacity
     {
@@ -275,10 +275,10 @@ public sealed unsafe class Definitions : IDisposable
     /// <see cref="Capacity"/> and <see cref="ChannelCapacity"/>; empty when
     /// it fits or none was set.
     /// </summary>
-    public IReadOnlyList<Issue> CheckCapacity()
+    public IReadOnlyList<Issue> LimitsExceeded()
     {
         nint issues = 0;
-        Check(Native.chdef_layout_check_capacity(Handle, &issues));
+        Check(Native.chdef_layout_limits_exceeded(Handle, &issues));
         var read = ReadIssues(issues);
         Native.chdef_issues_free(issues);
         return read;
@@ -399,6 +399,49 @@ public sealed unsafe class Definitions : IDisposable
     public string Render(int channelIndex, ulong raw) =>
         TextBuffer.Read((buf, cap) =>
             Native.chdef_layout_channel_render(Handle, (nuint)channelIndex, raw, buf, cap));
+
+    /// <summary>
+    /// Which of <paramref name="values"/> fall outside their channel's
+    /// declared range (docs/spec/conversion.md §8). Nothing is changed and
+    /// nothing is remembered: <see cref="Encode"/> behaves the same
+    /// whether this was called or not.
+    /// </summary>
+    public IReadOnlyList<Issue> ValuesOutOfRange(IEnumerable<Value> values)
+    {
+        var given = values.Select(v => v.Inner).ToArray();
+        nint handle = 0;
+        int status;
+        fixed (ChdefValue* ptr = given)
+        {
+            status = Native.chdef_values_out_of_range(Handle, ptr, (nuint)given.Length, &handle);
+        }
+        Check(status);
+        var read = ReadIssues(handle);
+        Native.chdef_issues_free(handle);
+        return read;
+    }
+
+    /// <summary>
+    /// Which of <paramref name="readings"/> fall outside their channel's
+    /// declared range — the same question as <see cref="ValuesOutOfRange"/>,
+    /// asked of a frame that has arrived.
+    /// </summary>
+    public IReadOnlyList<Issue> ReadingsOutOfRange(IEnumerable<Reading> readings)
+    {
+        var given = readings
+            .Select(r => new ChdefReading { Channel = r.Channel, Raw = r.Raw, Value = r.Value })
+            .ToArray();
+        nint handle = 0;
+        int status;
+        fixed (ChdefReading* ptr = given)
+        {
+            status = Native.chdef_readings_out_of_range(Handle, ptr, (nuint)given.Length, &handle);
+        }
+        Check(status);
+        var read = ReadIssues(handle);
+        Native.chdef_issues_free(handle);
+        return read;
+    }
 
     /// <inheritdoc />
     public void Dispose()

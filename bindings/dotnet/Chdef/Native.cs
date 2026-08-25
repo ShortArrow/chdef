@@ -77,7 +77,7 @@ internal static unsafe partial class Native
 {
     internal const string Library = "chdef_capi";
 
-    internal const uint CHDEF_ABI_VERSION = 4u;
+    internal const uint CHDEF_ABI_VERSION = 5u;
 
     internal const int CHDEF_OK = 0;
     internal const int CHDEF_ERR_HANDLE = -1;
@@ -158,6 +158,14 @@ internal static unsafe partial class Native
         nint handle, ulong channels);
 
     [LibraryImport(Library)]
+    internal static partial int chdef_values_out_of_range(
+        nint handle, ChdefValue* values, nuint valueCount, nint* outIssues);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_readings_out_of_range(
+        nint handle, ChdefReading* readings, nuint readingCount, nint* outIssues);
+
+    [LibraryImport(Library)]
     internal static partial ulong chdef_issue_code_count();
 
     [LibraryImport(Library)]
@@ -165,7 +173,7 @@ internal static unsafe partial class Native
         nuint index, byte* buf, nuint cap);
 
     [LibraryImport(Library)]
-    internal static partial int chdef_layout_check_capacity(
+    internal static partial int chdef_layout_limits_exceeded(
         nint handle, nint* outIssues);
 
     [LibraryImport(Library)]

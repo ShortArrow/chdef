@@ -33,7 +33,7 @@ use chdef::{
 /// changed; a caller checks it is **at least** the value its declarations
 /// were written for before calling anything else. Symbols are added and
 /// never withdrawn, so a newer library serves an older caller.
-pub const CHDEF_ABI_VERSION: u32 = 4;
+pub const CHDEF_ABI_VERSION: u32 = 5;
 
 // ---------------------------------------------------------------- statuses
 
@@ -598,7 +598,7 @@ pub unsafe extern "C" fn chdef_layout_set_endian(handle: *mut ChdefLayout, endia
 }
 
 /// State the maximum byte count of the data part, for
-/// [`chdef_layout_check_capacity`].
+/// [`chdef_layout_limits_exceeded`].
 ///
 /// # Safety
 ///
@@ -623,7 +623,7 @@ pub unsafe extern "C" fn chdef_layout_set_capacity(handle: *mut ChdefLayout, cap
 ///
 /// The handle must be null or one of ours, and `out_issues` writable.
 #[no_mangle]
-pub unsafe extern "C" fn chdef_layout_check_capacity(
+pub unsafe extern "C" fn chdef_layout_limits_exceeded(
     handle: *const ChdefLayout,
     out_issues: *mut *mut ChdefIssues,
 ) -> i32 {
@@ -634,7 +634,7 @@ pub unsafe extern "C" fn chdef_layout_check_capacity(
         if out_issues.is_null() {
             return CHDEF_ERR_NULL;
         }
-        *out_issues = into_issues(layout.check_capacity().into_iter().collect());
+        *out_issues = into_issues(layout.limits_exceeded().into_iter().collect());
         CHDEF_OK
     })
 }
@@ -1626,7 +1626,7 @@ pub unsafe extern "C" fn chdef_issue_code_name(
 // ------------------------------------------------------------ the limits
 
 /// State the maximum number of channels the port accepts, for
-/// [`chdef_layout_check_capacity`].
+/// [`chdef_layout_limits_exceeded`].
 ///
 /// # Safety
 ///
@@ -1641,6 +1641,81 @@ pub unsafe extern "C" fn chdef_layout_set_channel_capacity(
             return CHDEF_ERR_HANDLE;
         };
         layout.channel_capacity = Some(channels as usize);
+        CHDEF_OK
+    })
+}
+
+// ------------------------------------------------------------ the ranges
+
+/// Which of `values` fall outside their channel's declared range
+/// (`docs/spec/conversion.md` §8). `out_issues` receives the findings, or
+/// an empty list when every value is inside its range.
+///
+/// Nothing is changed and nothing is remembered: `chdef_encode` behaves
+/// the same whether this was called or not.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours; `values` must be valid for
+/// `value_count`, and `out_issues` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_values_out_of_range(
+    handle: *const ChdefLayout,
+    values: *const ChdefValue,
+    value_count: usize,
+    out_issues: *mut *mut ChdefIssues,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_issues.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        let given: Vec<(u32, Value)> = if values.is_null() || value_count == 0 {
+            Vec::new()
+        } else {
+            std::slice::from_raw_parts(values, value_count)
+                .iter()
+                .map(|v| (v.channel, v.into_value()))
+                .collect()
+        };
+        *out_issues = into_issues(layout.values_out_of_range(&given));
+        CHDEF_OK
+    })
+}
+
+/// Which of `readings` fall outside their channel's declared range — the
+/// same question as [`chdef_values_out_of_range`], asked of a frame that has
+/// arrived. Only `channel` and `value` of each reading are read.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours; `readings` must be valid for
+/// `reading_count`, and `out_issues` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_readings_out_of_range(
+    handle: *const ChdefLayout,
+    readings: *const ChdefReading,
+    reading_count: usize,
+    out_issues: *mut *mut ChdefIssues,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_issues.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        let given: Vec<(u32, Value)> = if readings.is_null() || reading_count == 0 {
+            Vec::new()
+        } else {
+            std::slice::from_raw_parts(readings, reading_count)
+                .iter()
+                .map(|r| (r.channel, Value::Physical(r.value)))
+                .collect()
+        };
+        *out_issues = into_issues(layout.values_out_of_range(&given));
         CHDEF_OK
     })
 }

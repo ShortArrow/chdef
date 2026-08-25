@@ -9,6 +9,44 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [0.0.10] - 2026-08-25
+
+### Added
+- **Asking whether a value is inside its channel's declared range**, in
+  the three places a value can be: `ChannelLayout::values_out_of_range`
+  before sending, `readings_out_of_range` after receiving, and
+  `ChTable::defaults_out_of_range` for a `default` cell that violates its
+  own row — that one carrying the grid row and column, so an editor
+  colours the cell. Issue `value_out_of_range`, with `used` naming the
+  bound crossed.
+
+  A range is observed, never enforced: `encode` and `decode` behave the
+  same whether the ask was made or not, and no answer is remembered on the
+  layout. Whether the answer is wanted is a question of the moment
+  (ADR-0027).
+- The same three across the ABI and the .NET binding:
+  `chdef_values_out_of_range`, `chdef_readings_out_of_range`,
+  `Definitions.ValuesOutOfRange`, `Definitions.ReadingsOutOfRange`.
+
+### Breaking
+- **`check_capacity()` is `limits_exceeded()`.** A method that changes
+  nothing is named for the state it reports, not for the act of reporting
+  it (ADR-0028) — and since 0.0.8 it answers for two limits, not just the
+  byte capacity. `chdef_layout_check_capacity` is
+  `chdef_layout_limits_exceeded`; `Definitions.CheckCapacity` is
+  `Definitions.LimitsExceeded`. One line per call site.
+- `CHDEF_ABI_VERSION` is `5`.
+
+### Changed
+- ADR-0025 declined a `const` override check on the ground that what a
+  caller may send is the caller's to decide. That reasoning was about
+  `encode` reporting automatically and did not cover a caller asking, so
+  the range asks appeared to contradict it. The ground is now the
+  criterion of ADR-0027: chdef answers where a consumer cannot compute the
+  answer. `min` / `max` reach a consumer in their cell's notation and need
+  chdef's resolution rules; `kind` reaches it as a finished string. The
+  decision itself is unchanged — there is no `const` check.
+
 ## [0.0.9] - 2026-08-25
 
 ### Fixed
