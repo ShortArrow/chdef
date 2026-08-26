@@ -1,9 +1,11 @@
 # chdef-wasm
 
 The WebAssembly binding over [chdef](../chdef), built by
-[`bindings/js`](../../bindings/js) into the npm package `chdef`.
+[`bindings/js`](../../bindings/js) into the npm package
+`@shortarrow/chdef`.
 
-**Using JavaScript or TypeScript?** `npm install chdef` — this crate is
+**Using JavaScript or TypeScript?** `npm install @shortarrow/chdef` — this crate
+is
 the source of that package, not something to depend on.
 
 **Writing Rust that targets `wasm32`?** Depend on `chdef` itself. It is

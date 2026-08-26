@@ -134,7 +134,7 @@ fn each_page_speaks_the_language_of_its_reader() {
     assert_eq!(blocks(&js, "rust"), 0, "the npm page shows Rust");
     assert_eq!(blocks(&js, "csharp"), 0, "the npm page shows C#");
     assert!(
-        js.contains("npm install chdef"),
+        js.contains("npm install @shortarrow/chdef"),
         "the npm page does not say how to install it"
     );
 

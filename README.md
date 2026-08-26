@@ -26,7 +26,7 @@ the same file the same way.
 | [`chdef`](./crates/chdef/README.md) | the library | `cargo add chdef` |
 | [`chdef-capi`](./crates/chdef-capi/include/chdef.h) | a C ABI over it | `cargo add chdef-capi` |
 | [`Chdef`](./bindings/dotnet/Chdef/README.md) | the .NET binding, native libraries included | `dotnet add package Chdef` |
-| [`chdef`](./bindings/js/README.md) | the JavaScript binding, WebAssembly and TypeScript declarations included | `npm install chdef` |
+| [`chdef`](./bindings/js/README.md) | the JavaScript binding, WebAssembly and TypeScript declarations included | `npm install @shortarrow/chdef` |
 
 Each has its own readme, aimed at the language you are calling from. The
 C ABI carries every rule the specification states, so a consumer in C or

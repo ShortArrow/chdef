@@ -12,7 +12,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import chdef from "chdef";
+import chdef from "@shortarrow/chdef";
 
 // The vectors live with the crate that defines what correct is, so the
 // binding is measured against the same files and cannot drift into

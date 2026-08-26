@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import chdef from "chdef";
+import chdef from "@shortarrow/chdef";
 
 const readme = join(dirname(fileURLToPath(import.meta.url)), "..", "README.md");
 const page = readFileSync(readme, "utf8");

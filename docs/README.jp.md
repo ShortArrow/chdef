@@ -17,7 +17,7 @@
 | [`chdef`](../crates/chdef/README.md) | ライブラリ | `cargo add chdef` |
 | [`chdef-capi`](../crates/chdef-capi/include/chdef.h) | その上の C ABI | `cargo add chdef-capi` |
 | [`Chdef`](../bindings/dotnet/Chdef/README.md) | .NET バインディング（ネイティブ同梱） | `dotnet add package Chdef` |
-| [`chdef`](../bindings/js/README.md) | JavaScript バインディング（WebAssembly と TypeScript 宣言を同梱） | `npm install chdef` |
+| [`chdef`](../bindings/js/README.md) | JavaScript バインディング（WebAssembly と TypeScript 宣言を同梱） | `npm install @shortarrow/chdef` |
 
 それぞれが、呼び出す言語に向けた README を持つ。C ABI は仕様が定める規則を全て運ぶので、C や C# の利用側がそれを 2 度書くことはない。JavaScript バインディングは同じ規則に WebAssembly 経由で届く。
 

@@ -12,8 +12,9 @@ tag, published to crates.io.
 ## [0.0.15] - 2026-08-25
 
 ### Added
-- **A JavaScript binding, on npm as `chdef`.** WebAssembly over the crate,
-  with TypeScript declarations generated from the Rust types. The package
+- **A JavaScript binding, on npm as `@shortarrow/chdef`.** WebAssembly
+  over the crate, with TypeScript declarations generated from the Rust
+  types. The package
   ships a `bundler` build for Vite and friends and a `nodejs` build for
   Node, and picks between them itself. It reads definitions, computes the
   layout, encodes, seals, decodes, answers the range and width questions,

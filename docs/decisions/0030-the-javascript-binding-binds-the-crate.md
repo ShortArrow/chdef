@@ -30,7 +30,8 @@ rules, and a fourth path is a fourth place to be wrong.
 ## Decision
 
 - **A JavaScript binding ships from this repository**, as the crate
-  `chdef-wasm` built with `wasm-bindgen`, published to npm as `chdef`.
+  `chdef-wasm` built with `wasm-bindgen`, published to npm as
+  `@shortarrow/chdef`.
 - **It binds the crate, not the C ABI.** The C ABI stays what it is: the
   path for C and for .NET.
 - **It defines its own record types.** `chdef::Decoded` borrows the
@@ -54,6 +55,14 @@ the conversions and the diagnostics without a fourth reimplementation.
 The cost is a second binding to keep building and releasing, and a
 WebAssembly toolchain (`wasm-pack`, the `wasm32-unknown-unknown` target)
 in CI. The vectors bound the risk; the build cost is real and recurring.
+
+The npm name is scoped because the unscoped one is not available. A
+publish of `chdef` is refused with `403 Forbidden - PUT
+https://registry.npmjs.org/chdef - Package name too similar to existing
+package code; try renaming your package to '@shortarrow/chdef'`. The
+check runs on the registry at publish time and has no dry run, so the
+only way to test another unscoped name is to attempt it. The scope also
+says who publishes it, which the unscoped name did not.
 
 A consumer who wants chdef from C or C# is unaffected — the C ABI has
 not moved.

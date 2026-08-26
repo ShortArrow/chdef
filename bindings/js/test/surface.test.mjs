@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import chdef from "chdef";
+import chdef from "@shortarrow/chdef";
 
 const CH = "number,bytes,type,lsb,offset,unit,min,max,default,name\n"
          + "1,2,UI,0.5,0,km/h,0,100,20,speed\n"

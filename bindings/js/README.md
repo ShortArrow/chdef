@@ -1,11 +1,12 @@
-# chdef
+# @shortarrow/chdef
 
 Channel definitions (CH) and bit-field definitions (BF) for binary frames:
 read the CSVs, compute the frame layout, encode and decode frames.
 
 A WebAssembly binding over the
 [chdef](https://github.com/ShortArrow/chdef) Rust crate, with TypeScript
-declarations generated from it — `npm install chdef` and nothing else.
+declarations generated from it — `npm install @shortarrow/chdef` and nothing
+else.
 The package ships a `bundler` build for Vite and friends and a `nodejs`
 build for Node, and picks between them itself.
 
