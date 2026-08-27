@@ -50,6 +50,32 @@ jobs:
           node build.mjs
           npm test
 
+  dotnet:
+    # The .NET binding's golden vectors and surface tests ran only at
+    # release, and a binding failing on tag day is found a release late.
+    name: Test the .NET binding
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: bindings/dotnet/global.json
+      - name: Build the C ABI and test the binding through it
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build -p chdef-capi --release --locked
+          target=$(cargo metadata --format-version 1 --no-deps | python3 -c 'import sys,json;print(json.load(sys.stdin)["target_directory"])')
+          native="$target/release/libchdef_capi.so"
+          dotnet restore bindings/dotnet/Chdef.slnx --locked-mode
+          CHDEF_NATIVE="$native" dotnet test bindings/dotnet/Chdef.slnx \
+            --configuration Release --no-restore
+
   lint:
     name: Lint (fmt + clippy)
     runs-on: ubuntu-latest
