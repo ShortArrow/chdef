@@ -27,6 +27,7 @@ public sealed class BitsAndGridTests
     private static readonly string[] BitNames = ["ready", "fault", "alarm"];
     private static readonly uint[] BitNumbers = [0, 2, 7];
     private static readonly string[] GridHeader = ["number", "bytes", "memo"];
+    private static readonly string[] TwoColumns = ["number", "bytes"];
     private static readonly string[] GridFirstRow = ["1", "2", "first"];
 
     [Fact]
@@ -242,5 +243,62 @@ public sealed class BitsAndGridTests
     {
         var thrown = Assert.Throws<ChdefException>(() => Grid.Parse("a,b\n\"unterminated\n"));
         Assert.NotEmpty(thrown.Message);
+    }
+
+    [Fact]
+    public void TheFirstRecordIsTheHeaderOnlyWhenItNamesNumber()
+    {
+        // format.md §2 — the rule Definitions.Parse reads by, so a row a
+        // finding names is the same row here.
+        using var with = Grid.Parse("number,bytes\n1,2\n");
+        Assert.Equal(TwoColumns, with.Header);
+        Assert.Equal(1, with.RowCount);
+
+        using var without = Grid.Parse("1,2\n3,4\n");
+        Assert.Empty(without.Header);
+        Assert.Equal(2, without.RowCount);
+        Assert.Equal("1", without.Cell(0, 0));
+    }
+
+    [Fact]
+    public void AHeaderInAnotherSpellingIsAHeaderWithTheVocabularyThatKnowsIt()
+    {
+        using var japanese = ColumnVocabulary.Japanese();
+        using var known = Grid.Parse("番号,バイト数,型\n1,2,UI\n", japanese);
+        Assert.Equal(3, known.Header.Count);
+        Assert.Equal(1, known.RowCount);
+
+        using var unknown = Grid.Parse("番号,バイト数,型\n1,2,UI\n");
+        Assert.Empty(unknown.Header);
+        Assert.Equal(2, unknown.RowCount);
+    }
+
+    [Fact]
+    public void WhatIsWrongWithTheCellsPointsAtTheCell()
+    {
+        // diagnostics.md: a finding carries the row and column it is
+        // about, 0-based with the header excluded.
+        using var grid = Grid.Parse("number,bytes,type\n1,2,UI\n2,2,XX\n");
+        var finding = Assert.Single(grid.Issues());
+        Assert.Equal(1, finding.Row!.Value);
+        Assert.Equal(2, finding.Col!.Value);
+
+        grid.SetCell(1, 2, "UI");
+        Assert.Empty(grid.Issues());
+    }
+
+    [Fact]
+    public void ADefaultOutsideItsOwnRowsRangeNamesTheDefaultCell()
+    {
+        // conversion.md §8, on the file rather than the layout.
+        using var grid = Grid.Parse(
+            "number,bytes,type,lsb,min,max,default\n1,2,UI,1,0,100,150\n");
+        var finding = Assert.Single(grid.DefaultsOutOfRange());
+        Assert.Equal(IssueCode.ValueOutOfRange, finding.Code);
+        Assert.Equal("default", grid.Header[finding.Col!.Value]);
+        Assert.Equal("150", grid.Cell(finding.Row!.Value, finding.Col!.Value));
+
+        grid.SetCell(0, finding.Col!.Value, "80");
+        Assert.Empty(grid.DefaultsOutOfRange());
     }
 }

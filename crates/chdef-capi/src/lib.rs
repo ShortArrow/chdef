@@ -2,8 +2,8 @@
 //! layout, encode and decode frames (ADR-0021).
 //!
 //! It is a codec, not the crate. Reading definitions, describing the
-//! layout and converting frames cross the boundary; the Table stage —
-//! editing a definition and writing it back — deliberately does not.
+//! layout, converting frames and editing a definition as cells cross the
+//! boundary; a typed editing API deliberately does not.
 //!
 //! Three rules shape every signature:
 //!
@@ -25,15 +25,15 @@ use std::ffi::c_char;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use chdef::{
-    build_layout, BfColumn, BitFieldDef, ChColumn, ChannelLayout, ChdefError, ColumnVocabulary,
-    DerivedRecipe, Endian, Grid, Issue, IssueCode, Value,
+    build_layout, BfColumn, BitFieldDef, ChColumn, ChTable, ChannelLayout, ChdefError,
+    ColumnVocabulary, DerivedRecipe, Endian, Issue, IssueCode, Value,
 };
 
 /// The revision of this ABI. It rises whenever a symbol is added or
 /// changed; a caller checks it is **at least** the value its declarations
 /// were written for before calling anything else. Symbols are added and
 /// never withdrawn, so a newer library serves an older caller.
-pub const CHDEF_ABI_VERSION: u32 = 6;
+pub const CHDEF_ABI_VERSION: u32 = 7;
 
 // ---------------------------------------------------------------- statuses
 
@@ -219,6 +219,18 @@ pub struct ChdefReading {
     pub value: f64,
 }
 
+/// The declared range of a channel, resolved to physical values
+/// (`docs/spec/conversion.md` §8). A side the row leaves unspecified has
+/// its `has_` flag at `0` and its value unread.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ChdefRange {
+    pub min: f64,
+    pub max: f64,
+    pub has_min: i32,
+    pub has_max: i32,
+}
+
 // ---------------------------------------------------------------- handles
 
 const LAYOUT_TAG: u64 = 0x6368_6465_665f_6c79; // "chdef_ly"
@@ -241,11 +253,12 @@ pub struct ChdefVocabulary {
     vocabulary: ColumnVocabulary,
 }
 
-/// An opaque grid of cells. Freed once with [`chdef_grid_free`].
+/// An opaque grid of cells, read with the vocabulary that names its
+/// columns. Freed once with [`chdef_grid_free`].
 #[repr(C)]
 pub struct ChdefGrid {
     tag: u64,
-    grid: Grid,
+    table: ChTable,
 }
 
 /// An opaque list of diagnostics. Freed once with [`chdef_issues_free`].
@@ -276,14 +289,14 @@ unsafe fn vocabulary_mut(handle: *mut ChdefVocabulary) -> Option<&'static mut Co
     (handle.tag == VOCABULARY_TAG).then_some(&mut handle.vocabulary)
 }
 
-unsafe fn grid_of(handle: *const ChdefGrid) -> Option<&'static Grid> {
+unsafe fn grid_of(handle: *const ChdefGrid) -> Option<&'static ChTable> {
     let handle = handle.as_ref()?;
-    (handle.tag == GRID_TAG).then_some(&handle.grid)
+    (handle.tag == GRID_TAG).then_some(&handle.table)
 }
 
-unsafe fn grid_mut(handle: *mut ChdefGrid) -> Option<&'static mut Grid> {
+unsafe fn grid_mut(handle: *mut ChdefGrid) -> Option<&'static mut ChTable> {
     let handle = handle.as_mut()?;
-    (handle.tag == GRID_TAG).then_some(&mut handle.grid)
+    (handle.tag == GRID_TAG).then_some(&mut handle.table)
 }
 
 unsafe fn issues_of(handle: *const ChdefIssues) -> Option<&'static [Issue]> {
@@ -1058,6 +1071,137 @@ pub unsafe extern "C" fn chdef_layout_channel_render(
     })
 }
 
+/// One physical value to the raw bit pattern of its channel's width
+/// (`docs/spec/conversion.md` §2): rounded half away from zero and clamped
+/// to the width, a negative result as its two's-complement pattern. A
+/// value that cannot be converted — NaN, infinite — is
+/// [`CHDEF_ERR_VALUE`]. Clamping is silent here, as it is for every
+/// single-value primitive; [`chdef_layout_channel_fits_width`] is the ask.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `out_raw` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_channel_to_raw(
+    handle: *const ChdefLayout,
+    index: usize,
+    value: f64,
+    out_raw: *mut u64,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_raw.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        let Some(ch) = layout.channels.get(index) else {
+            return CHDEF_ERR_INDEX;
+        };
+        match ch.value_to_raw(value) {
+            Some(raw) => {
+                *out_raw = raw;
+                CHDEF_OK
+            }
+            None => CHDEF_ERR_VALUE,
+        }
+    })
+}
+
+/// One raw bit pattern to the physical value of its channel
+/// (`docs/spec/conversion.md` §1): sign-extended for `SI`, then scaled by
+/// `lsb` and moved by `offset`. Bits beyond the channel's width are
+/// ignored.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `out_value` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_channel_to_value(
+    handle: *const ChdefLayout,
+    index: usize,
+    raw: u64,
+    out_value: *mut f64,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_value.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        let Some(ch) = layout.channels.get(index) else {
+            return CHDEF_ERR_INDEX;
+        };
+        *out_value = ch.raw_to_value_u64(raw);
+        CHDEF_OK
+    })
+}
+
+/// Whether the channel's width holds `value` as given
+/// (`docs/spec/conversion.md` §2) — the ask before sending, since a value
+/// the width cannot hold is clamped. `out_fits` receives `1` or `0`; a
+/// value that cannot be converted at all does not fit.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `out_fits` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_channel_fits_width(
+    handle: *const ChdefLayout,
+    index: usize,
+    value: f64,
+    out_fits: *mut i32,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_fits.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        let Some(ch) = layout.channels.get(index) else {
+            return CHDEF_ERR_INDEX;
+        };
+        *out_fits = i32::from(ch.fits_width(value));
+        CHDEF_OK
+    })
+}
+
+/// The declared range of a channel as physical values
+/// (`docs/spec/conversion.md` §8), each bound resolved with the channel's
+/// `lsb` and `offset` whichever notation the row used.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `out` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_layout_channel_range(
+    handle: *const ChdefLayout,
+    index: usize,
+    out: *mut ChdefRange,
+) -> i32 {
+    guard(|| {
+        let Some(layout) = layout_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        let Some(ch) = layout.channels.get(index) else {
+            return CHDEF_ERR_INDEX;
+        };
+        let (min, max) = (ch.min_value(), ch.max_value());
+        *out = ChdefRange {
+            min: min.unwrap_or(0.0),
+            max: max.unwrap_or(0.0),
+            has_min: i32::from(min.is_some()),
+            has_max: i32::from(max.is_some()),
+        };
+        CHDEF_OK
+    })
+}
+
 // ----------------------------------------------------------- the notation
 
 /// Read the text form of a value (`docs/spec/format.md` §3): a leading
@@ -1098,9 +1242,8 @@ pub unsafe extern "C" fn chdef_value_parse(
 // -------------------------------------------------------------------- grid
 
 /// Read definition bytes as cells (`docs/spec/editing.md`), whatever
-/// columns they name. On success `out_grid` receives a handle the caller
-/// frees with [`chdef_grid_free`]; on failure it is left null and, when
-/// `err_buf` is not null, the error message is written into it.
+/// columns they name — [`chdef_grid_parse_with`] over the empty
+/// vocabulary.
 ///
 /// # Safety
 ///
@@ -1114,6 +1257,33 @@ pub unsafe extern "C" fn chdef_grid_parse(
     err_buf: *mut c_char,
     err_cap: usize,
 ) -> i32 {
+    chdef_grid_parse_with(bytes, len, std::ptr::null(), out_grid, err_buf, err_cap)
+}
+
+/// Read definition bytes as cells, identifying the columns by the
+/// spellings of `vocabulary` on top of the canonical names; a null
+/// vocabulary is the empty one. The first record is the header when it
+/// names `number` in that vocabulary (`docs/spec/format.md` §2), the rule
+/// [`chdef_layout_parse_with`] reads by, so the row a finding names is the
+/// same row here.
+///
+/// On success `out_grid` receives a handle the caller frees with
+/// [`chdef_grid_free`]; on failure it is left null and, when `err_buf` is
+/// not null, the error message is written into it.
+///
+/// # Safety
+///
+/// `bytes` must be valid for `len`, `vocabulary` null or one of ours,
+/// `out_grid` writable, and `err_buf` writable for `err_cap`.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_parse_with(
+    bytes: *const u8,
+    len: usize,
+    vocabulary: *const ChdefVocabulary,
+    out_grid: *mut *mut ChdefGrid,
+    err_buf: *mut c_char,
+    err_cap: usize,
+) -> i32 {
     guard(|| {
         if out_grid.is_null() {
             return CHDEF_ERR_NULL;
@@ -1122,16 +1292,25 @@ pub unsafe extern "C" fn chdef_grid_parse(
         if bytes.is_null() && len > 0 {
             return CHDEF_ERR_NULL;
         }
+        let empty = ColumnVocabulary::new();
+        let words = if vocabulary.is_null() {
+            &empty
+        } else {
+            match vocabulary_of(vocabulary) {
+                Some(words) => words,
+                None => return CHDEF_ERR_HANDLE,
+            }
+        };
         let source = if bytes.is_null() {
             &[][..]
         } else {
             std::slice::from_raw_parts(bytes, len)
         };
-        match Grid::parse_bytes(source) {
-            Ok(grid) => {
+        match ChTable::parse_bytes_with(source, words) {
+            Ok(table) => {
                 *out_grid = Box::into_raw(Box::new(ChdefGrid {
                     tag: GRID_TAG,
-                    grid,
+                    table,
                 }));
                 CHDEF_OK
             }
@@ -1170,7 +1349,7 @@ pub unsafe extern "C" fn chdef_grid_free(handle: *mut ChdefGrid) {
 /// The handle must be null or one of ours.
 #[no_mangle]
 pub unsafe extern "C" fn chdef_grid_row_count(handle: *const ChdefGrid) -> u64 {
-    guard_len(|| grid_of(handle).map(Grid::row_count).unwrap_or(0)) as u64
+    guard_len(|| grid_of(handle).map(ChTable::row_count).unwrap_or(0)) as u64
 }
 
 /// How many cells the header row has, or `0` when the file was read
@@ -1184,7 +1363,7 @@ pub unsafe extern "C" fn chdef_grid_row_count(handle: *const ChdefGrid) -> u64 {
 pub unsafe extern "C" fn chdef_grid_header_count(handle: *const ChdefGrid) -> u64 {
     guard_len(|| {
         grid_of(handle)
-            .and_then(Grid::header)
+            .and_then(ChTable::header)
             .map(<[String]>::len)
             .unwrap_or(0)
     }) as u64
@@ -1220,7 +1399,7 @@ pub unsafe extern "C" fn chdef_grid_header_at(
 ) -> usize {
     guard_len(|| {
         let text = grid_of(handle)
-            .and_then(Grid::header)
+            .and_then(ChTable::header)
             .and_then(|header| header.get(col))
             .map(String::as_str)
             .unwrap_or("");
@@ -1352,6 +1531,54 @@ pub unsafe extern "C" fn chdef_grid_to_csv(
             return 0;
         };
         write_text(&grid.to_csv(), buf, cap)
+    })
+}
+
+/// What is wrong with the cells as they stand (`docs/spec/diagnostics.md`),
+/// each finding pointing at its row and column. Read again after editing;
+/// nothing is cached.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `out_issues` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_issues(
+    handle: *const ChdefGrid,
+    out_issues: *mut *mut ChdefIssues,
+) -> i32 {
+    guard(|| {
+        let Some(grid) = grid_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_issues.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        *out_issues = into_issues(grid.channels().issues);
+        CHDEF_OK
+    })
+}
+
+/// Which rows hold a `default` outside that row's own `min` / `max`
+/// (`docs/spec/conversion.md` §8), each finding carrying the row and the
+/// `default` column so an editor can mark the cell.
+///
+/// # Safety
+///
+/// The handle must be null or one of ours, and `out_issues` writable.
+#[no_mangle]
+pub unsafe extern "C" fn chdef_grid_defaults_out_of_range(
+    handle: *const ChdefGrid,
+    out_issues: *mut *mut ChdefIssues,
+) -> i32 {
+    guard(|| {
+        let Some(grid) = grid_of(handle) else {
+            return CHDEF_ERR_HANDLE;
+        };
+        if out_issues.is_null() {
+            return CHDEF_ERR_NULL;
+        }
+        *out_issues = into_issues(grid.defaults_out_of_range());
+        CHDEF_OK
     })
 }
 

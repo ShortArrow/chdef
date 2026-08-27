@@ -2,7 +2,7 @@
 
 🌐 [English](./abi.md) | **日本語**
 
-実装済み（0.0.15）: 下記の全部 — レイアウト、変換、名前付きビット、Grid、値の記法、Issue を、`chdef-capi` の C ABI と、その上に立つ .NET バインディング経由で。TypeScript はこの ABI 経由では届かず、クレートの上に立つ WebAssembly バインディングが同じ規則を運ぶ。
+実装済み（0.0.15）: 下記の全部 — レイアウト、変換、名前付きビット、Grid、値の記法、Issue を、`chdef-capi` の C ABI と、その上に立つ .NET バインディング経由で。TypeScript はこの ABI 経由では届かず、クレートの上に立つ WebAssembly バインディングが同じ規則を運ぶ。その名前は §3 に他と並べて挙げる。
 
 ## 1. ABI が何を運ぶか
 
@@ -42,14 +42,70 @@ Grid が公開されるのは**セルとして**であって、型付きの編�
 運ぶものの名前をとって 6 群:
 
 - **レイアウト** — CH / BF の CSV をレイアウトに読み、合計とチャンネルを問い、バイト順と容量を設定し、容量を検査する。
-- **変換** — 値をフレームに encode、フレームを読みに decode、1 つの読みの表示値と表示文字列。
+- **変換** — 値をフレームに encode、フレームを読みに decode、値 1 つをどちら向きにも変換、幅が値を保持できるかとチャンネルが宣言する範囲、1 つの読みの表示値と表示文字列。
 - **ビット** — チャンネルの名前付きビット（番号・名称・備考・プロトコル仕様の既定値またはその不在）と、デコード済みフレームの各ビットの値。
-- **Grid** — 定義のバイト列をセルに読み、見出しと任意のセルを読み、セルを書き、行を挿入・追加・削除し、ファイルを書き戻す。
+- **Grid** — 定義のバイト列を、列を名付ける語彙とともにセルに読み、見出しと任意のセルを読み、セルを書き、行を挿入・追加・削除し、ファイルを書き戻し、いまのセルの何が悪いかを問う。
 - **値の記法** — 値の文字列形を、それが表す値に読む。
 - **語彙** — 正準の列名と、それを使って組む語彙。parse はこれで見出しを読む。列は番号ではなく正準**名**で指されるので、形式に列を足しても ABI の破壊にならない。
 - **Issue** — 各指摘の個数・数値・文字列。
 
 フレームのビットは 1 回の走査でデコードされ、ビットごとの呼び出しにはならない。個数はレイアウトが答え、1 回の呼び出しが配列を埋めるので、全ビットを読む費用は全チャンネルを読む費用と同じ。
+
+Grid はレイアウトと同じ規則で読む。先頭レコードが与えられた語彙で `number` を名乗るときだけ見出しで、名乗らないファイルは見出し無しの位置指定として読む。だから指摘の行番号は、どの呼び出しが出したものでも同じセルを指す。
+
+### 同じ面を、名前で
+
+1 行が 1 つの操作で、各バインディングでの名前を並べる。3 つのどこから
+chdef に触れても上の規則は全部あり、その言語の慣習に沿った名前で見つかる。
+リポジトリのテストがこの表を読み、ここに書かれた名前をバインディングが
+持たなければ落ちる。
+
+| 操作 | C | .NET | JavaScript |
+|---|---|---|---|
+| 定義をレイアウトに読む | `chdef_layout_parse_with` | `Definitions.Parse` | `Definitions.parse` |
+| 読んだときに見つかったもの | `chdef_issue_at` | `Definitions.Issues` | `Definitions.issues` |
+| フレームのデータ長 | `chdef_layout_total_bytes` | `Definitions.TotalBytes` | `Definitions.totalBytes` |
+| チャンネル、フレーム順 | `chdef_layout_channel_at` | `Definitions.Channels` | `Definitions.channels` |
+| バイト順 | `chdef_layout_set_endian` | `Definitions.Endian` | `Definitions.endian` |
+| バイト容量 | `chdef_layout_set_capacity` | `Definitions.Capacity` | `Definitions.capacity` |
+| チャンネル容量 | `chdef_layout_set_channel_capacity` | `Definitions.ChannelCapacity` | `Definitions.channelCapacity` |
+| フレームが容量に収まるか | `chdef_layout_limits_exceeded` | `Definitions.LimitsExceeded` | `Definitions.limitsExceeded` |
+| 値をフレームへ | `chdef_encode` | `Definitions.Encode` | `Definitions.encode` |
+| フレームを読みへ | `chdef_decode` | `Definitions.Decode` | `Definitions.decode` |
+| 派生チャンネルを埋める | `chdef_seal` | `Definitions.Seal` | `Definitions.seal` |
+| どの派生チャンネルが食い違うか | `chdef_derived_mismatches` | `Definitions.DerivedMismatches` | `Definitions.derivedMismatches` |
+| 派生チャンネルが覆うバイト | `chdef_covered_bytes` | `Definitions.CoveredBytes` | `Definitions.coveredBytes` |
+| 名前で知っているレシピ | `chdef_recipe_name` | `Definitions.Recipes` | `recipes` |
+| 物理値 1 つを生ビット列へ | `chdef_layout_channel_to_raw` | `Definitions.ToRaw` | `Definitions.toRaw` |
+| 生ビット列 1 つを物理値へ | `chdef_layout_channel_to_value` | `Definitions.ToValue` | `Definitions.toValue` |
+| 幅が値を保持できるか | `chdef_layout_channel_fits_width` | `Definitions.FitsWidth` | `Definitions.fitsWidth` |
+| 宣言された範囲、物理値で | `chdef_layout_channel_range` | `Definitions.RangeOf` | `Definitions.rangeOf` |
+| どの値が範囲を外れるか | `chdef_values_out_of_range` | `Definitions.ValuesOutOfRange` | `Definitions.valuesOutOfRange` |
+| どの読みが範囲を外れるか | `chdef_readings_out_of_range` | `Definitions.ReadingsOutOfRange` | `Definitions.readingsOutOfRange` |
+| format 列がどちらの読みを見せるか | `chdef_layout_channel_displayed` | `Definitions.Displayed` | `Definitions.displayed` |
+| 読みの既定の文字列 | `chdef_layout_channel_render` | `Definitions.Render` | `Definitions.render` |
+| チャンネルの名前付きビット | `chdef_layout_bit_at` | `Channel.Bits` | `Channel.bits` |
+| 読みのビット | `chdef_decode_bits` | `Reading.Bits` | `Reading.bits` |
+| 値の文字列形 | `chdef_value_parse` | `Value.Parse` | `parseValue` |
+| ファイルをセルとして読む | `chdef_grid_parse_with` | `Grid.Parse` | `Table.parse` |
+| 見出しのセル | `chdef_grid_header_at` | `Grid.Header` | `Table.header` |
+| データ行の数 | `chdef_grid_row_count` | `Grid.RowCount` | `Table.rowCount` |
+| 行のセル数 | `chdef_grid_col_count` | `Grid.ColumnCount` | `Table.columnCount` |
+| セル 1 つ | `chdef_grid_cell` | `Grid.Cell` | `Table.cell` |
+| セル 1 つを上書き | `chdef_grid_set_cell` | `Grid.SetCell` | `Table.setCell` |
+| 行を挿入 | `chdef_grid_insert_row` | `Grid.InsertRow` | `Table.insertRow` |
+| 行を追加 | `chdef_grid_append_row` | `Grid.AppendRow` | `Table.appendRow` |
+| 行を削除 | `chdef_grid_remove_row` | `Grid.RemoveRow` | `Table.removeRow` |
+| ファイルを書き戻す | `chdef_grid_to_csv` | `Grid.ToCsv` | `Table.toCsv` |
+| セルの何が悪いか | `chdef_grid_issues` | `Grid.Issues` | `Table.issues` |
+| どの default が自分の範囲を外れるか | `chdef_grid_defaults_out_of_range` | `Grid.DefaultsOutOfRange` | `Table.defaultsOutOfRange` |
+| 空の語彙 | `chdef_vocabulary_new` | `ColumnVocabulary.Create` | `new ColumnVocabulary()` |
+| 日本語の語彙 | `chdef_vocabulary_japanese` | `ColumnVocabulary.Japanese` | `ColumnVocabulary.japanese` |
+| CH の綴りを教える | `chdef_vocabulary_teach` | `ColumnVocabulary.Ch` | `ColumnVocabulary.ch` |
+| BF の綴りを教える | `chdef_vocabulary_teach` | `ColumnVocabulary.Bf` | `ColumnVocabulary.bf` |
+| CH の正準列名 | `chdef_column_name` | `ColumnVocabulary.ChColumnNames` | `ColumnVocabulary.chColumns` |
+| BF の正準列名 | `chdef_column_name` | `ColumnVocabulary.BfColumnNames` | `ColumnVocabulary.bfColumns` |
+| ビルドが報告しうる全 Issue コード | `chdef_issue_code_name` | `IssueCode.All` | `issueCodes` |
 
 ## 4. 版
 

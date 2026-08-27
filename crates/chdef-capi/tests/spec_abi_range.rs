@@ -199,3 +199,69 @@ fn an_unusable_handle_is_reported() {
         CHDEF_ERR_HANDLE
     );
 }
+
+// ------------------------------------------------------ the declared range
+
+fn range_of(layout: &Layout, index: usize) -> Result<ChdefRange, i32> {
+    let mut range = ChdefRange::default();
+    match unsafe { chdef_layout_channel_range(layout.0, index, &mut range) } {
+        CHDEF_OK => Ok(range),
+        status => Err(status),
+    }
+}
+
+#[test]
+fn a_declared_range_crosses_as_physical_values_with_each_side_marked_present() {
+    // conversion.md §8: the bounds are physical, resolved with the row's
+    // lsb and offset.
+    let layout = Layout::parse();
+    let declared = range_of(&layout, 0).unwrap();
+    assert_eq!((declared.has_min, declared.min), (1, 0.0));
+    assert_eq!((declared.has_max, declared.max), (1, 100.0));
+}
+
+#[test]
+fn an_unspecified_side_crosses_as_absent() {
+    let layout = Layout::parse();
+    let declared = range_of(&layout, 1).unwrap();
+    assert_eq!(declared.has_min, 0);
+    assert_eq!(declared.has_max, 0);
+}
+
+#[test]
+fn a_bound_given_as_a_raw_pattern_is_resolved_before_it_crosses() {
+    let text = "number,bytes,type,lsb,offset,min,max\n1,2,UI,0.5,-10,0x10,\n";
+    let mut layout = ptr::null_mut();
+    let mut issues = ptr::null_mut();
+    assert_eq!(
+        unsafe {
+            chdef_layout_parse(
+                text.as_ptr(),
+                text.len(),
+                ptr::null(),
+                0,
+                &mut layout,
+                &mut issues,
+                ptr::null_mut(),
+                0,
+            )
+        },
+        CHDEF_OK
+    );
+    unsafe { chdef_issues_free(issues) };
+    let layout = Layout(layout);
+
+    let declared = range_of(&layout, 0).unwrap();
+    assert_eq!((declared.has_min, declared.min), (1, 16.0 * 0.5 - 10.0));
+    assert_eq!(declared.has_max, 0);
+}
+
+#[test]
+fn a_range_index_outside_the_layout_is_an_index_error() {
+    let layout = Layout::parse();
+    assert_eq!(range_of(&layout, 9), Err(CHDEF_ERR_INDEX));
+    assert_eq!(
+        unsafe { chdef_layout_channel_range(layout.0, 0, ptr::null_mut()) },
+        CHDEF_ERR_NULL
+    );
+}

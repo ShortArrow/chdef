@@ -88,4 +88,26 @@ public sealed class RangeCheckTests
         Assert.Empty(defs.ValuesOutOfRange([]));
         Assert.Empty(defs.ReadingsOutOfRange([]));
     }
+
+    [Fact]
+    public void ADeclaredRangeIsResolvedToPhysicalValues()
+    {
+        using var defs = Definitions.Parse(Ch);
+        Assert.Equal(new DeclaredRange(0, 100), defs.RangeOf(0));
+    }
+
+    [Fact]
+    public void AnUnspecifiedSideIsNull()
+    {
+        using var defs = Definitions.Parse(Ch);
+        Assert.Equal(new DeclaredRange(null, null), defs.RangeOf(1));
+    }
+
+    [Fact]
+    public void ABoundGivenAsARawPatternIsResolvedFirst()
+    {
+        using var defs = Definitions.Parse(
+            "number,bytes,type,lsb,offset,min,max\n1,2,UI,0.5,-10,0x10,\n");
+        Assert.Equal(new DeclaredRange(16 * 0.5 - 10, null), defs.RangeOf(0));
+    }
 }

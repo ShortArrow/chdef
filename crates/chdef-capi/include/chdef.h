@@ -49,7 +49,7 @@ extern "C" {
  * changed; check that chdef_abi_version() is at least this value before
  * calling anything else. Symbols are added and never withdrawn, so a newer
  * library serves an older caller. */
-#define CHDEF_ABI_VERSION 6u
+#define CHDEF_ABI_VERSION 7u
 
 /* Statuses. */
 #define CHDEF_OK 0
@@ -141,6 +141,15 @@ typedef struct ChdefReading {
   uint64_t raw;
   double value;
 } ChdefReading;
+
+/* The declared range of a channel as physical values. A side the row
+ * leaves unspecified has its has_ flag at 0 and its value unread. */
+typedef struct ChdefRange {
+  double min;
+  double max;
+  int32_t has_min;
+  int32_t has_max;
+} ChdefRange;
 
 /* One named bit of a channel. `default_value` is 0 or 1, or -1 when the BF
  * row names none and the bit keeps the parent channel's. */
@@ -265,6 +274,24 @@ int32_t chdef_layout_channel_displayed(const ChdefLayout *handle,
 size_t chdef_layout_channel_render(const ChdefLayout *handle, size_t index,
                                    uint64_t raw, char *buf, size_t cap);
 
+/* One value either way, for one channel: a physical value to the raw
+ * pattern of the channel's width (rounded half away from zero, clamped,
+ * a negative result as two's complement; NaN or infinite is
+ * CHDEF_ERR_VALUE), and a raw pattern to its physical value (bits beyond
+ * the width ignored). Clamping is silent here; fits_width is the ask,
+ * writing 1 or 0 into out_fits. range resolves the declared min / max to
+ * physical values, marking each side present or not. */
+int32_t chdef_layout_channel_to_raw(const ChdefLayout *handle, size_t index,
+                                    double value, uint64_t *out_raw);
+int32_t chdef_layout_channel_to_value(const ChdefLayout *handle,
+                                      size_t index, uint64_t raw,
+                                      double *out_value);
+int32_t chdef_layout_channel_fits_width(const ChdefLayout *handle,
+                                        size_t index, double value,
+                                        int32_t *out_fits);
+int32_t chdef_layout_channel_range(const ChdefLayout *handle, size_t index,
+                                   ChdefRange *out);
+
 /* Read the text form of a value: a leading "0x" / "0X" is a raw bit
  * pattern, anything else a physical value. `channel` is stamped onto the
  * result so it can be handed straight to chdef_encode. Text that denotes
@@ -274,10 +301,20 @@ int32_t chdef_value_parse(const uint8_t *text, size_t len, uint32_t channel,
 
 /* Read definition bytes as cells, whatever columns they name. On CHDEF_OK
  * out_grid receives a handle the caller frees; on any other status it is
- * left NULL and the error's message is written into err_buf. */
+ * left NULL and the error's message is written into err_buf.
+ *
+ * The first record is the header when it names `number` in the
+ * vocabulary given (NULL is the empty one), the rule chdef_layout_parse
+ * reads by, so a row a finding names is the same row here. A file whose
+ * first record does not is read positionally, with no header.
+ * chdef_grid_parse is chdef_grid_parse_with over the empty vocabulary. */
 int32_t chdef_grid_parse(const uint8_t *bytes, size_t len,
                          ChdefGrid **out_grid, char *err_buf,
                          size_t err_cap);
+int32_t chdef_grid_parse_with(const uint8_t *bytes, size_t len,
+                              const ChdefVocabulary *vocabulary,
+                              ChdefGrid **out_grid, char *err_buf,
+                              size_t err_cap);
 void chdef_grid_free(ChdefGrid *handle);
 
 /* Row and column counts. header_count is 0 when the file was read without
@@ -306,6 +343,14 @@ int32_t chdef_grid_remove_row(ChdefGrid *handle, size_t at);
 /* Write the file back in the shape it was read in — its byte-order mark
  * and record separator. */
 size_t chdef_grid_to_csv(const ChdefGrid *handle, char *buf, size_t cap);
+
+/* What is wrong with the cells as they stand, each finding pointing at
+ * its row and column; and which rows hold a `default` outside that row's
+ * own `min` / `max`, pointing at the `default` cell. Both read the cells
+ * afresh each call. */
+int32_t chdef_grid_issues(const ChdefGrid *handle, ChdefIssues **out_issues);
+int32_t chdef_grid_defaults_out_of_range(const ChdefGrid *handle,
+                                         ChdefIssues **out_issues);
 
 /* Derived channels: the recipes this library knows by name. The set can
  * grow, and a recipe naming something outside it is still read — its

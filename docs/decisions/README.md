@@ -37,3 +37,4 @@ specification and the README never point back at an ADR.
 | [0030](./0030-the-javascript-binding-binds-the-crate.md) | 2026-08-25 | The JavaScript binding ships from here, and binds the crate rather than the C ABI | Accepted |
 | [0031](./0031-a-record-crosses-as-an-object.md) | 2026-08-25 | A record crosses to JavaScript as an object, and only state is a handle | Accepted |
 | [0032](./0032-a-bit-pattern-crosses-as-a-bigint.md) | 2026-08-25 | A bit pattern crosses to JavaScript as a bigint | Accepted |
+| [0033](./0033-every-binding-carries-the-same-surface.md) | 2026-08-28 | Every binding carries the same surface, and a test holds them to it | Accepted |

@@ -210,6 +210,25 @@ impl JsVocabulary {
             None => false,
         }
     }
+
+    /// The canonical names of the CH columns, in canonical order — the
+    /// names `ch` is taught against.
+    #[wasm_bindgen(js_name = "chColumns")]
+    pub fn ch_columns() -> Vec<String> {
+        chdef::ChColumn::canonical()
+            .iter()
+            .map(|c| c.name().to_string())
+            .collect()
+    }
+
+    /// The canonical names of the BF columns, in canonical order.
+    #[wasm_bindgen(js_name = "bfColumns")]
+    pub fn bf_columns() -> Vec<String> {
+        chdef::BfColumn::canonical()
+            .iter()
+            .map(|c| c.name().to_string())
+            .collect()
+    }
 }
 
 impl Default for JsVocabulary {
@@ -418,10 +437,7 @@ impl Definitions {
     /// conversion.
     pub fn displayed(&self, channel: u32, raw: u64) -> Result<Option<Ts<Value>>, JsError> {
         one(self
-            .layout
-            .channels
-            .iter()
-            .find(|c| c.number == channel)
+            .channel(channel)
             .map(|ch| Value::of(channel, ch.displayed_value(raw))))
     }
 
@@ -429,21 +445,14 @@ impl Definitions {
     /// channel's unit, or the raw one in hexadecimal padded to the
     /// channel's width. A caller with its own digit counts writes its own.
     pub fn render(&self, channel: u32, raw: u64) -> Option<String> {
-        self.layout
-            .channels
-            .iter()
-            .find(|c| c.number == channel)
-            .map(|ch| ch.render(raw))
+        self.channel(channel).map(|ch| ch.render(raw))
     }
 
     /// Whether the channel width can hold `value` as given — the ask
     /// before sending, since a value it cannot hold is clamped.
     #[wasm_bindgen(js_name = "fitsWidth")]
     pub fn fits_width(&self, channel: u32, value: f64) -> bool {
-        self.layout
-            .channels
-            .iter()
-            .find(|c| c.number == channel)
+        self.channel(channel)
             .map(|ch| ch.fits_width(value))
             .unwrap_or(false)
     }
@@ -452,15 +461,36 @@ impl Definitions {
     /// its current `lsb` and `offset`. Either side may be `undefined`.
     #[wasm_bindgen(js_name = "rangeOf")]
     pub fn range_of(&self, channel: u32) -> Result<Option<Ts<Range>>, JsError> {
-        one(self
-            .layout
-            .channels
-            .iter()
-            .find(|c| c.number == channel)
-            .map(|ch| Range {
-                min: ch.min_value(),
-                max: ch.max_value(),
-            }))
+        one(self.channel(channel).map(|ch| Range {
+            min: ch.min_value(),
+            max: ch.max_value(),
+        }))
+    }
+
+    /// One physical value to the raw bit pattern of its channel's width:
+    /// rounded half away from zero and clamped to the width, a negative
+    /// result as its two's-complement pattern. `undefined` for a value
+    /// that cannot be converted — `NaN`, infinite — or a channel the
+    /// layout does not have. Clamping is silent here; `fitsWidth` is the
+    /// ask.
+    #[wasm_bindgen(js_name = "toRaw")]
+    pub fn to_raw(&self, channel: u32, value: f64) -> Option<u64> {
+        self.channel(channel).and_then(|ch| ch.value_to_raw(value))
+    }
+
+    /// One raw bit pattern to the physical value of its channel:
+    /// sign-extended for `SI`, then scaled by `lsb` and moved by `offset`.
+    /// Bits beyond the channel's width are ignored. `undefined` for a
+    /// channel the layout does not have.
+    #[wasm_bindgen(js_name = "toValue")]
+    pub fn to_value(&self, channel: u32, raw: u64) -> Option<f64> {
+        self.channel(channel).map(|ch| ch.raw_to_value_u64(raw))
+    }
+}
+
+impl Definitions {
+    fn channel(&self, number: u32) -> Option<&chdef::ChannelDef> {
+        self.layout.channels.iter().find(|c| c.number == number)
     }
 }
 

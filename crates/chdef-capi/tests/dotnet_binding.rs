@@ -168,7 +168,7 @@ fn every_struct_field_crosses_in_order_and_at_the_same_width() {
 
     // The floor also catches an extractor that skips everything: the
     // opaque handles are excluded on purpose, the marshalled ones are not.
-    assert_eq!(structs.len(), 6, "found {structs:?}");
+    assert_eq!(structs.len(), 7, "found {structs:?}");
     for (name, fields) in structs {
         let start = csharp
             .find(&format!("internal struct {name}"))

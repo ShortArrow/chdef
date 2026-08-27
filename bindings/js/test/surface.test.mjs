@@ -118,6 +118,43 @@ test("a vocabulary is data, and Japanese is one that ships", () => {
   assert.equal(read.channels[0].name, "速度");
 });
 
+test("one value converts either way, by the rules a whole frame uses", () => {
+  const d = defs();
+  // conversion.md §2: half away from zero, clamped to the width.
+  assert.equal(d.toRaw(1, 0.25), 1n);
+  assert.equal(d.toRaw(1, 1e9), 0xFFFFn);
+  assert.equal(d.toRaw(1, NaN), undefined);
+  assert.equal(d.toRaw(9, 1), undefined);
+  // conversion.md §1: raw × lsb + offset, bits beyond the width ignored.
+  assert.equal(d.toValue(1, 64n), 32);
+  assert.equal(d.toValue(1, 0x1_0040n), 32);
+  assert.equal(d.toValue(9, 1n), undefined);
+
+  const { frame } = d.encode([{ form: "physical", channel: 1, value: 32 }]);
+  assert.equal(d.toRaw(1, 32), BigInt(frame[0] | (frame[1] << 8)));
+});
+
+test("whether a width holds a value, and what range a channel declares", () => {
+  const d = defs();
+  assert.equal(d.fitsWidth(1, 65535 * 0.5), true);
+  assert.equal(d.fitsWidth(1, 65536 * 0.5), false);
+  assert.equal(d.fitsWidth(9, 0), false);
+  assert.deepEqual(d.rangeOf(1), { min: 0, max: 100 });
+  assert.deepEqual(d.rangeOf(2), { min: undefined, max: undefined });
+  assert.equal(d.rangeOf(9), undefined);
+});
+
+test("the canonical column names are listed, so a picker can be built from them", () => {
+  const ch = chdef.ColumnVocabulary.chColumns();
+  assert.equal(ch[0], "number");
+  assert.ok(ch.includes("default"));
+  assert.deepEqual(chdef.ColumnVocabulary.bfColumns().slice(0, 2), ["number", "bit"]);
+
+  const words = new chdef.ColumnVocabulary();
+  for (const column of ch) assert.equal(words.ch(column.toUpperCase(), column), true);
+  assert.equal(words.ch("x", "no such column"), false);
+});
+
 test("every Issue a build can report is listed, so a table can be proved complete", () => {
   const codes = chdef.issueCodes();
 

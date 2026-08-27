@@ -94,6 +94,18 @@ assert.deepEqual(parseValue("12.5", 1), { form: "physical", channel: 1, value: 1
 assert.equal(parseValue("", 1), undefined);
 ```
 
+One number at a time follows the same rules a whole frame does, so a
+cell editor never writes the arithmetic itself.
+
+```js
+const defs = Definitions.parse("number,bytes,type,lsb,offset\n1,1,SI,0.5,-10\n");
+
+assert.equal(defs.toRaw(1, -20), 0xECn);       // two's complement of −20
+assert.equal(defs.toValue(1, 0xECn), -20);
+assert.equal(defs.fitsWidth(1, 60), false);    // raw 140 does not fit SI8
+assert.equal(defs.toRaw(1, 60), 0x7Fn);        // so it would be clamped
+```
+
 ## Headers in another language
 
 A column has one canonical name, and every other spelling a header may use

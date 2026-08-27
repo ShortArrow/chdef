@@ -6,7 +6,7 @@ Implemented (0.0.15): everything below — the layout, the conversions, the
 named bits, the grid, the value notation and the diagnostics, through the
 C ABI of `chdef-capi` and the .NET binding built on it. TypeScript does
 not reach these rules through this ABI; the WebAssembly binding over the
-crate carries them instead.
+crate carries them instead, under the names §3 lists beside the others.
 
 ## 1. What the ABI carries
 
@@ -78,12 +78,16 @@ Six groups, named after what they carry:
 - **Layout** — parse a CH and a BF CSV into a layout, ask its total and
   its channels, set byte order and capacity, check the capacity.
 - **Conversion** — encode values into a frame, decode a frame into
-  readings, and read one reading's displayed value or rendered text.
+  readings, convert one value either way, ask whether a width holds a
+  value and what range a channel declares, and read one reading's
+  displayed value or rendered text.
 - **Bits** — a channel's named bits (number, name, memo, and the
   protocol-spec default it carries or its absence), and the bits of a
   decoded frame with the value each holds.
-- **Grid** — parse definition bytes into cells, read the header and any
-  cell, set a cell, insert / append / remove a row, write the file back.
+- **Grid** — parse definition bytes into cells with the vocabulary that
+  names its columns, read the header and any cell, set a cell, insert /
+  append / remove a row, write the file back, and ask what is wrong with
+  the cells as they stand.
 - **Value notation** — read the text form of a value into the value it
   denotes.
 - **Vocabulary** — the canonical column names, and a vocabulary built from
@@ -95,6 +99,65 @@ Six groups, named after what they carry:
 A frame's bits are decoded in one pass, not one call per bit: the count
 comes from the layout and one call fills the array, so reading every bit
 of a frame costs what reading every channel costs.
+
+A grid is read with the rule the layout uses: the first record is the
+header when it names `number` in the vocabulary given, and a file whose
+first record does not is read positionally, with no header. Row numbers
+in a finding therefore mean the same cells whichever call produced them.
+
+### The same surface, by name
+
+One row per operation, and its name in each binding. A consumer reaching
+chdef from any of the three finds every rule above, under a name that
+follows the conventions of its language. A test in the repository reads
+this table and fails when a binding lacks a name it is given here.
+
+| Operation | C | .NET | JavaScript |
+|---|---|---|---|
+| Read definitions into a layout | `chdef_layout_parse_with` | `Definitions.Parse` | `Definitions.parse` |
+| What was found while reading | `chdef_issue_at` | `Definitions.Issues` | `Definitions.issues` |
+| The data length of the frame | `chdef_layout_total_bytes` | `Definitions.TotalBytes` | `Definitions.totalBytes` |
+| The channels, in frame order | `chdef_layout_channel_at` | `Definitions.Channels` | `Definitions.channels` |
+| Byte order | `chdef_layout_set_endian` | `Definitions.Endian` | `Definitions.endian` |
+| Byte capacity | `chdef_layout_set_capacity` | `Definitions.Capacity` | `Definitions.capacity` |
+| Channel capacity | `chdef_layout_set_channel_capacity` | `Definitions.ChannelCapacity` | `Definitions.channelCapacity` |
+| Whether the frame fits the capacity | `chdef_layout_limits_exceeded` | `Definitions.LimitsExceeded` | `Definitions.limitsExceeded` |
+| Values into a frame | `chdef_encode` | `Definitions.Encode` | `Definitions.encode` |
+| A frame into readings | `chdef_decode` | `Definitions.Decode` | `Definitions.decode` |
+| Fill the derived channels | `chdef_seal` | `Definitions.Seal` | `Definitions.seal` |
+| Which derived channels disagree | `chdef_derived_mismatches` | `Definitions.DerivedMismatches` | `Definitions.derivedMismatches` |
+| The bytes a derived channel covers | `chdef_covered_bytes` | `Definitions.CoveredBytes` | `Definitions.coveredBytes` |
+| The recipes known by name | `chdef_recipe_name` | `Definitions.Recipes` | `recipes` |
+| One physical value to its raw pattern | `chdef_layout_channel_to_raw` | `Definitions.ToRaw` | `Definitions.toRaw` |
+| One raw pattern to its physical value | `chdef_layout_channel_to_value` | `Definitions.ToValue` | `Definitions.toValue` |
+| Whether the width holds a value | `chdef_layout_channel_fits_width` | `Definitions.FitsWidth` | `Definitions.fitsWidth` |
+| The declared range, as physical values | `chdef_layout_channel_range` | `Definitions.RangeOf` | `Definitions.rangeOf` |
+| Which values fall outside their range | `chdef_values_out_of_range` | `Definitions.ValuesOutOfRange` | `Definitions.valuesOutOfRange` |
+| Which readings fall outside their range | `chdef_readings_out_of_range` | `Definitions.ReadingsOutOfRange` | `Definitions.readingsOutOfRange` |
+| Which reading the format column shows | `chdef_layout_channel_displayed` | `Definitions.Displayed` | `Definitions.displayed` |
+| The default text of a reading | `chdef_layout_channel_render` | `Definitions.Render` | `Definitions.render` |
+| The named bits of a channel | `chdef_layout_bit_at` | `Channel.Bits` | `Channel.bits` |
+| The bits of a reading | `chdef_decode_bits` | `Reading.Bits` | `Reading.bits` |
+| The text form of a value | `chdef_value_parse` | `Value.Parse` | `parseValue` |
+| Read a file as cells | `chdef_grid_parse_with` | `Grid.Parse` | `Table.parse` |
+| The header cells | `chdef_grid_header_at` | `Grid.Header` | `Table.header` |
+| How many data rows | `chdef_grid_row_count` | `Grid.RowCount` | `Table.rowCount` |
+| How many cells a row has | `chdef_grid_col_count` | `Grid.ColumnCount` | `Table.columnCount` |
+| One cell | `chdef_grid_cell` | `Grid.Cell` | `Table.cell` |
+| Overwrite one cell | `chdef_grid_set_cell` | `Grid.SetCell` | `Table.setCell` |
+| Insert a row | `chdef_grid_insert_row` | `Grid.InsertRow` | `Table.insertRow` |
+| Append a row | `chdef_grid_append_row` | `Grid.AppendRow` | `Table.appendRow` |
+| Remove a row | `chdef_grid_remove_row` | `Grid.RemoveRow` | `Table.removeRow` |
+| Write the file back | `chdef_grid_to_csv` | `Grid.ToCsv` | `Table.toCsv` |
+| What is wrong with the cells | `chdef_grid_issues` | `Grid.Issues` | `Table.issues` |
+| Which defaults leave their own range | `chdef_grid_defaults_out_of_range` | `Grid.DefaultsOutOfRange` | `Table.defaultsOutOfRange` |
+| The empty vocabulary | `chdef_vocabulary_new` | `ColumnVocabulary.Create` | `new ColumnVocabulary()` |
+| The Japanese vocabulary | `chdef_vocabulary_japanese` | `ColumnVocabulary.Japanese` | `ColumnVocabulary.japanese` |
+| Teach a CH spelling | `chdef_vocabulary_teach` | `ColumnVocabulary.Ch` | `ColumnVocabulary.ch` |
+| Teach a BF spelling | `chdef_vocabulary_teach` | `ColumnVocabulary.Bf` | `ColumnVocabulary.bf` |
+| The canonical CH column names | `chdef_column_name` | `ColumnVocabulary.ChColumnNames` | `ColumnVocabulary.chColumns` |
+| The canonical BF column names | `chdef_column_name` | `ColumnVocabulary.BfColumnNames` | `ColumnVocabulary.bfColumns` |
+| Every Issue code a build can report | `chdef_issue_code_name` | `IssueCode.All` | `issueCodes` |
 
 ## 4. Version
 

@@ -54,6 +54,17 @@ internal struct ChdefReading
     public double Value;
 }
 
+/// <summary>The declared range of a channel as physical values. A side
+/// the row leaves unspecified has its Has flag at 0.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ChdefRange
+{
+    public double Min;
+    public double Max;
+    public int HasMin;
+    public int HasMax;
+}
+
 /// <summary>One named bit of a channel. DefaultValue is 0 or 1, or -1 when
 /// the BF row names none and the bit keeps the parent channel's.</summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -77,7 +88,7 @@ internal static unsafe partial class Native
 {
     internal const string Library = "chdef_capi";
 
-    internal const uint CHDEF_ABI_VERSION = 6u;
+    internal const uint CHDEF_ABI_VERSION = 7u;
 
     internal const int CHDEF_OK = 0;
     internal const int CHDEF_ERR_HANDLE = -1;
@@ -264,12 +275,33 @@ internal static unsafe partial class Native
         nint handle, nuint index, ulong raw, byte* buf, nuint cap);
 
     [LibraryImport(Library)]
+    internal static partial int chdef_layout_channel_to_raw(
+        nint handle, nuint index, double value, ulong* outRaw);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_layout_channel_to_value(
+        nint handle, nuint index, ulong raw, double* outValue);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_layout_channel_fits_width(
+        nint handle, nuint index, double value, int* outFits);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_layout_channel_range(
+        nint handle, nuint index, ChdefRange* outRange);
+
+    [LibraryImport(Library)]
     internal static partial int chdef_value_parse(
         byte* text, nuint len, uint channel, ChdefValue* outValue);
 
     [LibraryImport(Library)]
     internal static partial int chdef_grid_parse(
         byte* bytes, nuint len, nint* outGrid, byte* errBuf, nuint errCap);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_grid_parse_with(
+        byte* bytes, nuint len, nint vocabulary,
+        nint* outGrid, byte* errBuf, nuint errCap);
 
     [LibraryImport(Library)]
     internal static partial void chdef_grid_free(nint handle);
@@ -307,6 +339,13 @@ internal static unsafe partial class Native
     [LibraryImport(Library)]
     internal static partial nuint chdef_grid_to_csv(
         nint handle, byte* buf, nuint cap);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_grid_issues(nint handle, nint* outIssues);
+
+    [LibraryImport(Library)]
+    internal static partial int chdef_grid_defaults_out_of_range(
+        nint handle, nint* outIssues);
 
     [LibraryImport(Library)]
     internal static partial ulong chdef_issue_count(nint handle);

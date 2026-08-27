@@ -99,6 +99,19 @@ grid.SetCell(0, 1, "4");
 Assert.Equal("number,bytes,memo\r\n1,4,first\r\n", grid.ToCsv());
 ```
 
+An editor wants to mark the cell, not print a sentence about it, so a
+finding carries the row and the column it is about.
+
+```csharp
+using var grid = Grid.Parse(
+    "number,bytes,type,lsb,min,max,default\n1,2,UI,1,0,100,150\n");
+var finding = Assert.Single(grid.DefaultsOutOfRange());
+
+Assert.Equal(IssueCode.ValueOutOfRange, finding.Code);
+Assert.Equal("default", grid.Header[finding.Col!.Value]);
+Assert.Equal("150", grid.Cell(finding.Row!.Value, finding.Col!.Value));
+```
+
 ## Where to look next
 
 - [The guide](https://github.com/ShortArrow/chdef/blob/main/docs/guide.md)

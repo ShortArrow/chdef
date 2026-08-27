@@ -162,6 +162,13 @@ public readonly struct Value
 }
 
 /// <summary>
+/// The declared range of a channel (docs/spec/conversion.md §8), resolved
+/// to physical values with the channel's lsb and offset. A side the row
+/// leaves unspecified is null.
+/// </summary>
+public readonly record struct DeclaredRange(double? Min, double? Max);
+
+/// <summary>
 /// A CH / BF definition set read into a frame layout. Dispose it once.
 /// </summary>
 public sealed unsafe class Definitions : IDisposable
@@ -412,6 +419,65 @@ public sealed unsafe class Definitions : IDisposable
             Native.chdef_layout_channel_render(Handle, (nuint)channelIndex, raw, buf, cap));
 
     /// <summary>
+    /// One physical value to the raw bit pattern of its channel's width
+    /// (docs/spec/conversion.md §2): rounded half away from zero and
+    /// clamped to the width, a negative result as its two's-complement
+    /// pattern. Null for a value that cannot be converted — NaN, infinite.
+    /// Clamping is silent here; <see cref="FitsWidth"/> is the ask.
+    /// </summary>
+    public ulong? ToRaw(int channelIndex, double value)
+    {
+        ulong raw;
+        var status = Native.chdef_layout_channel_to_raw(Handle, (nuint)channelIndex, value, &raw);
+        if (status == Native.CHDEF_ERR_VALUE)
+        {
+            return null;
+        }
+        Check(status);
+        return raw;
+    }
+
+    /// <summary>
+    /// One raw bit pattern to the physical value of its channel
+    /// (docs/spec/conversion.md §1): sign-extended for <c>SI</c>, then
+    /// scaled by lsb and moved by offset. Bits beyond the channel's width
+    /// are ignored.
+    /// </summary>
+    public double ToValue(int channelIndex, ulong raw)
+    {
+        double value;
+        Check(Native.chdef_layout_channel_to_value(Handle, (nuint)channelIndex, raw, &value));
+        return value;
+    }
+
+    /// <summary>
+    /// Whether the channel's width holds <paramref name="value"/> as given
+    /// (docs/spec/conversion.md §2) — the ask before sending, since a value
+    /// the width cannot hold is clamped. False for a value that cannot be
+    /// converted at all.
+    /// </summary>
+    public bool FitsWidth(int channelIndex, double value)
+    {
+        int fits;
+        Check(Native.chdef_layout_channel_fits_width(Handle, (nuint)channelIndex, value, &fits));
+        return fits != 0;
+    }
+
+    /// <summary>
+    /// The declared range of a channel as physical values, each bound
+    /// resolved with the channel's lsb and offset whichever notation the
+    /// row used.
+    /// </summary>
+    public DeclaredRange RangeOf(int channelIndex)
+    {
+        ChdefRange range;
+        Check(Native.chdef_layout_channel_range(Handle, (nuint)channelIndex, &range));
+        return new DeclaredRange(
+            range.HasMin != 0 ? range.Min : null,
+            range.HasMax != 0 ? range.Max : null);
+    }
+
+    /// <summary>
     /// Which of <paramref name="values"/> fall outside their channel's
     /// declared range (docs/spec/conversion.md §8). Nothing is changed and
     /// nothing is remembered: <see cref="Encode"/> behaves the same
@@ -616,7 +682,7 @@ public sealed unsafe class Definitions : IDisposable
         return bits;
     }
 
-    private static List<Issue> ReadIssues(nint handle)
+    internal static List<Issue> ReadIssues(nint handle)
     {
         var count = (int)Native.chdef_issue_count(handle);
         var issues = new List<Issue>(count);

@@ -9,6 +9,59 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [Unreleased]
+
+### Added
+- **Every binding carries the same surface.** `docs/spec/abi.md` §3 holds a
+  table, "The same surface, by name", giving each operation's name in C, in
+  .NET and in JavaScript. `crates/chdef-capi/tests/surface_parity.rs` reads
+  that table and fails when a binding lacks a name the table gives it, and
+  again when `abi.jp.md` lists different names.
+- **One value converts either way, from every binding.**
+  `chdef_layout_channel_to_raw` and `chdef_layout_channel_to_value` in the
+  C ABI; `Definitions.ToRaw`, a `ulong?` that is null for NaN and for the
+  infinities, and `Definitions.ToValue` in .NET; `Definitions.toRaw`, a
+  `bigint | undefined`, and `Definitions.toValue` in JavaScript.
+- **The width and range questions reach C and .NET.**
+  `chdef_layout_channel_fits_width` arrives with .NET
+  `Definitions.FitsWidth`, and `chdef_layout_channel_range` — answering
+  into the new `ChdefRange` — with `Definitions.RangeOf`, which hands back
+  the new record `DeclaredRange(double? Min, double? Max)`. JavaScript
+  already had `fitsWidth` and `rangeOf`.
+- **A grid can be read with a column vocabulary from C and .NET.**
+  `chdef_grid_parse_with`, and .NET `Grid.Parse(…, ColumnVocabulary?
+  vocabulary = null)`. `Table.parse` in JavaScript already took one.
+- **An editor can mark the cell.** `chdef_grid_issues` and
+  `chdef_grid_defaults_out_of_range`, with .NET `Grid.Issues()` and
+  `Grid.DefaultsOutOfRange()`; a finding names its row and its column, so
+  the cell it belongs to can be marked. JavaScript already had
+  `Table.issues` and `Table.defaultsOutOfRange`.
+- **JavaScript can name the canonical columns**, as .NET could:
+  `ColumnVocabulary.chColumns()` and `bfColumns()`, beside `ChColumnNames`
+  and `BfColumnNames`.
+- **The NuGet front page gained a "mark the cell" example**, executed by
+  `ReadmeTests.cs` as the others are. The npm front page gained a one-value
+  conversion under "Numbers".
+
+### Breaking
+- **`chdef_grid_parse` took the first record as the header, always.** It
+  now reads by the rule the layout parse uses
+  ([docs/spec/format.md](docs/spec/format.md) §2): the first record is the
+  header only when it names `number` in the vocabulary given, and otherwise
+  the file is read positionally with no header. A file whose first record
+  is not a header therefore has one more data row than before, and the row
+  numbers in findings match the cells. .NET `Grid.Parse` follows; the
+  JavaScript `Table` already behaved this way.
+- `CHDEF_ABI_VERSION` is 7, was 6. Symbols were added, none withdrawn.
+
+### Notes
+- Nothing in the `chdef` crate changed. The bindings reach functions that
+  were already there: `value_to_raw`, `raw_to_value_u64`, `fits_width`,
+  `min_value` and `max_value`, `ChTable::parse_bytes_with`,
+  `ChTable::channels` and `ChTable::defaults_out_of_range`.
+- The .NET test suite now runs on every push in CI (`ci.yml`), not only at
+  release.
+
 ## [0.0.15] - 2026-08-25
 
 ### Added
