@@ -2,7 +2,7 @@
 
 🌐 [English](./interchange.md) | **日本語**
 
-実装済み（0.0.15）: §1・§2 の JSON の形（`serde` feature。`interchange::Definitions` / `Readings` / `Grid::to_json`。chdef は値を組み立て、直列化は利用側が行う）と、§3 のゴールデンベクタおよびそれをクレート経由・`chdef-capi` の C ABI 経由・.NET バインディング経由・JavaScript バインディング経由で走らせるハーネス。§1・§2 の JSON に対する TypeScript 型の生成は未実装（WebAssembly バインディングが出す宣言はその API を記述するもので、別物）。
+実装済み（0.0.16）: §1・§2 の JSON の形（`serde` feature。`interchange::Definitions` / `Readings` / `Grid::to_json`。chdef は値を組み立て、直列化は利用側が行う）と、§3 のゴールデンベクタおよびそれをクレート経由・`chdef-capi` の C ABI 経由・.NET バインディング経由・JavaScript バインディング経由・`chdef-gen` が展開する表経由で走らせるハーネス。§1・§2 の JSON に対する TypeScript 型の生成は未実装（WebAssembly バインディングが出す宣言はその API を記述するもので、別物）。
 
 ## 1. JSON
 
@@ -49,7 +49,7 @@
 
 行の種類は英語版 §3 のとおり: `B`（以降のバイト順）、`E`（encode。4 つ目の欄があれば、その encode が出す Issue とそれが指すチャネルを順序どおり契約する。無ければ「出ない」）、`D`（decode）、`F`（BF のビット値）、`L`（レイアウト）、`P`（その入力が出す Issue。`-` で「無し」、行番号の `-` は「行を持たない Issue」）。`P` は個数まで契約するが、Issue が届く順序は未規定で契約しない。`P` 行の無い入力は Issue を出してはならない。
 
-ハーネスは 4 回走る: クレートの Rust API 経由、`chdef-capi` の C ABI 経由（ADR-0021）、.NET バインディング経由（ADR-0022）、JavaScript バインディング経由（ADR-0030）。利用側が取りうる全ての経路が、第 2 の実装ではなく同一の実装であることを検証するため。セットの全ての行が、全ての経路で検査される。
+ハーネスは 5 回走る: クレートの Rust API 経由、`chdef-capi` の C ABI 経由（ADR-0021）、.NET バインディング経由（ADR-0022）、JavaScript バインディング経由（ADR-0030）、そして `crates/chdef-gen/tests/vectors.rs` で、`chdef-gen` が展開し `chdef-core` が読む表経由（ADR-0034）。利用側が取りうる全ての経路が、第 2 の実装ではなく同一の実装であることを検証するため。セットの全ての行が検査されるのは前の 4 経路。デバイスは物理値を持たないので、生成された表が答えるのは `L`・`D`・`E -` の行だけ。この回は物理値の `E` 行と `F` 行を読み飛ばし、その本数を告げる。
 
 本リポジトリのセット: `basic`（英語版の例）、`widths`（8 つの全ての幅・両バイト順・§2 がクランプする境界値）、`scaling`（全チャンネルが非ゼロの `LSB` と `オフセット` を持つ）、`bitfields`（§4 の既定値合成と §6 の名前つきビット）、`diagnostics`（わざと壊した定義を `P` 行で契約する）。
 

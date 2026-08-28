@@ -1,6 +1,6 @@
 {
   "name": "@shortarrow/chdef",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Read CH / BF definitions, describe the frame layout, encode and decode frames, from JavaScript and TypeScript",
   "license": "MIT OR Apache-2.0",
   "repository": {

@@ -23,8 +23,9 @@ allowed. Every one is listed here.
 | 0.0.12 → 0.0.13 | nothing |
 | 0.0.13 → 0.0.14 | nothing |
 | 0.0.14 → 0.0.15 | nothing; a JavaScript binding is new on npm |
+| 0.0.15 → 0.0.16 | **`chdef_grid_parse` / `Grid.Parse` read a header only when there is one**; nothing for a crate consumer |
 
-`CHDEF_ABI_VERSION` went 2 → 3 → 4 → 5 → 6 across these. The .NET package
+`CHDEF_ABI_VERSION` went 2 → 3 → 4 → 5 → 6 → 7 across these. The .NET package
 carries its own native library, so that pairing is never yours to manage.
 
 ## 0.0.7 — a vocabulary is data
@@ -127,3 +128,27 @@ NuGet one, and the repository readme points at both.
 `BitReading` in the .NET binding gained `Name`, so a decoded bit carries
 its name the way the Rust side always did. Positional deconstruction of
 that record takes four elements.
+
+## 0.0.16 — the grid reads a header, or reads none
+
+`chdef_grid_parse` (C) and `Grid.Parse` (.NET) took the first record as the
+header, always. They now read by the rule the layout parse has always used
+([format.md](spec/format.md) §2): the first record is the header only when
+it names `number` in the vocabulary given, and otherwise the file is read
+positionally with no header at all.
+
+**A file whose first record is not a header gains one data row**, and the
+row numbers its findings carry move with it. A file that does have a header
+reads exactly as before. If you index rows, or assert on the row a finding
+names, that is the line to look at.
+
+`CHDEF_ABI_VERSION` is 7, was 6. Symbols were added and none withdrawn, so
+the check a caller makes — the library is at least what its declarations
+need — passes unchanged.
+
+JavaScript is unaffected: `Table.parse` already behaved this way.
+
+Nothing to change for a crate consumer. New beside it, if you want them:
+`chdef-core`, the raw-only rules a device can hold — `no_std`, no
+dependency, no allocator, no floating point — and `chdef-gen`, which
+expands a definition into a constant table as Rust source or a C header.

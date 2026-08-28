@@ -9,7 +9,7 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
-## [Unreleased]
+## [0.0.16] - 2026-08-28
 
 ### Added
 - **Every binding carries the same surface.** `docs/spec/abi.md` §3 holds a

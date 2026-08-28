@@ -2,11 +2,12 @@
 
 🌐 **English** | [日本語](./interchange.jp.md)
 
-Implemented (0.0.15): the JSON shapes of §1 and §2 behind the `serde`
+Implemented (0.0.16): the JSON shapes of §1 and §2 behind the `serde`
 feature (`interchange::Definitions` / `Readings` / `Grid::to_json`; chdef
 builds the value, the consumer serialises it), and the golden vectors of
 §3 with the harness that runs them through the crate, through the C ABI of
-`chdef-capi`, through the .NET binding and through the JavaScript binding.
+`chdef-capi`, through the .NET binding, through the JavaScript binding and
+through the table `chdef-gen` expands.
 TypeScript declarations for the JSON shapes of §1 and §2 are not
 generated; the WebAssembly binding's own declarations describe its API,
 which is a different thing.
@@ -103,11 +104,16 @@ P ch -
   source with no `P` line must produce no Issues.
 - Every vector set has at least one `E`, one `D` and one `L` line.
 
-The harness runs four times: over the crate's Rust API, over the C ABI of
-`chdef-capi` (ADR-0021), over the .NET binding (ADR-0022) and over the
-JavaScript binding (ADR-0030), so every path a consumer can take is
+The harness runs five times: over the crate's Rust API, over the C ABI of
+`chdef-capi` (ADR-0021), over the .NET binding (ADR-0022), over the
+JavaScript binding (ADR-0030), and — in
+`crates/chdef-gen/tests/vectors.rs` — over a table `chdef-gen` expanded
+and `chdef-core` reads (ADR-0034), so every path a consumer can take is
 verified to be the same implementation rather than a second one. Every
-line of a set is checked on every path.
+line of a set is checked on the first four paths. A device holds no
+physical values, so the generated table answers only the `L`, `D` and
+`E -` lines; that run skips the physical-value `E` lines and the `F`
+lines, and says how many it skipped.
 
 The sets in this repository: `basic` (the example above), `widths` (all
 eight legal widths at both byte orders, at the boundaries
