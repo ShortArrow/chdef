@@ -48,13 +48,6 @@ Every example in the Rust readme is compiled and run by `cargo test`;
 every example in the .NET readme is a test in `Chdef.Tests`, checked
 against the readme by the workspace. A page that cannot rot is the point.
 
-## Origin
-
-The CH / BF concept was extracted from `chbridge-core` of chbridge, an
-internal telemetry bridge. Definition files themselves (real-device
-channel tables) belong to each consumer; this repository holds synthetic
-data only.
-
 ## License
 
 Licensed under either of
