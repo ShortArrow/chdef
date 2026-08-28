@@ -23,12 +23,12 @@ the same file the same way.
 
 | Package | Version | Calling from | What it is | Install |
 |---|---|---|---|---|
-| [`chdef`](./crates/chdef/README.md) | [![crates.io](https://img.shields.io/crates.io/v/chdef)](https://crates.io/crates/chdef) | Rust | the library | `cargo add chdef` |
-| [`chdef-capi`](./crates/chdef-capi/README.md) | [![crates.io](https://img.shields.io/crates.io/v/chdef-capi)](https://crates.io/crates/chdef-capi) | C, C++ | a C ABI over it | `cargo add chdef-capi` |
+| [`chdef`](./crates/chdef/README.md) | [![crates.io](https://img.shields.io/crates/v/chdef)](https://crates.io/crates/chdef) | Rust | the library | `cargo add chdef` |
+| [`chdef-capi`](./crates/chdef-capi/README.md) | [![crates.io](https://img.shields.io/crates/v/chdef-capi)](https://crates.io/crates/chdef-capi) | C, C++ | a C ABI over it | `cargo add chdef-capi` |
 | [`Chdef`](./bindings/dotnet/Chdef/README.md) | [![nuget](https://img.shields.io/nuget/v/Chdef)](https://www.nuget.org/packages/Chdef) | C#, .NET | the .NET binding, native libraries included | `dotnet add package Chdef` |
 | [`@shortarrow/chdef`](./bindings/js/README.md) | [![npm](https://img.shields.io/npm/v/@shortarrow/chdef)](https://www.npmjs.com/package/@shortarrow/chdef) | JavaScript, TypeScript | the JavaScript binding, WebAssembly and TypeScript declarations included | `npm install @shortarrow/chdef` |
-| [`chdef-core`](./crates/chdef-core/README.md) | [![crates.io](https://img.shields.io/crates.io/v/chdef-core)](https://crates.io/crates/chdef-core) | firmware in Rust or C | the raw-only rules for a device, `no_std`, with C entry points | `cargo add chdef-core` |
-| [`chdef-gen`](./crates/chdef-gen/README.md) | [![crates.io](https://img.shields.io/crates.io/v/chdef-gen)](https://crates.io/crates/chdef-gen) | a firmware build, either language | expands a definition into a constant table for Rust or C | `cargo install chdef-gen` |
+| [`chdef-core`](./crates/chdef-core/README.md) | [![crates.io](https://img.shields.io/crates/v/chdef-core)](https://crates.io/crates/chdef-core) | firmware in Rust or C | the raw-only rules for a device, `no_std`, with C entry points | `cargo add chdef-core` |
+| [`chdef-gen`](./crates/chdef-gen/README.md) | [![crates.io](https://img.shields.io/crates/v/chdef-gen)](https://crates.io/crates/chdef-gen) | a firmware build, either language | expands a definition into a constant table for Rust or C | `cargo install chdef-gen` |
 
 Each has its own readme, aimed at the language you are calling from. The
 C ABI carries every rule the specification states, so a consumer in C or
