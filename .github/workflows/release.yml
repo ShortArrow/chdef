@@ -10,7 +10,8 @@ name: Release
 #
 #   guard ┬→ test (matrix) ──┬→ publish-crates ─┬→ release
 #         ├→ javascript ────┼→ publish-nuget ──┤
-#         └→ publish-gate ┬─┴→ publish-npm ────┘
+#         ├→ embedded ──────┼→ publish-npm ────┘
+#         └→ publish-gate ┬─┘
 #                         └→ native (matrix) ─┘
 #
 # 1. guard:          asserts that the workspace `Cargo.toml` at the tagged
@@ -23,14 +24,17 @@ name: Release
 #                    the C ABI and the binding.
 # 2b. javascript:    the same vectors through the WebAssembly binding, and
 #                    every example on its npm front page.
+# 2c. embedded:      the core and a generated table built for
+#                    thumbv7em-none-eabihf, so the bare-target claim is
+#                    proved on the commit being published.
 # 3. publish-gate:   parses the head commit's message line by line and
 #                    outputs `publish=true|false`. Only a STANDALONE
 #                    `[skip publish]` line counts as a skip; a mention of
 #                    the token inside a sentence does not. Runs beside the
 #                    test matrix so it does not lengthen the path.
 # 4. publish-crates: OIDC via rust-lang/crates-io-auth-action, then
-#                    `cargo publish` for chdef and chdef-capi in
-#                    dependency order.
+#                    `cargo publish` for chdef-core, chdef, chdef-capi and
+#                    chdef-gen in dependency order.
 # 5. native:         builds the C ABI on a runner of each shipped
 #                    runtime's own OS and architecture.
 # 6. publish-nuget:  collects those libraries, packs them into the
@@ -185,6 +189,22 @@ jobs:
           node build.mjs
           npm test
 
+  embedded:
+    # The core claims to run without std, an allocator or a float, and only a
+    # build for a bare target proves it; the generated table must compile there.
+    name: Build for a bare target
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: thumbv7em-none-eabihf
+      - name: Build the core and the generated table for thumbv7em-none-eabihf
+        run: bash scripts/embedded-smoke.sh
+
   publish-npm:
     # npm reads the job's OIDC token, so nothing long-lived is stored.
     # npmjs.com needs a trusted publisher configured once for this
@@ -235,7 +255,7 @@ jobs:
     # cutting a release means shipping it; skipping is the exception that
     # must be spelled out.
     name: Publish to crates.io (OIDC)
-    needs: [guard, test, publish-gate]
+    needs: [guard, test, embedded, publish-gate]
     if: ${{ needs.publish-gate.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
     permissions:
@@ -253,11 +273,11 @@ jobs:
         # the "Node.js 20 actions are deprecated" warning.
         uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
 
-      - name: Publish chdef, then chdef-capi
+      - name: Publish the crates in dependency order
         # A version already on crates.io is skipped, so re-running a
-        # partially-failed job stays green. chdef-capi depends on chdef by
-        # version, so the order matters and `cargo publish` waits for the
-        # index between the two.
+        # partially-failed job stays green. Each crate depends by version on
+        # one published before it, so the order matters and `cargo publish`
+        # waits for the index between them.
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
           VERSION: ${{ needs.guard.outputs.version }}
@@ -274,8 +294,10 @@ jobs:
               cargo publish -p "$crate"
             fi
           }
+          publish chdef-core
           publish chdef
           publish chdef-capi
+          publish chdef-gen
 
   native:
     # Each runtime is built on a runner of the same OS and architecture.

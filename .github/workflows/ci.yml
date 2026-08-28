@@ -76,6 +76,22 @@ jobs:
           CHDEF_NATIVE="$native" dotnet test bindings/dotnet/Chdef.slnx \
             --configuration Release --no-restore
 
+  embedded:
+    # The core claims to run without std, an allocator or a float, and only a
+    # build for a bare target proves it; the generated table must compile there.
+    name: Build for a bare target
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the core and the generated table for thumbv7em-none-eabihf
+        run: bash scripts/embedded-smoke.sh
+
   lint:
     name: Lint (fmt + clippy)
     runs-on: ubuntu-latest
