@@ -15,6 +15,7 @@ starts with the scope that the current release actually implements.
 | [editing.md](./editing.md) | The Table stage as the editing substrate: cell / row edits, typed insertion, renumbering, the round-trip guarantee |
 | [interchange.md](./interchange.md) | JSON output shape and the golden-vector format |
 | [abi.md](./abi.md) | What the C ABI and the .NET binding carry, and the conventions they carry it by |
+| [embedded.md](./embedded.md) | What a device holds instead of the file: the raw-only core, the generated table, the C entry points |
 
 ## Terms
 

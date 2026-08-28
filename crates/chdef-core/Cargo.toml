@@ -1,0 +1,21 @@
+[package]
+name = "chdef-core"
+description = "The raw-only rules of chdef for a device: positions, raw bytes, defaults and CRC, with no allocator and no floating point"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["no-std", "embedded", "telemetry", "crc", "codec"]
+categories = ["embedded", "no-std", "encoding"]
+
+# A firmware links the static library, which the release build produces with
+# `cargo rustc --crate-type staticlib`. Declaring it here instead would make
+# every host build of this `no_std` crate — the tests included — fail for the
+# panic handler a linked artifact needs and a host must not carry.
+[lib]
+crate-type = ["rlib"]
+
+[features]
+c = []

@@ -42,6 +42,23 @@ tag, published to crates.io.
 - **The NuGet front page gained a "mark the cell" example**, executed by
   `ReadmeTests.cs` as the others are. The npm front page gained a one-value
   conversion under "Numbers".
+- **`chdef-core`, the raw-only rules a device can hold.** A `no_std` crate
+  with no dependency, no allocator and no floating point, carrying the
+  positions, raw ↔ bytes at every width and both byte orders, the merged
+  defaults and the CRC recipes — with the C entry points
+  `chdef_core_read`, `chdef_core_write`, `chdef_core_fill_defaults`,
+  `chdef_core_seal` and `chdef_core_verify`, and a static-library build
+  for `thumbv7em-none-eabihf`. `chdef` now calls it for the same
+  arithmetic, so a device and a host agree by running one implementation
+  rather than by comparing two (ADR-0034, "The target holds the layout,
+  not the file").
+- **`chdef-gen` expands a definition into a constant table.** It reads a
+  CH and an optional BF definition the way the host reads them and writes
+  the layout out as Rust source (`--rust`) or as a C header (`--c`). A
+  definition with any Issue is refused: a row the host would load with a
+  warning does not reach a device, where nothing can warn.
+- **`docs/spec/embedded.md`** states what a device holds instead of the
+  file: the raw-only core, the generated table, and the C entry points.
 
 ### Breaking
 - **`chdef_grid_parse` took the first record as the header, always.** It
@@ -55,6 +72,9 @@ tag, published to crates.io.
 - `CHDEF_ABI_VERSION` is 7, was 6. Symbols were added, none withdrawn.
 
 ### Notes
+- Physical values, `lsb` and `offset` stay on the host; the target is
+  raw-only. `chdef-gen` does not carry them into the table, and
+  `chdef-core` has no floating point to apply them with.
 - Nothing in the `chdef` crate changed. The bindings reach functions that
   were already there: `value_to_raw`, `raw_to_value_u64`, `fits_width`,
   `min_value` and `max_value`, `ChTable::parse_bytes_with`,

@@ -11,6 +11,16 @@ pub enum Endian {
     Big,
 }
 
+/// The same order, as the core states it: the core carries the arithmetic
+/// and must not carry chdef's serde derives, so the two enums stay
+/// separate and meet here.
+fn core_endian(endian: Endian) -> chdef_core::Endian {
+    match endian {
+        Endian::Little => chdef_core::Endian::Little,
+        Endian::Big => chdef_core::Endian::Big,
+    }
+}
+
 /// Which of a channel's two readings the consumer shows: the physical
 /// value, or the raw bit pattern. The `format` column spells these `DEC`
 /// and `HEX` — the base each is conventionally printed in — but what the
@@ -476,10 +486,9 @@ impl ChannelDef {
     ///
     /// [`value_to_bytes_endian`]: ChannelDef::value_to_bytes_endian
     pub fn raw_to_bytes_endian(&self, raw: u64, endian: Endian) -> Vec<u8> {
-        let mut bytes = raw.to_le_bytes()[..self.width()].to_vec();
-        if endian == Endian::Big {
-            bytes.reverse();
-        }
+        let mut bytes = vec![0u8; self.width()];
+        let written = chdef_core::write_raw(&mut bytes, self.width(), core_endian(endian), raw);
+        debug_assert!(written);
         bytes
     }
 
@@ -489,21 +498,7 @@ impl ChannelDef {
     ///
     /// [`raw_to_bytes_endian`]: ChannelDef::raw_to_bytes_endian
     pub fn raw_from_bytes_endian(&self, bytes: &[u8], endian: Endian) -> u64 {
-        let n = bytes.len().min(self.width());
-        let mut raw = 0u64;
-        match endian {
-            Endian::Little => {
-                for i in (0..n).rev() {
-                    raw = (raw << 8) | bytes[i] as u64;
-                }
-            }
-            Endian::Big => {
-                for &b in &bytes[..n] {
-                    raw = (raw << 8) | b as u64;
-                }
-            }
-        }
-        raw
+        chdef_core::read_raw(bytes, self.width(), core_endian(endian))
     }
 
     /// The reading this channel's `format` column selects, as a [`Value`]

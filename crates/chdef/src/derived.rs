@@ -5,74 +5,7 @@
 //! and has no standing the numbers lack (ADR-0029). Nothing here fills a
 //! frame on its own — `ChannelLayout::seal` is the call that does.
 
-/// The Rocksoft model: the six numbers that decide a CRC completely.
-///
-/// `refin` reflects each input byte before it enters the register and
-/// `refout` reflects the register at the end, which together are what a
-/// right-shifting implementation does.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Crc {
-    /// Bits in the result: 8, 16, 32 or 64.
-    pub width: u32,
-    /// The generator polynomial, top bit implicit.
-    pub poly: u64,
-    /// The register's starting value.
-    pub init: u64,
-    /// Whether each input byte is reflected.
-    pub refin: bool,
-    /// Whether the final register is reflected.
-    pub refout: bool,
-    /// The value XORed into the final register.
-    pub xorout: u64,
-}
-
-impl Crc {
-    /// The check value of this parameter set: its CRC of the ASCII bytes
-    /// `123456789`, the self-test every CRC catalogue prints.
-    pub fn check(self) -> u64 {
-        self.of(b"123456789")
-    }
-
-    /// The CRC of `data`.
-    pub fn of(self, data: &[u8]) -> u64 {
-        let top = 1u64 << (self.width - 1);
-        let mask = if self.width >= 64 {
-            u64::MAX
-        } else {
-            (1u64 << self.width) - 1
-        };
-
-        let mut reg = self.init & mask;
-        for byte in data {
-            let byte = if self.refin {
-                reflect(*byte as u64, 8)
-            } else {
-                *byte as u64
-            };
-            reg ^= byte << (self.width - 8);
-            for _ in 0..8 {
-                reg = if reg & top != 0 {
-                    ((reg << 1) ^ self.poly) & mask
-                } else {
-                    (reg << 1) & mask
-                };
-            }
-        }
-        if self.refout {
-            reg = reflect(reg, self.width);
-        }
-        (reg ^ self.xorout) & mask
-    }
-}
-
-fn reflect(mut value: u64, width: u32) -> u64 {
-    let mut out = 0;
-    for _ in 0..width {
-        out = (out << 1) | (value & 1);
-        value >>= 1;
-    }
-    out
-}
+pub use chdef_core::Crc;
 
 /// What a recipe computes over the bytes it covers.
 ///

@@ -9,6 +9,9 @@ done.
 Every call named here exists in Rust, across the C ABI, and in the .NET
 and JavaScript bindings, spelled the way each language spells things.
 The examples are Rust; each binding's own front page shows its spelling.
+A reader writing firmware takes none of the four: a device holds the
+layout, not the file, and [spec/embedded.md](./spec/embedded.md) says what
+it holds instead.
 
 ## The shape of it
 

@@ -14,6 +14,7 @@ chdef が読む定義ファイル、計算するレイアウト、行う変換�
 | [editing.jp.md](./editing.jp.md) | 編集の土台としての Table 段階: セル・行の編集、型付き挿入、番号の付け替え、往復の保証 |
 | [interchange.jp.md](./interchange.jp.md) | JSON 出力の形、ゴールデンベクタの書式 |
 | [abi.jp.md](./abi.jp.md) | C ABI と .NET バインディングが何を運ぶか、どの規約で運ぶか |
+| [embedded.jp.md](./embedded.jp.md) | 機器がファイルの代わりに何を持つか: 生値だけの中核、生成された定数表、C の入口 |
 
 ## 用語
 
