@@ -18,6 +18,8 @@
 | [`chdef-capi`](../crates/chdef-capi/include/chdef.h) | その上の C ABI | `cargo add chdef-capi` |
 | [`Chdef`](../bindings/dotnet/Chdef/README.md) | .NET バインディング（ネイティブ同梱） | `dotnet add package Chdef` |
 | [`chdef`](../bindings/js/README.md) | JavaScript バインディング（WebAssembly と TypeScript 宣言を同梱） | `npm install @shortarrow/chdef` |
+| [`chdef-core`](../crates/chdef-core/README.md) | 機器のための生値だけの規則。`no_std`、C の入口つき | `cargo add chdef-core` |
+| [`chdef-gen`](../crates/chdef-gen/README.md) | 定義を Rust または C の定数表に展開する | `cargo install chdef-gen` |
 
 それぞれが、呼び出す言語に向けた README を持つ。C ABI は仕様が定める規則を全て運ぶので、C や C# の利用側がそれを 2 度書くことはない。JavaScript バインディングは同じ規則に WebAssembly 経由で届く。
 

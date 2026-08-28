@@ -1,0 +1,19 @@
+[package]
+name = "chdef-gen"
+description = "Expand a CH / BF definition into a constant table for a device: Rust source or a C header over chdef-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["embedded", "no-std", "codegen", "telemetry", "csv"]
+categories = ["command-line-utilities", "embedded", "development-tools::build-utils"]
+
+[dependencies]
+chdef = { workspace = true }
+chdef-core = { workspace = true }
+
+[[bin]]
+name = "chdef-gen"
+path = "src/main.rs"

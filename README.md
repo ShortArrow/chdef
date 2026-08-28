@@ -27,6 +27,8 @@ the same file the same way.
 | [`chdef-capi`](./crates/chdef-capi/include/chdef.h) | a C ABI over it | `cargo add chdef-capi` |
 | [`Chdef`](./bindings/dotnet/Chdef/README.md) | the .NET binding, native libraries included | `dotnet add package Chdef` |
 | [`chdef`](./bindings/js/README.md) | the JavaScript binding, WebAssembly and TypeScript declarations included | `npm install @shortarrow/chdef` |
+| [`chdef-core`](./crates/chdef-core/README.md) | the raw-only rules for a device, `no_std`, with C entry points | `cargo add chdef-core` |
+| [`chdef-gen`](./crates/chdef-gen/README.md) | expands a definition into a constant table for Rust or C | `cargo install chdef-gen` |
 
 Each has its own readme, aimed at the language you are calling from. The
 C ABI carries every rule the specification states, so a consumer in C or

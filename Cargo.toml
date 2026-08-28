@@ -4,6 +4,7 @@ members = [
     "crates/chdef",
     "crates/chdef-capi",
     "crates/chdef-wasm",
+    "crates/chdef-gen",
 ]
 resolver = "2"
 
