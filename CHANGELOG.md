@@ -9,6 +9,23 @@ The 0.0.x line treats each `0.0.x → 0.0.(x+1)` bump as MAJOR-equivalent
 announced under `### Breaking`. The trunk is `main`; a release is a `vX.Y.Z`
 tag, published to crates.io.
 
+## [Unreleased]
+
+### Added
+- **`chdef-macros`: `chdef_macros::layout!("ch.csv")` expands a definition
+  in place** — the same items `chdef-gen --rust` writes, so a Rust firmware
+  crate carries no generated file at all. The options follow the CSV path
+  the way the command's follow it: `bf = "bf.csv"`, `endian = big`,
+  `japanese`. The path is relative to the invoking crate's
+  `CARGO_MANIFEST_DIR`, the crate rebuilds when the CSV changes, and a
+  refused definition is a compile error carrying the same findings.
+
+### Notes
+- The spelling is `chdef_macros::layout!` and not `chdef::layout!`. The
+  macro parses the file through `chdef`, so `chdef` cannot depend on the
+  macro in turn; Cargo forbids the cycle (ADR-0035, "The layout macro is
+  its own crate, beside the core").
+
 ## [0.0.16] - 2026-08-28
 
 ### Added

@@ -1,0 +1,15 @@
+# A crate that must not compile: the definition it names carries findings.
+# The empty `[workspace]` table keeps the repository's workspace from
+# adopting it, so `cargo test` never builds it and only `tests/refused.rs`
+# does.
+[package]
+name = "chdef-macros-refused"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+chdef-macros = { path = "../.." }
+chdef-core = { path = "../../../chdef-core" }

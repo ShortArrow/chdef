@@ -5,6 +5,7 @@ members = [
     "crates/chdef-capi",
     "crates/chdef-wasm",
     "crates/chdef-gen",
+    "crates/chdef-macros",
 ]
 resolver = "2"
 
@@ -22,6 +23,9 @@ chdef = { path = "crates/chdef", version = "0.0.16" }
 # The core is released beside the crate that delegates to it, so it depends
 # on exactly that version. `cargo publish` refuses a bare path dependency.
 chdef-core = { path = "crates/chdef-core", version = "0.0.16" }
+# The macro is released beside the generator whose output it expands, so it
+# depends on exactly that version. `cargo publish` refuses a bare path dependency.
+chdef-gen = { path = "crates/chdef-gen", version = "0.0.16" }
 serde = { version = "1", features = ["derive"] }
 csv = "1.3"
 thiserror = "2"

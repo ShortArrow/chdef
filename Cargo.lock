@@ -45,6 +45,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chdef-macros"
+version = "0.0.16"
+dependencies = [
+ "chdef",
+ "chdef-core",
+ "chdef-gen",
+]
+
+[[package]]
 name = "chdef-wasm"
 version = "0.0.16"
 dependencies = [

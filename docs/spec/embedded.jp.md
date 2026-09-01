@@ -2,7 +2,7 @@
 
 🌐 [English](./embedded.md) | **日本語**
 
-実装済み（0.0.16）: 生値だけを扱う中核（`chdef-core`）— 位置、全ての幅と両方のバイト順での生値 ↔ バイト列、§4 の既定値の合成、[format.jp.md §6](./format.jp.md) の CRC レシピ — を、アロケータも浮動小数点も持たない `no_std` クレートとして。定義を Rust または C の定数表に展開する生成器（`chdef-gen`）。および中核の C 入口を静的ライブラリとしてビルドしたもの。未実装: ターゲット上の物理値（§3）。
+実装済み（0.0.17）: 生値だけを扱う中核（`chdef-core`）— 位置、全ての幅と両方のバイト順での生値 ↔ バイト列、§4 の既定値の合成、[format.jp.md §6](./format.jp.md) の CRC レシピ — を、アロケータも浮動小数点も持たない `no_std` クレートとして。定義を Rust または C の定数表に展開する生成器（`chdef-gen`）と、その場に展開するマクロ（`chdef-macros`）。および中核の C 入口を静的ライブラリとしてビルドしたもの。未実装: ターゲット上の物理値（§3）。
 
 ## 1. ターゲットで動くもの
 
@@ -27,6 +27,33 @@
 
 - `--rust`: `LAYOUT: chdef_core::Layout` と、チャンネルごとの定数 1 つずつを宣言する Rust のソース。
 - `--c`: 同じものを `static const` の表として宣言し、中核の C 入口が取る `CHDEF_LAYOUT` を置く C のヘッダ。
+
+Rust のクレートはファイルを省いてよい。`chdef-macros` クレートの `chdef_macros::layout!("ch.csv")` が、同じ項目をその場に展開する。パスは呼び出し側クレートの `CARGO_MANIFEST_DIR` からの相対。`bf = "bf.csv"`、`endian = big`、`japanese` は、コマンドのオプションと同じように CSV のパスに続ける。CSV が変わればクレートは再ビルドされ、拒まれた定義は同じ指摘を運ぶコンパイルエラーになる。
+
+2 つの経路が共有するのはファイルと規則で、それ以外は何も共有しない:
+
+```mermaid
+flowchart LR
+  subgraph host["ホスト — 実行時"]
+    direction LR
+    csv1["ch.csv, bf.csv"] --> parse["chdef: parse"] --> rows["Rows"] --> layout["Layout"]
+    layout --> uses["物理値、診断、編集"]
+  end
+  subgraph build["ファームウェアのビルド — コンパイル時"]
+    direction LR
+    csv2["ch.csv, bf.csv"] --> gen["chdef-gen --rust / --c<br/>または chdef_macros::layout!"]
+    gen --> table["const LAYOUT<br/>番号、位置、幅、<br/>マージ済み既定値、CRC の範囲"]
+    gen -- "Issue が 1 つでも" --> refused["ビルド失敗。機器には何も届かない"]
+  end
+  subgraph device["機器 — 実行時"]
+    direction LR
+    rodata["表。main が走る前から Flash にある"] --> core["chdef-core: read, write,<br/>fill_defaults, seal, verify"]
+  end
+  table --> rodata
+  layout -. "同じ演算、実装は 1 つ" .- core
+```
+
+つまり機器は、ホストが parse を終えて到達する地点 — レイアウト — から始まる。ホストだけが使うものを除いて。起動時に読み込むものは無く、表はリンカが置いたデータ。
 
 定数が持つのは、チャンネルごとに番号・位置・幅・合成済みの既定値。派生チャンネルごとに、どの枠を埋めるか、CRC の 6 つのパラメータ、そのレシピが覆うバイト範囲 — チャンネル番号から位置へ解決済みのもの。名前、単位、`lsb`、`offset`、`min`、`max` その他の列は運ばない。ターゲットが使わないから。
 

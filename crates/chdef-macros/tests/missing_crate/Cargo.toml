@@ -1,0 +1,14 @@
+# A crate that must not compile: the definition it names is not there.
+# The empty `[workspace]` table keeps the repository's workspace from
+# adopting it.
+[package]
+name = "chdef-macros-missing"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+chdef-macros = { path = "../.." }
+chdef-core = { path = "../../../chdef-core" }

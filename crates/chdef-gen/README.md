@@ -2,7 +2,9 @@
 
 A CH / BF definition in, a constant table out: Rust source declaring a
 `chdef_core::Layout`, or a C header declaring the same tables and a
-`CHDEF_LAYOUT`. The firmware build runs it; the device never sees a CSV.
+`CHDEF_LAYOUT`. The firmware build runs it; the device never sees a CSV. A Rust crate
+that would rather not carry the generated file can expand the same
+items in place with [`chdef-macros`](../chdef-macros/README.md).
 
     chdef-gen --ch ch.csv [--bf bf.csv] [--endian little|big] [--japanese] \
         [--rust layout.rs] [--c layout.h]

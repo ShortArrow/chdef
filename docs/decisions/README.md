@@ -39,3 +39,4 @@ specification and the README never point back at an ADR.
 | [0032](./0032-a-bit-pattern-crosses-as-a-bigint.md) | 2026-08-25 | A bit pattern crosses to JavaScript as a bigint | Accepted |
 | [0033](./0033-every-binding-carries-the-same-surface.md) | 2026-08-28 | Every binding carries the same surface, and a test holds them to it | Accepted |
 | [0034](./0034-the-target-holds-the-layout-not-the-file.md) | 2026-08-28 | The target holds the layout, not the file | Accepted |
+| [0035](./0035-the-macro-is-its-own-crate.md) | 2026-09-01 | The layout macro is its own crate, beside the core | Accepted |

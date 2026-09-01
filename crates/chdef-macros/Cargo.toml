@@ -1,0 +1,22 @@
+[package]
+name = "chdef-macros"
+description = "Expand a CH / BF definition into a constant table in place: `layout!(\"ch.csv\")` over chdef-gen and chdef-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["embedded", "no-std", "proc-macro", "codegen", "csv"]
+categories = ["embedded", "development-tools::procedural-macro-helpers"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+chdef = { workspace = true }
+chdef-gen = { workspace = true }
+# `chdef_gen::model` takes a `chdef_core::Endian`, so the macro has to name
+# the type to call it. The expansion's own `chdef_core::…` items still come
+# from the invoking crate's dependency, not from this one.
+chdef-core = { workspace = true }

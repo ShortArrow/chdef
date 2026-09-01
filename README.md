@@ -29,6 +29,7 @@ the same file the same way.
 | [`@shortarrow/chdef`](./bindings/js/README.md) | [![npm](https://img.shields.io/npm/v/@shortarrow/chdef)](https://www.npmjs.com/package/@shortarrow/chdef) | JavaScript, TypeScript | the JavaScript binding, WebAssembly and TypeScript declarations included | `npm install @shortarrow/chdef` |
 | [`chdef-core`](./crates/chdef-core/README.md) | [![crates.io](https://img.shields.io/crates/v/chdef-core)](https://crates.io/crates/chdef-core) | firmware in Rust or C | the raw-only rules for a device, `no_std`, with C entry points | `cargo add chdef-core` |
 | [`chdef-gen`](./crates/chdef-gen/README.md) | [![crates.io](https://img.shields.io/crates/v/chdef-gen)](https://crates.io/crates/chdef-gen) | a firmware build, either language | expands a definition into a constant table for Rust or C | `cargo install chdef-gen` |
+| [`chdef-macros`](./crates/chdef-macros/README.md) | [![crates.io](https://img.shields.io/crates/v/chdef-macros)](https://crates.io/crates/chdef-macros) | firmware in Rust | expands a definition in place, as a macro | `cargo add chdef-macros` |
 
 Each has its own readme, aimed at the language you are calling from. The
 C ABI carries every rule the specification states, so a consumer in C or
