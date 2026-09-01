@@ -66,4 +66,35 @@ pub fn total() -> u32 {
 LIB_RS
 cargo check --manifest-path "$out/smoke/Cargo.toml" --target thumbv7em-none-eabihf
 
+echo "== the macro expands the table on the target =="
+# The macro is a host dependency of a crate built for the bare target, and
+# it reads its CSV relative to the invoking crate's manifest — which here
+# is the scratch directory, not the repo. Copy the definition in beside it.
+mkdir -p "$out/macro/src" "$out/macro/def"
+cp "$repo/crates/chdef/vectors/basic/ch.csv" \
+   "$repo/crates/chdef/vectors/basic/bf.csv" \
+   "$out/macro/def/"
+cat >"$out/macro/Cargo.toml" <<CARGO_TOML
+[package]
+name = "macro_smoke"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+chdef-core = { path = "$repo/crates/chdef-core" }
+chdef-macros = { path = "$repo/crates/chdef-macros" }
+
+[workspace]
+CARGO_TOML
+cat >"$out/macro/src/lib.rs" <<'LIB_RS'
+#![no_std]
+
+chdef_macros::layout!("def/ch.csv", bf = "def/bf.csv");
+
+pub fn total() -> u32 {
+    LAYOUT.total
+}
+LIB_RS
+cargo check --manifest-path "$out/macro/Cargo.toml" --target thumbv7em-none-eabihf
+
 echo "embedded smoke: ok"

@@ -33,8 +33,8 @@ name: Release
 #                    the token inside a sentence does not. Runs beside the
 #                    test matrix so it does not lengthen the path.
 # 4. publish-crates: OIDC via rust-lang/crates-io-auth-action, then
-#                    `cargo publish` for chdef-core, chdef, chdef-capi and
-#                    chdef-gen in dependency order.
+#                    `cargo publish` for chdef-core, chdef, chdef-capi,
+#                    chdef-gen and chdef-macros in dependency order.
 # 5. native:         builds the C ABI on a runner of each shipped
 #                    runtime's own OS and architecture.
 # 6. publish-nuget:  collects those libraries, packs them into the
@@ -275,9 +275,11 @@ jobs:
 
       - name: Publish the crates in dependency order
         # A version already on crates.io is skipped, so re-running a
-        # partially-failed job stays green. Each crate depends by version on
-        # one published before it, so the order matters and `cargo publish`
-        # waits for the index between them.
+        # partially-failed job stays green. Each of the five crates depends
+        # by version on one published before it — chdef on chdef-core,
+        # chdef-capi and chdef-gen on chdef, chdef-macros on chdef-gen
+        # — so the order matters and `cargo publish` waits for
+        # the index between them.
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
           VERSION: ${{ needs.guard.outputs.version }}
@@ -298,6 +300,7 @@ jobs:
           publish chdef
           publish chdef-capi
           publish chdef-gen
+          publish chdef-macros
 
   native:
     # Each runtime is built on a runner of the same OS and architecture.
